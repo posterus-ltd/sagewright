@@ -1,0 +1,106 @@
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: sage
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - '5432:5432'
+    networks:
+      - sagewright
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  control-plane:
+    build:
+      context: .
+      dockerfile: apps/control-plane-api/Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://postgres:postgres@postgres:5432/sage
+      APP_PASSWORD: ${APP_PASSWORD}
+      SESSION_SECRET: ${SESSION_SECRET}
+      # Encrypts each user's custom per-session .env blob at rest (aes-256-gcm).
+      SECRETS_KEY: ${SECRETS_KEY}
+      # Used to authenticate clones/pulls of the configured repos onto the volume.
+      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+      # Used by the control-plane's Linear integration (task source=linear).
+      LINEAR_API_KEY: ${LINEAR_API_KEY:-}
+      CONTROL_PLANE_URL: http://control-plane:3000
+      WORKER_IMAGE: sagewright-worker-opencode:latest
+      # Full compose network name (the network's `name:` below is fixed so this is
+      # stable regardless of the project directory). Worker containers are attached
+      # to this network so the `control-plane` hostname resolves for /internal/* calls.
+      WORKER_NETWORK: sagewright
+      # Named volume holding the repo clones + per-session worktrees. The spawner
+      # binds this into each worker at the SAME path (/sagewright-volume) the control-plane
+      # uses, so worktree gitdir links (absolute paths) resolve inside the worker.
+      WORKER_VOLUME: sagewright-repos
+      PORT: 3000
+    ports:
+      - '3000:3000'
+    networks:
+      - sagewright
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - sagewright-repos:/sagewright-volume
+
+  # Build-only services for worker images. Worker containers are spawned
+  # dynamically by the control-plane via the Docker socket (not run by compose),
+  # so these services exist solely so `docker compose --profile build build`
+  # bakes the host .env auth tokens into each image as build args. The `build`
+  # profile keeps `docker compose up` from trying to run them.
+  # To add a new worker, copy an existing workers/<name>/ folder, update the
+  # YOUR HARNESS block + start script, set the LABEL name/description, add a
+  # matching service here, then run `docker compose --profile build build`.
+  worker-opencode:
+    profiles: ["build"]
+    image: sagewright-worker-opencode:latest
+    build:
+      context: .
+      dockerfile: workers/opencode/Dockerfile
+      args:
+        GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+        NODE_AUTH_TOKEN: ${NODE_AUTH_TOKEN:-}
+        OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+
+  worker-claude-code:
+    profiles: ["build"]
+    image: sagewright-worker-claude-code:latest
+    build:
+      context: .
+      dockerfile: workers/claude-code/Dockerfile
+      args:
+        GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+        NODE_AUTH_TOKEN: ${NODE_AUTH_TOKEN:-}
+        ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+
+  worker-codex:
+    profiles: ["build"]
+    image: sagewright-worker-codex:latest
+    build:
+      context: .
+      dockerfile: workers/codex/Dockerfile
+      args:
+        GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+        NODE_AUTH_TOKEN: ${NODE_AUTH_TOKEN:-}
+        OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+
+networks:
+  sagewright:
+    name: sagewright
+
+volumes:
+  pgdata: {}
+  # Shared across the control-plane and every worker. Workers attach it via the
+  # spawner's HostConfig.Binds (compose can't, since workers aren't compose services).
+  sagewright-repos:
+    name: sagewright-repos

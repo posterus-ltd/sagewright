@@ -1,0 +1,41 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+build/
+
+# nx cache and generated files
+.nx/cache
+.nx/workspace-data
+.nx/self-healing
+.nx/migrate-runs
+.nx/polygraph
+.nx/installation
+
+# Temp files
+tmp/
+
+# Coverage output
+coverage/
+.nyc_output/
+
+# Environment files (keep .env.example)
+.env
+.env.local
+.env.*.local
+
+# Claude Code local settings
+.claude/worktrees
+.claude/settings.local.json
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+vite.config.*.timestamp*
+vitest.config.*.timestamp*

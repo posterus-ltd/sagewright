@@ -1,0 +1,81 @@
+import { bigint, boolean, jsonb, pgTable, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
+
+export const repos = pgTable('repos', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  // = displayName today; becomes a real user id once SSO lands. Repos are per-user:
+  // each user has their own list. The physical clone at <vol>/repos/<slug> is shared
+  // (deduped by slug) across users who configure the same repo.
+  userKey: text('user_key').notNull(),
+  url: text('url').notNull(),
+  slug: text('slug').notNull(),
+  defaultBranch: text('default_branch'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({ userSlugIdx: uniqueIndex('repos_user_key_slug_idx').on(t.userKey, t.slug) }));
+
+export const scheduledPrompts = pgTable('scheduled_prompts', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  cron: text('cron').notNull(),
+  prompt: text('prompt').notNull(),
+  enabled: boolean('enabled').notNull().default(true),
+  createdBy: text('created_by').notNull(),
+  workerImage: text('worker_image'),
+  lastRunAt: timestamp('last_run_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const tasks = pgTable('tasks', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  mode: text('mode').notNull().default('interactive'),
+  name: text('name'),
+  prompt: text('prompt'),
+  status: text('status').notNull().default('queued'),
+  branch: text('branch'),
+  prUrl: text('pr_url'),
+  createdBy: text('created_by').notNull(),
+  containerId: text('container_id'),
+  workerTokenHash: text('worker_token_hash'),
+  scheduledPromptId: uuid('scheduled_prompt_id').references(() => scheduledPrompts.id, { onDelete: 'set null' }),
+  archivedAt: timestamp('archived_at', { withTimezone: true }),
+  workerImage: text('worker_image'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const events = pgTable('events', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  taskId: uuid('task_id').notNull().references(() => tasks.id),
+  seq: bigint('seq', { mode: 'number' }).notNull(),
+  type: text('type').notNull(),
+  payload: jsonb('payload').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({ taskSeqIdx: uniqueIndex('events_task_seq_idx').on(t.taskId, t.seq) }));
+
+export const userEnvs = pgTable('user_envs', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  // = displayName today; becomes a real user id once SSO lands. One blob per user.
+  userKey: text('user_key').notNull().unique(),
+  envEncrypted: text('env_encrypted').notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const canvasLayouts = pgTable('canvas_layouts', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  // = displayName today; becomes a real user id once SSO lands. One layout per user.
+  userKey: text('user_key').notNull().unique(),
+  layout: jsonb('layout').notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const userSettings = pgTable('user_settings', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userKey: text('user_key').notNull().unique(),
+  defaultWorkerImage: text('default_worker_image'),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const inboundMessages = pgTable('inbound_messages', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  taskId: uuid('task_id').notNull().references(() => tasks.id),
+  body: text('body').notNull(),
+  consumedAt: timestamp('consumed_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});

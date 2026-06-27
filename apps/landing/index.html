@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Sagewright — a fleet of agents that reason &amp; build</title>
+    <meta
+      name="description"
+      content="Run multiple coding agents at once without juggling terminals. Sagewright's control plane runs in your browser, on any device, with full session persistence."
+    />
+    <base href="/" />
+
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+
+    <!-- Apply the visitor's pinned theme before first paint to avoid a flash.
+         Key + values mirror src/app/use-theme.ts. -->
+    <script>
+      (function () {
+        try {
+          var t = localStorage.getItem('sagewright:theme');
+          if (t === 'light' || t === 'dark') {
+            document.documentElement.setAttribute('data-theme', t);
+          }
+        } catch (e) {}
+      })();
+    </script>
+
+    <link rel="stylesheet" href="/src/styles.css" />
+
+    <!-- https://vibesmonitor.com script -->
+    <script
+      id="vibesmonitor-script"
+      data-project-id="244ad1f4-6315-419e-85da-4da6c1dd67a8"
+      src="https://vibesmonitor.com/script/v1/vibesmonitor.js"
+      type="text/javascript"
+      defer
+    ></script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

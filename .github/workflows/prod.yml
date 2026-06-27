@@ -1,0 +1,38 @@
+name: CI-PROD
+
+env:
+  S3_BUCKET: 'sagewright'
+  DISTRIBUTION_ID: 'EDV51R5UYPSQU'
+  AWS_DEFAULT_REGION: eu-central-1
+  AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+  AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+  NX_VERBOSE_LOGGING: true
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        node-version: [24.x]
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+      - run: npm ci
+      - run: npm run build
+      - run: aws s3 sync ./dist/apps/landing s3://${{ env.S3_BUCKET }}/ --no-progress --acl public-read --follow-symlinks --delete
+      - run: aws s3 cp ./dist/apps/landing/index.html s3://${{ env.S3_BUCKET }}/index.html --no-progress --acl public-read --cache-control no-cache
+
+  invalidate-cache:
+    runs-on: ubuntu-latest
+    needs: [build]
+    steps:
+      - run: aws cloudfront create-invalidation --distribution-id ${{ env.DISTRIBUTION_ID }} --paths "/*"

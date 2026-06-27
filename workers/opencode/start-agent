@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+# ─────────────────────────────────────────────────────────────────────────────
+# Predefined agent start script.
+#
+# The control plane runs THIS over `docker exec` to launch the agent for a
+# headless task. Its one job: start the harness you installed in worker/Dockerfile
+# against "$PROMPT" in the current working directory, in the foreground, and exit
+# when the agent is done. The exit code decides the task outcome (0 → DONE).
+# Everything the agent prints is streamed back as the live transcript.
+#
+# Swapping harness? Change the launch line at the bottom to start your harness,
+# and update the install steps in worker/Dockerfile. Nothing in the control plane
+# changes — it only knows "run this script".
+# ─────────────────────────────────────────────────────────────────────────────
+set -euo pipefail
+
+PROMPT_TEXT="${PROMPT:-}"
+
+# Prepend the baked alignment / system prompt, if present.
+SOUL_FILE="/etc/sagewright/SOUL.md"
+if [ -f "$SOUL_FILE" ]; then
+  PROMPT_TEXT="$(cat "$SOUL_FILE")
+
+${PROMPT_TEXT}"
+fi
+
+# Default harness: opencode. `opencode run` executes one task to completion and
+# prints its work to the terminal (which the control plane records as the transcript).
+exec opencode run "$PROMPT_TEXT"

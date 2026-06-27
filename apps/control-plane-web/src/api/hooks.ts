@@ -1,0 +1,151 @@
+import {
+  type CanvasLayout,
+  type CreateScheduledPromptInput,
+  type CreateTaskInput,
+  type RepoWithStatus,
+  type ScheduledPrompt,
+  type Task,
+  type WorkerImage,
+} from '@sagewright/shared';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+
+import { apiClient } from './client';
+
+export const useWorkers = () =>
+  useQuery({
+    queryKey: ['workers'],
+    queryFn: () => apiClient.get<{ workers: WorkerImage[]; defaultImage: string | null }>('/api/workers'),
+  });
+
+export const useSetDefaultWorker = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (image: string) => apiClient.put('/api/settings/default-worker', { image }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['workers'] }),
+  });
+};
+
+export const useTasks = (mine: boolean) =>
+  useQuery({ queryKey: ['tasks', mine], queryFn: () => apiClient.get<Task[]>(`/api/tasks${mine ? '?mine=1' : ''}`), refetchInterval: 5000 });
+
+export const useTask = (id: string) =>
+  useQuery({ queryKey: ['task', id], queryFn: () => apiClient.get<Task>(`/api/tasks/${id}`) });
+
+// Repos carry live reconcile status; poll faster while any clone is in flight.
+export const useRepos = () =>
+  useQuery({
+    queryKey: ['repos'],
+    queryFn: () => apiClient.get<RepoWithStatus[]>('/api/repos'),
+    refetchInterval: (query) => (query.state.data?.some((r) => r.status === 'cloning') ? 2000 : false),
+  });
+
+export const useSaveRepos = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (urls: string[]) => apiClient.put<RepoWithStatus[]>('/api/repos', { urls }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['repos'] }),
+  });
+};
+
+export const useCreateSession = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: CreateTaskInput = {}) => apiClient.post<Task>('/api/tasks', input),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['tasks'] }),
+  });
+};
+
+export const useUpdateTask = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, name }: { id: string; name: string | null }) =>
+      apiClient.patch<Task>(`/api/tasks/${id}`, { name }),
+    onSuccess: (task) => {
+      qc.setQueryData(['task', task.id], task);
+      void qc.invalidateQueries({ queryKey: ['tasks'] });
+    },
+  });
+};
+
+export const useStopTask = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => apiClient.post(`/api/tasks/${id}/stop`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['tasks'] }),
+  });
+};
+
+export const useArchiveTask = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => apiClient.post(`/api/tasks/${id}/archive`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['tasks'] }),
+  });
+};
+
+export const useDeleteTask = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => apiClient.del(`/api/tasks/${id}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['tasks'] }),
+  });
+};
+
+export const useSendMessage = (id: string) =>
+  useMutation({ mutationFn: (body: string) => apiClient.post(`/api/tasks/${id}/messages`, { body }) });
+
+// The user's canvas arrangement (session placements + viewport). Served as an
+// empty layout when nothing is stored, so the query never 404s.
+export const useCanvasLayout = () =>
+  useQuery({ queryKey: ['canvas-layout'], queryFn: () => apiClient.get<CanvasLayout>('/api/canvas-layout') });
+
+export const useUpdateCanvasLayout = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (layout: CanvasLayout) => apiClient.put('/api/canvas-layout', layout),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['canvas-layout'] }),
+  });
+};
+
+export const useScheduledPrompts = () =>
+  useQuery({ queryKey: ['scheduled-prompts'], queryFn: () => apiClient.get<ScheduledPrompt[]>('/api/scheduled-prompts') });
+
+export const useCreateScheduledPrompt = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: CreateScheduledPromptInput) => apiClient.post<ScheduledPrompt>('/api/scheduled-prompts', input),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['scheduled-prompts'] }),
+  });
+};
+
+export const useUpdateScheduledPrompt = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...patch }: { id: string } & Partial<CreateScheduledPromptInput>) =>
+      apiClient.put<ScheduledPrompt>(`/api/scheduled-prompts/${id}`, patch),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['scheduled-prompts'] }),
+  });
+};
+
+export const useDeleteScheduledPrompt = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => apiClient.del(`/api/scheduled-prompts/${id}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['scheduled-prompts'] }),
+  });
+};
+
+// The per-user custom .env. The list view is masked; reveal is fetched on demand
+// (not cached) so plaintext secrets only travel when the user explicitly asks.
+export const useUserEnv = () =>
+  useQuery({ queryKey: ['user-env'], queryFn: () => apiClient.get<{ env: string }>('/api/user-env') });
+
+export const revealUserEnv = () => apiClient.get<{ env: string }>('/api/user-env/reveal');
+
+export const useUpdateUserEnv = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (env: string) => apiClient.put('/api/user-env', { env }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['user-env'] }),
+  });
+};
