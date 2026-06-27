@@ -222,6 +222,11 @@ the web UI (**Settings**) and only affect that user's own sessions.
 
 ### Environment variables
 
+**Rule of thumb:** configure **org-wide environment variables in the worker `Dockerfile`** (baked
+into the image so every session, for every user, gets them); let each user add **personal overrides
+in the control plane** (**Settings → Environment**), which apply only to their own sessions and take
+effect at runtime with no rebuild.
+
 | Layer                    | Where it's set                                                       | Scope                     | When it applies                                  |
 | ------------------------ | ------------------------------------------------------------------- | ------------------------- | ------------------------------------------------ |
 | **Global / org default** | Host `.env`, baked into the worker image as a build arg             | Every session, every user | Build time — rebuild the image to change it      |
