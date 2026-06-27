@@ -10,6 +10,13 @@ const fakeUserSettingsService = () => ({
   setDefaultWorker: async () => {},
 });
 
+const fakeGithubCredentialService = (token?: string) => ({
+  resolve: async () => token ? { token, login: 'octo', name: 'Octo Cat', email: 'octo@example.com' } : undefined,
+  validateAndStore: async () => ({ identity: { login: 'octo', name: null, email: 'octo@example.com' }, scopes: ['repo'], missingRepoScope: false }),
+  getStatus: async () => ({ connected: false as const }),
+  disconnect: async () => {},
+});
+
 describe('task routes', () => {
   it('creates an interactive session and spawns a worker', async () => {
     const spawn = vi.fn(async () => ({ containerId: 'c1' }));
@@ -24,6 +31,7 @@ describe('task routes', () => {
       volume: fakeVolume({ addSessionWorktrees }),
       config: {} as never,
       userEnvService: { get: async () => '' } as never,
+      githubCredentialService: fakeGithubCredentialService() as never,
       agentRunner: { run: vi.fn(async () => {}) } as never,
       userSettingsService: fakeUserSettingsService() as never,
       workerRegistry: fakeWorkerRegistry(),
@@ -35,6 +43,31 @@ describe('task routes', () => {
     expect(task.prompt).toBeNull();
     expect(addSessionWorktrees).toHaveBeenCalledOnce();
     expect(spawn).toHaveBeenCalledOnce();
+  });
+
+  it('uses the resolved GitHub credential for worktrees and worker env', async () => {
+    const spawn = vi.fn(async () => ({ containerId: 'c1' }));
+    const addSessionWorktrees = vi.fn(async () => []);
+    const { db } = await makeTestApp();
+
+    const service = createTaskService({
+      db: db as never,
+      eventStore: { append: vi.fn(async () => []), readSince: vi.fn() } as never,
+      eventBus: { publish: vi.fn(), subscribe: vi.fn() } as never,
+      spawner: { spawn, retire: vi.fn() } as never,
+      volume: fakeVolume({ addSessionWorktrees }),
+      config: {} as never,
+      userEnvService: { get: async () => 'GITHUB_TOKEN=legacy\nOTHER=ok' } as never,
+      githubCredentialService: fakeGithubCredentialService('resolved-token') as never,
+      agentRunner: { run: vi.fn(async () => {}) } as never,
+      userSettingsService: fakeUserSettingsService() as never,
+      workerRegistry: fakeWorkerRegistry(),
+    });
+
+    await service.create({}, 'al');
+
+    expect(addSessionWorktrees).toHaveBeenCalledWith(expect.any(String), [], 'resolved-token');
+    expect(spawn.mock.calls[0][0].userEnv).toMatchObject({ GITHUB_TOKEN: 'resolved-token', OTHER: 'ok' });
   });
 
   it('creates a headless task from the scheduler with a prompt', async () => {
@@ -52,6 +85,7 @@ describe('task routes', () => {
       volume: fakeVolume(),
       config: {} as never,
       userEnvService: { get: async () => '' } as never,
+      githubCredentialService: fakeGithubCredentialService() as never,
       agentRunner: { run: vi.fn(async () => {}) } as never,
       userSettingsService: fakeUserSettingsService() as never,
       workerRegistry: fakeWorkerRegistry(),
@@ -80,6 +114,7 @@ describe('task routes', () => {
       volume: fakeVolume({ removeSessionWorktrees }),
       config: {} as never,
       userEnvService: { get: async () => '' } as never,
+      githubCredentialService: fakeGithubCredentialService() as never,
       agentRunner: { run: vi.fn(async () => {}) } as never,
       userSettingsService: fakeUserSettingsService() as never,
       workerRegistry: fakeWorkerRegistry(),
@@ -107,6 +142,7 @@ describe('task routes', () => {
       volume: fakeVolume(),
       config: {} as never,
       userEnvService: { get: async () => '' } as never,
+      githubCredentialService: fakeGithubCredentialService() as never,
       agentRunner: { run: vi.fn(async () => {}) } as never,
       userSettingsService: fakeUserSettingsService() as never,
       workerRegistry: fakeWorkerRegistry(),
@@ -134,6 +170,7 @@ describe('task routes', () => {
       volume: fakeVolume({ removeSessionWorktrees }),
       config: {} as never,
       userEnvService: { get: async () => '' } as never,
+      githubCredentialService: fakeGithubCredentialService() as never,
       agentRunner: { run: vi.fn(async () => {}) } as never,
       userSettingsService: fakeUserSettingsService() as never,
       workerRegistry: fakeWorkerRegistry(),

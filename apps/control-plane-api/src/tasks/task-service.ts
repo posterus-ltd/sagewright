@@ -12,6 +12,7 @@ import type { UserEnvService } from '../user-env/user-env-service';
 import type { UserSettingsService } from '../user-settings/user-settings-service';
 import type { WorkerRegistry } from '../workers/worker-registry';
 import type { Volume } from '../git/volume';
+import type { GithubCredentialService } from '../github/github-credential-service';
 
 interface TaskServiceDeps {
   db: Db;
@@ -22,6 +23,7 @@ interface TaskServiceDeps {
   volume: Volume;
   config: AppConfig;
   userEnvService: UserEnvService;
+  githubCredentialService: GithubCredentialService;
   userSettingsService: UserSettingsService;
   workerRegistry: WorkerRegistry;
 }
@@ -103,9 +105,11 @@ export const createTaskService = (deps: TaskServiceDeps) => {
       }
 
       // The requester's stored env overrides the worker's baked secrets AND the
-      // control plane's own git auth, so resolve it before cloning their repos —
-      // their GITHUB_TOKEN authenticates the clone/pull onto the shared volume.
+      // worker image defaults. GitHub auth is resolved structurally so the same
+      // user credential drives control-plane git, worker git/gh, and PR commits.
       const userEnv = await resolveUserEnv(deps.userEnvService, createdBy);
+      const githubCredential = await deps.githubCredentialService.resolve(createdBy);
+      if (githubCredential) userEnv.GITHUB_TOKEN = githubCredential.token;
 
       // Clone/pull the creator's configured repos onto the shared volume and create
       // this session's per-repo worktrees, then spawn the worker pointing at them.
@@ -113,7 +117,7 @@ export const createTaskService = (deps: TaskServiceDeps) => {
       const manifest = await deps.volume.addSessionWorktrees(
         row.id,
         configured.map((r) => ({ url: r.url, slug: r.slug })),
-        userEnv.GITHUB_TOKEN,
+        githubCredential?.token,
       );
       ({ containerId } = await deps.spawner.spawn({
         taskId: row.id,
@@ -131,7 +135,7 @@ export const createTaskService = (deps: TaskServiceDeps) => {
         // The box is up; drive the agent over `docker exec` and stream it as the transcript.
         // Fire-and-forget: the run owns its own status/PR events; surface a crash as FAILED.
         void deps.agentRunner
-          .run({ taskId: row.id, containerId, manifest, sessionDir: sessionDir(row.id) })
+          .run({ taskId: row.id, containerId, manifest, sessionDir: sessionDir(row.id), githubIdentity: githubCredential })
           .catch(async (err) => {
             await emit(row.id, [
               { type: EventType.ERROR, payload: { message: String(err) } },

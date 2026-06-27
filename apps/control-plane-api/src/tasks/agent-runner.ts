@@ -7,6 +7,7 @@ import type { EventStore } from '../events/event-store';
 import type { EventBus } from '../events/event-bus';
 import type { ContainerExec } from './docker-client';
 import { pushAndOpenPrs } from './git-pr';
+import type { GithubIdentity } from '../github/github-credential-service';
 
 /** Fixed path the worker image installs its harness launcher to (see worker/Dockerfile). */
 export const START_SCRIPT = '/usr/local/bin/start-agent';
@@ -24,6 +25,7 @@ interface RunInput {
   containerId: string;
   manifest: RepoManifestEntry[];
   sessionDir: string;
+  githubIdentity?: GithubIdentity;
 }
 
 interface AgentRunnerDeps {
@@ -132,7 +134,7 @@ export const createAgentRunner = (deps: AgentRunnerDeps) => {
       }
 
       await emit([{ type: EventType.STATUS, payload: { status: TaskStatus.PUSHING } }]);
-      await pushAndOpenPrs({ exec: deps.exec, containerId, taskId, manifest, emit });
+      await pushAndOpenPrs({ exec: deps.exec, containerId, taskId, manifest, identity: input.githubIdentity, emit });
       await emit([{ type: EventType.STATUS, payload: { status: TaskStatus.DONE } }]);
     } catch (err) {
       await emit([

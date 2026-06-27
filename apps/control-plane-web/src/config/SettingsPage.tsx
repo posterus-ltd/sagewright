@@ -6,20 +6,25 @@ import {
   List,
   ListItem,
   ListItemText,
+  Alert,
   MenuItem,
   Stack,
   TextField,
   Typography,
 } from '@mui/material';
+import DeleteIcon from '@mui/icons-material/Delete';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
 import type { RepoStatus } from '@sagewright/shared';
 import { useEffect, useState, type FC } from 'react';
 
 import {
+  useDisconnectGithub,
+  useGithubStatus,
   revealUserEnv,
   useRepos,
   useSaveRepos,
+  useSaveGithubToken,
   useSetDefaultWorker,
   useUpdateUserEnv,
   useUserEnv,
@@ -33,6 +38,62 @@ Use HTTPS URLs, not SSH syntax like git@github.com:owner/repo.git`;
 
 const statusColor = (s: RepoStatus): 'success' | 'warning' | 'error' =>
   s === 'present' ? 'success' : s === 'cloning' ? 'warning' : 'error';
+
+const GithubSection: FC = () => {
+  const { data: status } = useGithubStatus();
+  const saveToken = useSaveGithubToken();
+  const disconnect = useDisconnectGithub();
+  const [token, setToken] = useState('');
+
+  const save = async (): Promise<void> => {
+    await saveToken.mutateAsync(token);
+    setToken('');
+  };
+
+  return (
+    <Box sx={{ maxWidth: 560 }}>
+      <Typography variant="h6" gutterBottom>GitHub</Typography>
+      <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+        Connect a classic GitHub token so Sagewright clones, pushes, opens PRs, and commits as you on
+        repos you can access.
+      </Typography>
+      {status?.connected ? (
+        <Stack spacing={1}>
+          <Stack direction="row" spacing={1} alignItems="center">
+            <Chip size="small" color="success" label={`Connected as @${status.login}`} />
+            <Typography variant="body2" color="text.secondary">{status.email}</Typography>
+          </Stack>
+          {status.missingRepoScope && (
+            <Alert severity="warning">This token is missing the classic repo scope.</Alert>
+          )}
+          <Button
+            variant="outlined"
+            color="error"
+            startIcon={<DeleteIcon />}
+            onClick={() => { void disconnect.mutateAsync(); }}
+            disabled={disconnect.isPending}
+          >
+            Disconnect
+          </Button>
+        </Stack>
+      ) : (
+        <Stack spacing={1}>
+          <TextField
+            fullWidth
+            type="password"
+            label="Classic personal access token"
+            value={token}
+            onChange={(e) => setToken(e.target.value)}
+            autoComplete="off"
+          />
+          <Button variant="contained" onClick={save} disabled={!token.trim() || saveToken.isPending}>
+            Save token
+          </Button>
+        </Stack>
+      )}
+    </Box>
+  );
+};
 
 const ReposSection: FC = () => {
   const { data: repos = [] } = useRepos();
@@ -178,6 +239,8 @@ const WorkerSection: FC = () => {
 
 export const SettingsPage: FC = () => (
   <Stack spacing={3}>
+    <GithubSection />
+    <Divider />
     <ReposSection />
     <Divider />
     <EnvironmentSection />

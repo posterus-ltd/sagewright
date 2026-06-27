@@ -3,13 +3,13 @@ import type { RepoWithStatus } from '@sagewright/shared';
 
 import type { Db } from '../db/client';
 import type { Volume } from '../git/volume';
-import type { UserEnvService } from '../user-env/user-env-service';
+import type { GithubCredentialService } from '../github/github-credential-service';
 import { repos } from '../db/schema';
 
 interface RepoServiceDeps {
   db: Db;
   volume: Volume;
-  userEnvService: UserEnvService;
+  githubCredentialService: GithubCredentialService;
 }
 
 /**
@@ -74,9 +74,9 @@ export const createRepoService = (deps: RepoServiceDeps) => {
       }
 
       // Kick off clone/pull in the background; the UI polls GET /api/repos for status.
-      // Authenticate with the user's own GITHUB_TOKEN override when set, so private
-      // repos the operator token can't reach still clone on the control plane.
-      const token = await deps.userEnvService.getValue(userKey, 'GITHUB_TOKEN');
+      // Authenticate with the user's GitHub credential when set, with legacy/operator
+      // fallbacks centralized in the credential service.
+      const token = (await deps.githubCredentialService.resolve(userKey))?.token;
       deps.volume.reconcile([...desired].map(([slug, url]) => ({ slug, url })), token);
 
       const rows = await listRows(userKey);

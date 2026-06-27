@@ -14,6 +14,7 @@ import { createRepoService } from '../repos/repo-service';
 import { createTaskService } from '../tasks/task-service';
 import type { SpawnInput } from '../tasks/worker-spawner';
 import { createUserEnvService } from '../user-env/user-env-service';
+import { createGithubCredentialService } from '../github/github-credential-service';
 import { createUserSettingsService } from '../user-settings/user-settings-service';
 import { createCanvasLayoutService } from '../canvas-layout/canvas-layout-service';
 import type { WorkerRegistry } from '../workers/worker-registry';
@@ -77,6 +78,17 @@ const TABLE_STMTS = [
     "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
     "user_key" text NOT NULL UNIQUE,
     "env_encrypted" text NOT NULL,
+    "updated_at" timestamp with time zone DEFAULT now() NOT NULL
+  )`,
+  `CREATE TABLE "github_credentials" (
+    "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+    "user_key" text NOT NULL UNIQUE,
+    "token_encrypted" text NOT NULL,
+    "source" text NOT NULL,
+    "login" text NOT NULL,
+    "name" text,
+    "email" text NOT NULL,
+    "scopes" jsonb DEFAULT '[]'::jsonb NOT NULL,
     "updated_at" timestamp with time zone DEFAULT now() NOT NULL
   )`,
   `CREATE TABLE "canvas_layouts" (
@@ -222,6 +234,12 @@ export const makeTestApp = async (
     db: db as never,
     cipher: createSecretCipher(config.secretsKey),
   });
+  const githubCredentialService = overrides.githubCredentialService ?? createGithubCredentialService({
+    db: db as never,
+    cipher: createSecretCipher(config.secretsKey),
+    config,
+    userEnvService,
+  });
 
   const userSettingsService = createUserSettingsService({ db: db as never });
 
@@ -229,7 +247,11 @@ export const makeTestApp = async (
 
   // Repo service shares whichever volume the app uses, so suites that override the
   // volume (e.g. to spy on removeRepo) see the service drive that same instance.
-  const repoService = overrides.repoService ?? createRepoService({ db: db as never, volume: overrides.volume ?? defaultVolume, userEnvService });
+  const repoService = overrides.repoService ?? createRepoService({
+    db: db as never,
+    volume: overrides.volume ?? defaultVolume,
+    githubCredentialService,
+  });
 
   // No-op agent runner — headless drive is exercised in agent-runner's own unit tests.
   const defaultAgentRunner = { run: async () => {} };
@@ -244,6 +266,7 @@ export const makeTestApp = async (
     volume: defaultVolume,
     config,
     userEnvService,
+    githubCredentialService,
     userSettingsService,
     workerRegistry,
   });
@@ -263,6 +286,7 @@ export const makeTestApp = async (
     taskService: defaultTaskService,
     repoService,
     userEnvService,
+    githubCredentialService,
     userSettingsService,
     canvasLayoutService,
     containerTerminal: defaultContainerTerminal,

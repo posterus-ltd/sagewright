@@ -8,6 +8,7 @@ import { createScheduler } from './scheduled-prompts/scheduler';
 import { createRepoService } from './repos/repo-service';
 import { createTaskService } from './tasks/task-service';
 import { createUserEnvService } from './user-env/user-env-service';
+import { createGithubCredentialService } from './github/github-credential-service';
 import { createCanvasLayoutService } from './canvas-layout/canvas-layout-service';
 import { createWorkerSpawner } from './tasks/worker-spawner';
 import { createDockerClient, createContainerTerminal, createContainerExec } from './tasks/docker-client';
@@ -30,14 +31,15 @@ const agentRunner = createAgentRunner({ db, eventStore, eventBus, exec: containe
 // Owns the shared repo volume: all clone/pull/worktree writes funnel through here.
 const volume = createVolume({ token: config.githubToken });
 const userEnvService = createUserEnvService({ db, cipher: createSecretCipher(config.secretsKey) });
-const repoService = createRepoService({ db, volume, userEnvService });
+const githubCredentialService = createGithubCredentialService({ db, cipher: createSecretCipher(config.secretsKey), config, userEnvService });
+const repoService = createRepoService({ db, volume, githubCredentialService });
 const canvasLayoutService = createCanvasLayoutService({ db });
 const userSettingsService = createUserSettingsService({ db });
 const workerRegistry = createWorkerRegistry({ docker });
-const taskService = createTaskService({ db, eventStore, eventBus, spawner, agentRunner, volume, config, userEnvService, userSettingsService, workerRegistry });
+const taskService = createTaskService({ db, eventStore, eventBus, spawner, agentRunner, volume, config, userEnvService, githubCredentialService, userSettingsService, workerRegistry });
 const scheduler = createScheduler({ db, taskService });
 
-const app = buildApp({ config, db, eventStore, eventBus, taskService, repoService, userEnvService, userSettingsService, canvasLayoutService, containerTerminal, volume, scheduler, workerRegistry });
+const app = buildApp({ config, db, eventStore, eventBus, taskService, repoService, userEnvService, githubCredentialService, userSettingsService, canvasLayoutService, containerTerminal, volume, scheduler, workerRegistry });
 
 // The scheduler is built before the app (the app depends on it), so hand it the
 // Fastify logger now that the app exists — failed scheduled runs go to the app log.

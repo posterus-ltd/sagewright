@@ -92,6 +92,13 @@
       "when": 1782600000000,
       "tag": "0012_stop_status_rename",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1782603600000,
+      "tag": "0013_add_github_credentials",
+      "breakpoints": true
     }
   ]
 }

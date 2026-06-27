@@ -22,6 +22,7 @@ import { registerUserEnvRoutes } from './user-env/user-env-routes';
 import { registerUserSettingsRoutes } from './user-settings/user-settings-routes';
 import { registerWorkerRoutes } from './workers/worker-routes';
 import { registerCanvasLayoutRoutes } from './canvas-layout/canvas-layout-routes';
+import { registerGithubRoutes } from './github/github-routes';
 import type { RepoService } from './repos/repo-service';
 import type { TaskService } from './tasks/task-service';
 import type { UserEnvService } from './user-env/user-env-service';
@@ -29,6 +30,7 @@ import type { UserSettingsService } from './user-settings/user-settings-service'
 import type { CanvasLayoutService } from './canvas-layout/canvas-layout-service';
 import type { ContainerTerminal } from './tasks/docker-client';
 import type { WorkerRegistry } from './workers/worker-registry';
+import type { GithubCredentialService } from './github/github-credential-service';
 
 export interface AppDeps {
   config: AppConfig;
@@ -38,6 +40,7 @@ export interface AppDeps {
   taskService: TaskService;
   repoService: RepoService;
   userEnvService: UserEnvService;
+  githubCredentialService: GithubCredentialService;
   userSettingsService: UserSettingsService;
   canvasLayoutService: CanvasLayoutService;
   containerTerminal: ContainerTerminal;
@@ -74,6 +77,7 @@ export const buildApp = (deps: AppDeps): FastifyInstance => {
   registerScheduledPromptRoutes(app, deps);
   registerTaskRoutes(app, deps);
   registerUserEnvRoutes(app, deps);
+  registerGithubRoutes(app, deps);
   registerUserSettingsRoutes(app, deps);
   registerWorkerRoutes(app, deps);
   registerCanvasLayoutRoutes(app, deps);

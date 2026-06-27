@@ -57,6 +57,19 @@ export const userEnvs = pgTable('user_envs', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
+export const githubCredentials = pgTable('github_credentials', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  // = displayName today; becomes a real user id once SSO lands. One credential per user.
+  userKey: text('user_key').notNull().unique(),
+  tokenEncrypted: text('token_encrypted').notNull(),
+  source: text('source').notNull(),
+  login: text('login').notNull(),
+  name: text('name'),
+  email: text('email').notNull(),
+  scopes: jsonb('scopes').$type<string[]>().notNull().default([]),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const canvasLayouts = pgTable('canvas_layouts', {
   id: uuid('id').primaryKey().defaultRandom(),
   // = displayName today; becomes a real user id once SSO lands. One layout per user.

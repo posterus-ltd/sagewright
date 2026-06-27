@@ -15,9 +15,17 @@ describe('pushAndOpenPrs', () => {
     });
     const emit = vi.fn(async () => {});
 
-    await pushAndOpenPrs({ exec: { capture } as never, containerId: 'c1', taskId: 't1', manifest, emit });
+    await pushAndOpenPrs({
+      exec: { capture } as never,
+      containerId: 'c1',
+      taskId: 't1',
+      manifest,
+      identity: { login: 'octo', name: 'Octo Cat', email: 'octo@example.com' },
+      emit,
+    });
 
     const cmds = capture.mock.calls.map((c) => (c[1] as { cmd: string[] }).cmd.join(' '));
+    expect(cmds).toContain('git -c user.name=Octo Cat -c user.email=octo@example.com commit -m Sagewright changes for t1');
     expect(cmds).toContain('git push -u origin task/t1');
     expect(emit).toHaveBeenCalledWith([
       { type: EventType.PR_OPENED, payload: { url: 'https://github.com/a/b/pull/1', repo: 'a-b' } },

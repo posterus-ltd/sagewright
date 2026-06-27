@@ -11,6 +11,19 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { apiClient } from './client';
 
+export type GithubStatus =
+  | { connected: false }
+  | {
+      connected: true;
+      source: 'pat' | 'oauth';
+      login: string;
+      name: string | null;
+      email: string;
+      scopes: string[];
+      missingRepoScope: boolean;
+      updatedAt: string;
+    };
+
 export const useWorkers = () =>
   useQuery({
     queryKey: ['workers'],
@@ -44,6 +57,25 @@ export const useSaveRepos = () => {
   return useMutation({
     mutationFn: (urls: string[]) => apiClient.put<RepoWithStatus[]>('/api/repos', { urls }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['repos'] }),
+  });
+};
+
+export const useGithubStatus = () =>
+  useQuery({ queryKey: ['github-status'], queryFn: () => apiClient.get<GithubStatus>('/api/github/status') });
+
+export const useSaveGithubToken = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (token: string) => apiClient.put('/api/github/token', { token }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['github-status'] }),
+  });
+};
+
+export const useDisconnectGithub = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => apiClient.del('/api/github'),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['github-status'] }),
   });
 };
 
