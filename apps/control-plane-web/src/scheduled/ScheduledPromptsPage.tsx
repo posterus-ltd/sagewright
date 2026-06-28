@@ -199,7 +199,7 @@ export const ScheduledPromptsPage: FC = () => {
           title="Scheduled tasks"
           actions={
             <Button variant="contained" onClick={() => setEditing('new')}>
-              Schedule a task
+              New Task
             </Button>
           }
         />

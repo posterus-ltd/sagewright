@@ -226,19 +226,9 @@ export const SessionPanel: FC<{
           <Tab value="transcript" label="Transcript" sx={sessionTabSx} />
         )}
         {!headless && (
-          <Tab
-            value="agent"
-            label="Agent"
-            disabled={!live}
-            sx={sessionTabSx}
-          />
+          <Tab value="agent" label="Agent" disabled={!live} sx={sessionTabSx} />
         )}
-        <Tab
-          value="shell"
-          label="Shell"
-          disabled={!live}
-          sx={sessionTabSx}
-        />
+        <Tab value="shell" label="Shell" disabled={!live} sx={sessionTabSx} />
         <Tab value="log" label="Log" sx={sessionTabSx} />
       </Tabs>
 
