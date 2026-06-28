@@ -142,7 +142,8 @@ const ReposSection: FC = () => {
   );
 };
 
-const ENV_PLACEHOLDER = `GITHUB_TOKEN=ghp_your_token
+const ENV_PLACEHOLDER = `OPENAI_API_KEY=sk-...
+NPM_TOKEN=...
 NODE_AUTH_TOKEN=...`;
 
 const EnvironmentSection: FC = () => {
@@ -175,8 +176,8 @@ const EnvironmentSection: FC = () => {
       <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
         A custom <code>.env</code> injected into your sessions at runtime and encrypted at rest.
         These override the org-wide defaults baked into the worker image from the host{' '}
-        <code>.env</code> — e.g. set your own <code>GITHUB_TOKEN</code> so commits and PRs are
-        attributed to you.
+        <code>.env</code> — e.g. add API keys or registry tokens your sessions need. GitHub
+        credentials are managed above via your personal access token.
       </Typography>
       <TextField
         fullWidth
