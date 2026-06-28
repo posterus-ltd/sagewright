@@ -157,14 +157,13 @@ describe('SessionPanel', () => {
 
     render(<SessionPanel taskId="t1" />, { wrapper });
 
-    const enter = await screen.findByRole('button', { name: /enter fullscreen/i });
-    fireEvent.click(enter);
+    const fullscreen = await screen.findByRole('button', { name: /^fullscreen$/i });
+    fireEvent.click(fullscreen);
 
-    // Once expanded the control flips to its exit affordance.
-    const exit = await screen.findByRole('button', { name: /exit fullscreen/i });
-    fireEvent.click(exit);
+    const stillFullscreen = await screen.findByRole('button', { name: /^fullscreen$/i });
+    fireEvent.click(stillFullscreen);
 
-    expect(await screen.findByRole('button', { name: /enter fullscreen/i })).toBeTruthy();
+    expect(await screen.findByRole('button', { name: /^fullscreen$/i })).toBeTruthy();
   });
 
   it('hides the fullscreen control in compact (widget) mode', async () => {

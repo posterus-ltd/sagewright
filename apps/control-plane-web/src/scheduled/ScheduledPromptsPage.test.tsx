@@ -8,13 +8,16 @@ import {
   absoluteNextRun,
   relativeToNextRun,
 } from './ScheduledPromptsPage';
+import { UserPreferencesProvider } from '../preferences/UserPreferencesProvider';
 
 const renderPage = () => {
   const qc = new QueryClient({
     defaultOptions: { queries: { retry: false, refetchInterval: false } },
   });
   const Wrapper = ({ children }: { children: ReactNode }) => (
-    <QueryClientProvider client={qc}>{children}</QueryClientProvider>
+    <QueryClientProvider client={qc}>
+      <UserPreferencesProvider>{children}</UserPreferencesProvider>
+    </QueryClientProvider>
   );
   return render(<ScheduledPromptsPage />, { wrapper: Wrapper });
 };
@@ -135,7 +138,7 @@ describe('ScheduledPromptsPage', () => {
     renderPage();
 
     fireEvent.click(
-      screen.getByRole('button', { name: /new scheduled task/i }),
+      screen.getByRole('button', { name: /schedule a task/i }),
     );
 
     fireEvent.change(screen.getByRole('textbox', { name: /cron/i }), {
@@ -188,7 +191,7 @@ describe('ScheduledPromptsPage', () => {
 
     renderPage();
 
-    fireEvent.click(screen.getByRole('button', { name: /new scheduled task/i }));
+    fireEvent.click(screen.getByRole('button', { name: /schedule a task/i }));
     fireEvent.change(screen.getByRole('textbox', { name: /cron/i }), {
       target: { value: '0 0 * * *' },
     });
