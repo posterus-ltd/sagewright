@@ -196,7 +196,7 @@ export const ScheduledPromptsPage: FC = () => {
         onClick={() => setEditing('new')}
         sx={{ mb: 2 }}
       >
-        New scheduled task
+        Schedule a task
       </Button>
       {prompts.length === 0 ? (
         <Typography variant="body2" color="text.secondary">

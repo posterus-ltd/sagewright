@@ -135,7 +135,7 @@ describe('ScheduledPromptsPage', () => {
     renderPage();
 
     fireEvent.click(
-      screen.getByRole('button', { name: /new scheduled task/i }),
+      screen.getByRole('button', { name: /schedule a task/i }),
     );
 
     fireEvent.change(screen.getByRole('textbox', { name: /cron/i }), {
@@ -188,7 +188,7 @@ describe('ScheduledPromptsPage', () => {
 
     renderPage();
 
-    fireEvent.click(screen.getByRole('button', { name: /new scheduled task/i }));
+    fireEvent.click(screen.getByRole('button', { name: /schedule a task/i }));
     fireEvent.change(screen.getByRole('textbox', { name: /cron/i }), {
       target: { value: '0 0 * * *' },
     });

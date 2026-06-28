@@ -18,7 +18,7 @@ export const useCommandPalette = (): CommandPaletteContextValue => {
 };
 
 // Owns palette open state, the global ⌘K/Ctrl+K chord, and the scheduled-task
-// dialog so "New scheduled task" works from anywhere in the app.
+// dialog so "Schedule a task" works from anywhere in the app.
 export const CommandPaletteProvider: FC<{ children: ReactNode }> = ({ children }) => {
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [scheduledOpen, setScheduledOpen] = useState(false);
