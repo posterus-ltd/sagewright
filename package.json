@@ -6,7 +6,8 @@
   "packageManager": "npm",
   "scripts": {
     "nx": "nx",
-    "start:landing": "nx serve landing",
+    "dev:cp": "node scripts/dev-control-plane.mjs",
+    "dev:ld": "nx serve landing",
     "test": "nx run-many -t test",
     "build": "nx run-many -t build",
     "lint": "nx run-many -t lint"
