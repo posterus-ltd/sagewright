@@ -11,6 +11,8 @@ import { SettingsPage } from './config/SettingsPage';
 import { ScheduledPromptsPage } from './scheduled/ScheduledPromptsPage';
 import { SessionsListPage } from './sessions/SessionsListPage';
 import { TaskDetailPage } from './tasks/TaskDetailPage';
+import { WorkflowsListPage } from './workflows/WorkflowsListPage';
+import { WorkflowRunPage } from './workflows/WorkflowRunPage';
 
 const AuthGate: FC = () => {
   const { displayName } = useAuth();
@@ -28,6 +30,8 @@ const router = createBrowserRouter([
         { index: true, element: <SessionsListPage /> },
         { path: 'canvas', element: <CanvasPage /> },
         { path: 'scheduled', element: <ScheduledPromptsPage /> },
+        { path: 'workflows', element: <WorkflowsListPage /> },
+        { path: 'workflows/runs/:id', element: <WorkflowRunPage /> },
         { path: 'settings', element: <SettingsPage /> },
         { path: 'about', element: <AboutPage /> },
         { path: 'tasks/:id', element: <TaskDetailPage /> },

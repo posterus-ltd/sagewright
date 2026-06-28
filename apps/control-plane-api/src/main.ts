@@ -10,6 +10,8 @@ import { createTaskService } from './tasks/task-service';
 import { createUserEnvService } from './user-env/user-env-service';
 import { createGithubCredentialService } from './github/github-credential-service';
 import { createCanvasLayoutService } from './canvas-layout/canvas-layout-service';
+import { createWorkflowService } from './workflows/workflow-service';
+import { createWorkflowRunner } from './workflows/workflow-runner';
 import { createWorkerSpawner } from './tasks/worker-spawner';
 import { createDockerClient, createContainerTerminal, createContainerExec } from './tasks/docker-client';
 import { createAgentRunner } from './tasks/agent-runner';
@@ -37,9 +39,11 @@ const canvasLayoutService = createCanvasLayoutService({ db });
 const userSettingsService = createUserSettingsService({ db });
 const workerRegistry = createWorkerRegistry({ docker });
 const taskService = createTaskService({ db, eventStore, eventBus, spawner, agentRunner, volume, config, userEnvService, githubCredentialService, userSettingsService, workerRegistry });
-const scheduler = createScheduler({ db, taskService });
+const workflowService = createWorkflowService({ db });
+const workflowRunner = createWorkflowRunner({ db, spawner, agentRunner, exec: containerExec, volume, config, userEnvService, githubCredentialService });
+const scheduler = createScheduler({ db, taskService, workflowService, workflowRunner });
 
-const app = buildApp({ config, db, eventStore, eventBus, taskService, repoService, userEnvService, githubCredentialService, userSettingsService, canvasLayoutService, containerTerminal, volume, scheduler, workerRegistry });
+const app = buildApp({ config, db, eventStore, eventBus, taskService, repoService, userEnvService, githubCredentialService, userSettingsService, canvasLayoutService, workflowService, workflowRunner, containerTerminal, volume, scheduler, workerRegistry });
 
 // The scheduler is built before the app (the app depends on it), so hand it the
 // Fastify logger now that the app exists — failed scheduled runs go to the app log.

@@ -63,68 +63,87 @@ export const createAgentRunner = (deps: AgentRunnerDeps) => {
     }
   };
 
-  const run = async (input: RunInput): Promise<void> => {
-    const { taskId, containerId, manifest } = input;
-    // Serialize every append onto one chain so output, interjections, and status never race on seq.
+  // One serialized append chain per run: output, interjections, and status never race on seq.
+  const createEmitter = (taskId: string) => {
     let chain: Promise<void> = Promise.resolve();
     const emit = (events: Event[]): Promise<void> => {
       chain = chain.then(() => persist(taskId, events));
       return chain;
     };
+    // Drain queued appends — callers await this before reading exit status / retiring.
+    return { emit, drain: (): Promise<void> => chain };
+  };
+
+  // Drive the agent over `docker exec`: stream its PTY output as OUTPUT events, forward
+  // interjections, await its exit, and return the exit code. No status decision, no PR,
+  // no retire — that policy belongs to the caller (headless run vs workflow step).
+  const streamAgentSession = async (
+    input: RunInput,
+    emit: (events: Event[]) => Promise<void>,
+    drain: () => Promise<void>,
+  ): Promise<number | null> => {
+    const { taskId, containerId, manifest } = input;
+    await emit([{ type: EventType.STATUS, payload: { status: TaskStatus.RUNNING } }]);
+
+    const session = await deps.exec.startAgent(containerId, {
+      cmd: [START_SCRIPT],
+      workingDir: agentCwd(input.sessionDir, manifest),
+      env: ['TERM=xterm-256color'],
+    });
+
+    // Coalesce raw PTY bytes into OUTPUT events (the headless transcript).
+    let buffer = '';
+    let flushTimer: NodeJS.Timeout | null = null;
+    const flush = (): void => {
+      flushTimer = null;
+      const chunk = buffer;
+      buffer = '';
+      if (chunk) void emit([{ type: EventType.OUTPUT, payload: { chunk } }]);
+    };
+    session.stream.on('data', (b: Buffer) => {
+      buffer += b.toString('utf8');
+      if (!flushTimer) flushTimer = setTimeout(flush, FLUSH_MS);
+    });
+
+    // Forward UI interjections (inbound messages) into the agent's stdin as keystrokes.
+    const poll = setInterval(() => {
+      void (async () => {
+        const pending = await deps.db
+          .select()
+          .from(inboundMessages)
+          .where(and(eq(inboundMessages.taskId, taskId), isNull(inboundMessages.consumedAt)));
+        if (!pending.length) return;
+        await deps.db
+          .update(inboundMessages)
+          .set({ consumedAt: new Date() })
+          .where(and(eq(inboundMessages.taskId, taskId), isNull(inboundMessages.consumedAt)));
+        for (const m of pending) {
+          session.write(`${m.body}\n`);
+          await emit([{ type: EventType.USER_MESSAGE, payload: { text: m.body } }]);
+        }
+      })();
+    }, POLL_MS);
+
+    // The start script runs in the foreground; its exit closes the exec stream.
+    await new Promise<void>((resolve) => {
+      session.stream.on('end', resolve);
+      session.stream.on('close', resolve);
+    });
+    clearInterval(poll);
+    if (flushTimer) clearTimeout(flushTimer);
+    flush();
+    await drain(); // drain queued appends before reading exit status
+
+    const { exitCode } = await session.inspect();
+    return exitCode;
+  };
+
+  const run = async (input: RunInput): Promise<void> => {
+    const { taskId, containerId, manifest } = input;
+    const { emit, drain } = createEmitter(taskId);
 
     try {
-      await emit([{ type: EventType.STATUS, payload: { status: TaskStatus.RUNNING } }]);
-
-      const session = await deps.exec.startAgent(containerId, {
-        cmd: [START_SCRIPT],
-        workingDir: agentCwd(input.sessionDir, manifest),
-        env: ['TERM=xterm-256color'],
-      });
-
-      // Coalesce raw PTY bytes into OUTPUT events (the headless transcript).
-      let buffer = '';
-      let flushTimer: NodeJS.Timeout | null = null;
-      const flush = (): void => {
-        flushTimer = null;
-        const chunk = buffer;
-        buffer = '';
-        if (chunk) void emit([{ type: EventType.OUTPUT, payload: { chunk } }]);
-      };
-      session.stream.on('data', (b: Buffer) => {
-        buffer += b.toString('utf8');
-        if (!flushTimer) flushTimer = setTimeout(flush, FLUSH_MS);
-      });
-
-      // Forward UI interjections (inbound messages) into the agent's stdin as keystrokes.
-      const poll = setInterval(() => {
-        void (async () => {
-          const pending = await deps.db
-            .select()
-            .from(inboundMessages)
-            .where(and(eq(inboundMessages.taskId, taskId), isNull(inboundMessages.consumedAt)));
-          if (!pending.length) return;
-          await deps.db
-            .update(inboundMessages)
-            .set({ consumedAt: new Date() })
-            .where(and(eq(inboundMessages.taskId, taskId), isNull(inboundMessages.consumedAt)));
-          for (const m of pending) {
-            session.write(`${m.body}\n`);
-            await emit([{ type: EventType.USER_MESSAGE, payload: { text: m.body } }]);
-          }
-        })();
-      }, POLL_MS);
-
-      // The start script runs in the foreground; its exit closes the exec stream.
-      await new Promise<void>((resolve) => {
-        session.stream.on('end', resolve);
-        session.stream.on('close', resolve);
-      });
-      clearInterval(poll);
-      if (flushTimer) clearTimeout(flushTimer);
-      flush();
-      await chain; // drain queued appends before reading exit status
-
-      const { exitCode } = await session.inspect();
+      const exitCode = await streamAgentSession(input, emit, drain);
       if (exitCode !== null && exitCode !== 0) {
         await emit([
           { type: EventType.ERROR, payload: { message: `agent exited with code ${exitCode}` } },
@@ -142,12 +161,40 @@ export const createAgentRunner = (deps: AgentRunnerDeps) => {
         { type: EventType.STATUS, payload: { status: TaskStatus.FAILED } },
       ]);
     } finally {
-      await chain;
+      await drain();
       await deps.retire(containerId).catch(() => undefined);
     }
   };
 
-  return { run };
+  // Run one workflow step: stream the agent and settle the step task to DONE/FAILED, but
+  // never push a PR — the workflow runner owns the shared branch and pushes once at run end.
+  // Returns the exit code so the orchestrator can decide whether to advance, loop, or abort.
+  const execStep = async (input: RunInput): Promise<{ exitCode: number | null }> => {
+    const { emit, drain } = createEmitter(input.taskId);
+    let exitCode: number | null = null;
+    try {
+      exitCode = await streamAgentSession(input, emit, drain);
+      if (exitCode !== null && exitCode !== 0) {
+        await emit([
+          { type: EventType.ERROR, payload: { message: `step exited with code ${exitCode}` } },
+          { type: EventType.STATUS, payload: { status: TaskStatus.FAILED } },
+        ]);
+      } else {
+        await emit([{ type: EventType.STATUS, payload: { status: TaskStatus.DONE } }]);
+      }
+    } catch (err) {
+      await emit([
+        { type: EventType.ERROR, payload: { message: String(err) } },
+        { type: EventType.STATUS, payload: { status: TaskStatus.FAILED } },
+      ]);
+    } finally {
+      await drain();
+      await deps.retire(input.containerId).catch(() => undefined);
+    }
+    return { exitCode };
+  };
+
+  return { run, execStep };
 };
 
 export type AgentRunner = ReturnType<typeof createAgentRunner>;

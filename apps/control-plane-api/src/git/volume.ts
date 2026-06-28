@@ -3,7 +3,7 @@ import { mkdir, readdir, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { execa } from 'execa';
-import { repoDir, sessionDir, worktreeDir, type RepoManifestEntry, type RepoStatus } from '@sagewright/shared';
+import { repoDir, runBranch, sessionDir, worktreeDir, type RepoManifestEntry, type RepoStatus } from '@sagewright/shared';
 
 /** A repo the control-plane materialises onto the shared volume. */
 export interface VolumeRepo {
@@ -125,27 +125,34 @@ export const createVolume = (deps: VolumeDeps = {}) => {
   const describe = (slug: string): { status: RepoStatus; error: string | null } =>
     status.get(slug) ?? { status: pathExists(join(repoDir(slug), '.git')) ? 'present' : 'cloning', error: null };
 
-  /** Ensure each repo is present, then add a fresh `task/<taskId>` worktree per
-   *  repo. Returns the manifest handed to the worker. `token` (the requester's
-   *  own GITHUB_TOKEN override) authenticates the clone/pull when provided. */
+  /** Ensure each repo is present, then add a fresh worktree per repo on `branch`
+   *  (defaults to `task/<id>`). Returns the manifest handed to the worker. `token`
+   *  (the requester's own GITHUB_TOKEN override) authenticates the clone/pull when
+   *  provided. `id` keys the worktree dir (a taskId for sessions, a runId for runs). */
   const addSessionWorktrees = async (
-    taskId: string,
+    id: string,
     repos: VolumeRepo[],
     token?: string,
+    branch = `task/${id}`,
   ): Promise<RepoManifestEntry[]> => {
     const manifest: RepoManifestEntry[] = [];
-    const branch = `task/${taskId}`;
     // Always materialise the session dir up front so a repo-less session still
     // has a valid cwd for the worker and the terminal's `docker exec --workdir`.
-    await makeDir(sessionDir(taskId));
+    await makeDir(sessionDir(id));
     for (const repo of repos) {
       const { defaultBranch } = await cloneOrPull(repo, token);
-      const path = worktreeDir(taskId, repo.slug);
+      const path = worktreeDir(id, repo.slug);
       await runExclusive(repo.slug, () => git(['worktree', 'add', '-b', branch, path], repoDir(repo.slug)));
       manifest.push({ slug: repo.slug, url: repo.url, defaultBranch, path });
     }
     return manifest;
   };
+
+  /** Add one shared `workflow/<runId>` worktree per repo for a workflow run — every
+   *  step of the run operates on these so code carries over step to step. Keyed by
+   *  runId; tear down with `removeSessionWorktrees(runId)`. */
+  const addRunWorktrees = (runId: string, repos: VolumeRepo[], token?: string): Promise<RepoManifestEntry[]> =>
+    addSessionWorktrees(runId, repos, token, runBranch(runId));
 
   /** Remove every worktree for a session and delete its session dir. Idempotent. */
   const removeSessionWorktrees = async (taskId: string): Promise<void> => {
@@ -168,7 +175,7 @@ export const createVolume = (deps: VolumeDeps = {}) => {
     status.delete(slug);
   };
 
-  return { slugFromUrl, cloneOrPull, reconcile, describe, addSessionWorktrees, removeSessionWorktrees, removeRepo };
+  return { slugFromUrl, cloneOrPull, reconcile, describe, addSessionWorktrees, addRunWorktrees, removeSessionWorktrees, removeRepo };
 };
 
 export type Volume = ReturnType<typeof createVolume>;

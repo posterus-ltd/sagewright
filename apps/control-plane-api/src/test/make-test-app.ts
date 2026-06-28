@@ -17,6 +17,7 @@ import { createUserEnvService } from '../user-env/user-env-service';
 import { createGithubCredentialService } from '../github/github-credential-service';
 import { createUserSettingsService } from '../user-settings/user-settings-service';
 import { createCanvasLayoutService } from '../canvas-layout/canvas-layout-service';
+import { createWorkflowService } from '../workflows/workflow-service';
 import type { WorkerRegistry } from '../workers/worker-registry';
 
 // Final-state schema (post-0003) for pg-mem. Adaptations:
@@ -55,6 +56,9 @@ const TABLE_STMTS = [
     "container_id" text,
     "worker_token_hash" text,
     "scheduled_prompt_id" uuid,
+    "workflow_run_id" uuid,
+    "workflow_step_key" text,
+    "iteration" integer,
     "archived_at" timestamp with time zone,
     "worker_image" text,
     "created_at" timestamp with time zone DEFAULT now() NOT NULL
@@ -103,9 +107,31 @@ const TABLE_STMTS = [
     "default_worker_image" text,
     "updated_at" timestamp with time zone DEFAULT now() NOT NULL
   )`,
+  `CREATE TABLE "workflows" (
+    "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+    "name" text NOT NULL,
+    "definition" jsonb NOT NULL,
+    "enabled" boolean DEFAULT true NOT NULL,
+    "created_by" text NOT NULL,
+    "created_at" timestamp with time zone DEFAULT now() NOT NULL
+  )`,
+  `CREATE TABLE "workflow_runs" (
+    "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+    "workflow_id" uuid NOT NULL,
+    "status" text DEFAULT 'queued' NOT NULL,
+    "branch" text,
+    "pr_url" text,
+    "current_step_key" text,
+    "iteration" integer DEFAULT 0 NOT NULL,
+    "trigger_context" jsonb,
+    "created_by" text NOT NULL,
+    "created_at" timestamp with time zone DEFAULT now() NOT NULL
+  )`,
   `ALTER TABLE "events" ADD CONSTRAINT "events_task_id_tasks_id_fk" FOREIGN KEY ("task_id") REFERENCES "public"."tasks"("id") ON DELETE no action ON UPDATE no action`,
   `ALTER TABLE "inbound_messages" ADD CONSTRAINT "inbound_messages_task_id_tasks_id_fk" FOREIGN KEY ("task_id") REFERENCES "public"."tasks"("id") ON DELETE no action ON UPDATE no action`,
   `ALTER TABLE "tasks" ADD CONSTRAINT "tasks_scheduled_prompt_id_scheduled_prompts_id_fk" FOREIGN KEY ("scheduled_prompt_id") REFERENCES "public"."scheduled_prompts"("id") ON DELETE set null ON UPDATE no action`,
+  `ALTER TABLE "workflow_runs" ADD CONSTRAINT "workflow_runs_workflow_id_workflows_id_fk" FOREIGN KEY ("workflow_id") REFERENCES "public"."workflows"("id") ON DELETE no action ON UPDATE no action`,
+  `ALTER TABLE "tasks" ADD CONSTRAINT "tasks_workflow_run_id_workflow_runs_id_fk" FOREIGN KEY ("workflow_run_id") REFERENCES "public"."workflow_runs"("id") ON DELETE set null ON UPDATE no action`,
   `CREATE UNIQUE INDEX "events_task_seq_idx" ON "events" USING btree ("task_id","seq")`,
 ];
 
@@ -254,7 +280,7 @@ export const makeTestApp = async (
   });
 
   // No-op agent runner — headless drive is exercised in agent-runner's own unit tests.
-  const defaultAgentRunner = { run: async () => {} };
+  const defaultAgentRunner = { run: async () => {}, execStep: async () => ({ exitCode: 0 }) };
 
   // Default task service wired to the test db
   const defaultTaskService = createTaskService({
@@ -278,6 +304,10 @@ export const makeTestApp = async (
     },
   };
 
+  const workflowService = overrides.workflowService ?? createWorkflowService({ db: db as never });
+  // No-op runner by default — the orchestrator loop has its own unit tests.
+  const defaultWorkflowRunner = { start: async () => null };
+
   const app = buildApp({
     config,
     db: db as never,
@@ -289,6 +319,8 @@ export const makeTestApp = async (
     githubCredentialService,
     userSettingsService,
     canvasLayoutService,
+    workflowService,
+    workflowRunner: defaultWorkflowRunner,
     containerTerminal: defaultContainerTerminal,
     volume: defaultVolume,
     scheduler: defaultScheduler,

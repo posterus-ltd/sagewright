@@ -58,6 +58,10 @@ export const taskSchema = z.object({
   createdBy: z.string(),
   containerId: z.string().nullable(),
   scheduledPromptId: z.string().nullable(),
+  // Set when this task is a step of a workflow run; null for standalone sessions.
+  workflowRunId: z.string().nullable(),
+  workflowStepKey: z.string().nullable(),
+  iteration: z.number().int().nullable(),
   archivedAt: z.string().nullable(),
   createdAt: z.string(),
 });

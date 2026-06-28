@@ -4,6 +4,8 @@ import { eq } from 'drizzle-orm';
 import type { Db } from '../db/client';
 import { scheduledPrompts } from '../db/schema';
 import type { TaskService } from '../tasks/task-service';
+import type { WorkflowService } from '../workflows/workflow-service';
+import type { WorkflowRunner } from '../workflows/workflow-runner';
 
 // Minimal logging surface so the scheduler can run with the Fastify logger in prod
 // and fall back to `console` in tests without pulling in a logger dependency.
@@ -14,6 +16,9 @@ interface SchedulerLogger {
 interface SchedulerDeps {
   db: Db;
   taskService: TaskService;
+  // Optional so existing task-only tests construct the scheduler without workflows.
+  workflowService?: WorkflowService;
+  workflowRunner?: WorkflowRunner;
   logger?: SchedulerLogger;
 }
 
@@ -69,10 +74,33 @@ export const createScheduler = (deps: SchedulerDeps) => {
     }
   };
 
+  // Workflow cron triggers reuse the same croner machinery, namespaced under `wf:`
+  // so their ids never collide with scheduled-prompt ids in the jobs map. On fire
+  // they start a workflow run (the agent picks repos via the creator's config).
+  const registerWorkflowCrons = async (): Promise<void> => {
+    if (!deps.workflowService || !deps.workflowRunner) return;
+    const runner = deps.workflowRunner;
+    const workflows = await deps.workflowService.list();
+    for (const wf of workflows) {
+      if (!wf.enabled || wf.definition.trigger.type !== 'cron' || !wf.definition.trigger.cron) continue;
+      try {
+        jobs.set(
+          `wf:${wf.id}`,
+          new Cron(wf.definition.trigger.cron, () => {
+            void runner.start(wf.id, wf.createdBy).catch((err) => logger.error(err, `workflow ${wf.id} cron failed`));
+          }),
+        );
+      } catch {
+        // Invalid cron — skip; the workflow save path validates before persisting.
+      }
+    }
+  };
+
   const syncAll = async (): Promise<void> => {
     for (const id of [...jobs.keys()]) unregister(id);
     const rows = await deps.db.select().from(scheduledPrompts);
     for (const r of rows) register(r);
+    await registerWorkflowCrons();
   };
 
   return {

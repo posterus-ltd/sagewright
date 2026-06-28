@@ -16,6 +16,16 @@ export const sessionsRoot = (): string => `${VOLUME_ROOT}/sessions`;
 export const sessionDir = (taskId: string): string => `${sessionsRoot()}/${taskId}`;
 export const worktreeDir = (taskId: string, slug: string): string => `${sessionDir(taskId)}/${slug}`;
 
+/**
+ * A workflow run reuses the per-session worktree layout, keyed by runId instead
+ * of a taskId (both are uuids, so they never collide under `sessions/`). All of a
+ * run's steps share this one dir + branch so code persists from step to step.
+ */
+export const runDir = (runId: string): string => `${sessionsRoot()}/${runId}`;
+export const runWorktreeDir = (runId: string, slug: string): string => `${runDir(runId)}/${slug}`;
+/** The shared branch every step of a run commits onto; pushed once at run end. */
+export const runBranch = (runId: string): string => `workflow/${runId}`;
+
 /** Terminal flavours exposed on a session. */
 export const terminalKindSchema = z.enum(['shell', 'agent']);
 export type TerminalKind = z.infer<typeof terminalKindSchema>;

@@ -5,7 +5,12 @@ import {
   type RepoWithStatus,
   type ScheduledPrompt,
   type Task,
+  type UpdateWorkflowInput,
   type WorkerImage,
+  type Workflow,
+  type WorkflowInput,
+  type WorkflowRun,
+  type WorkflowRunDetail,
 } from '@sagewright/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
@@ -166,6 +171,59 @@ export const useDeleteScheduledPrompt = () => {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['scheduled-prompts'] }),
   });
 };
+
+export const useWorkflows = () =>
+  useQuery({ queryKey: ['workflows'], queryFn: () => apiClient.get<Workflow[]>('/api/workflows') });
+
+export const useCreateWorkflow = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: WorkflowInput) => apiClient.post<Workflow>('/api/workflows', input),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['workflows'] }),
+  });
+};
+
+export const useUpdateWorkflow = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...patch }: { id: string } & UpdateWorkflowInput) =>
+      apiClient.put<Workflow>(`/api/workflows/${id}`, patch),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['workflows'] }),
+  });
+};
+
+export const useDeleteWorkflow = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => apiClient.del(`/api/workflows/${id}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['workflows'] }),
+  });
+};
+
+export const useRunWorkflow = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, input }: { id: string; input?: string }) =>
+      apiClient.post<WorkflowRun>(`/api/workflows/${id}/run`, { input }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['workflow-runs'] }),
+  });
+};
+
+export const useWorkflowRuns = (workflowId?: string) =>
+  useQuery({
+    queryKey: ['workflow-runs', workflowId ?? 'all'],
+    queryFn: () => apiClient.get<WorkflowRun[]>(`/api/workflows/runs${workflowId ? `?workflowId=${workflowId}` : ''}`),
+    refetchInterval: 5000,
+  });
+
+// A run's detail (definition + step tasks). Poll while the run is still executing
+// so the graph animates step transitions; stop once it reaches a terminal status.
+export const useWorkflowRun = (id: string) =>
+  useQuery({
+    queryKey: ['workflow-run', id],
+    queryFn: () => apiClient.get<WorkflowRunDetail>(`/api/workflows/runs/${id}`),
+    refetchInterval: (query) => (query.state.data?.status === 'running' ? 2000 : false),
+  });
 
 // The per-user custom .env. The list view is masked; reveal is fetched on demand
 // (not cached) so plaintext secrets only travel when the user explicitly asks.

@@ -12,6 +12,9 @@ interface PushArgs {
   manifest: RepoManifestEntry[];
   identity?: GithubIdentity;
   emit: Emit;
+  // Branch to push onto. Defaults to `task/<taskId>` (headless sessions); a
+  // workflow run passes its shared `workflow/<runId>` branch instead.
+  branch?: string;
 }
 
 /**
@@ -20,8 +23,7 @@ interface PushArgs {
  * inside the worker — so the git flow stays identical no matter which harness produced the diff.
  * gh/git authenticate with the resolved user's GITHUB_TOKEN injected into the worker env.
  */
-export const pushAndOpenPrs = async ({ exec, containerId, taskId, manifest, identity, emit }: PushArgs): Promise<void> => {
-  const branch = `task/${taskId}`;
+export const pushAndOpenPrs = async ({ exec, containerId, taskId, manifest, identity, emit, branch = `task/${taskId}` }: PushArgs): Promise<void> => {
   for (const repo of manifest) {
     const status = await exec.capture(containerId, { cmd: ['git', 'status', '--porcelain'], workingDir: repo.path });
     if (!status.stdout.trim()) continue;

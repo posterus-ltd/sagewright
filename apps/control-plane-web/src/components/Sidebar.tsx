@@ -3,6 +3,7 @@ import {
   ChevronLeftRounded,
   ChevronRightRounded,
   DarkModeRounded,
+  AccountTreeRounded,
   GridViewRounded,
   InfoOutlined,
   LightModeRounded,
@@ -59,6 +60,12 @@ const NAV = [
     label: 'Scheduled Tasks',
     icon: <ScheduleRounded fontSize="small" />,
     match: (p: string) => p.startsWith('/scheduled'),
+  },
+  {
+    to: '/workflows',
+    label: 'Workflows',
+    icon: <AccountTreeRounded fontSize="small" />,
+    match: (p: string) => p.startsWith('/workflows'),
   },
 ];
 

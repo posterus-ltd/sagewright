@@ -1,5 +1,5 @@
 import { EventType, RESERVED_ENV_KEYS, TaskStatus, parseEnvBlob, sessionDir, type CreateTaskInput, type SessionMode, type Task, type UpdateTaskInput } from '@sagewright/shared';
-import { desc, eq } from 'drizzle-orm';
+import { and, desc, eq, isNull } from 'drizzle-orm';
 
 import type { AppConfig } from '../config';
 import type { Db } from '../db/client';
@@ -41,7 +41,7 @@ interface CreateOpts {
   scheduledPromptId?: string;
 }
 
-const rowToTask = (r: typeof tasks.$inferSelect): Task => ({
+export const rowToTask = (r: typeof tasks.$inferSelect): Task => ({
   id: r.id,
   mode: r.mode as SessionMode,
   name: r.name,
@@ -53,6 +53,9 @@ const rowToTask = (r: typeof tasks.$inferSelect): Task => ({
   createdBy: r.createdBy,
   containerId: r.containerId,
   scheduledPromptId: r.scheduledPromptId,
+  workflowRunId: r.workflowRunId,
+  workflowStepKey: r.workflowStepKey,
+  iteration: r.iteration,
   archivedAt: r.archivedAt ? r.archivedAt.toISOString() : null,
   createdAt: r.createdAt.toISOString(),
 });
@@ -163,9 +166,13 @@ export const createTaskService = (deps: TaskServiceDeps) => {
 
   return {
     create,
+    // Standalone sessions only — workflow step rows are owned by their run and shown
+    // on the workflow run graph, not in the flat sessions list / canvas.
     list: async (createdBy?: string): Promise<Task[]> => {
-      const base = deps.db.select().from(tasks).orderBy(desc(tasks.createdAt));
-      const rows = createdBy ? await base.where(eq(tasks.createdBy, createdBy)) : await base;
+      const where = createdBy
+        ? and(eq(tasks.createdBy, createdBy), isNull(tasks.workflowRunId))
+        : isNull(tasks.workflowRunId);
+      const rows = await deps.db.select().from(tasks).where(where).orderBy(desc(tasks.createdAt));
       return rows.map(rowToTask);
     },
     get: async (id: string): Promise<Task | null> => {

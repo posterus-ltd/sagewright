@@ -22,9 +22,12 @@ import { registerUserEnvRoutes } from './user-env/user-env-routes';
 import { registerUserSettingsRoutes } from './user-settings/user-settings-routes';
 import { registerWorkerRoutes } from './workers/worker-routes';
 import { registerCanvasLayoutRoutes } from './canvas-layout/canvas-layout-routes';
+import { registerWorkflowRoutes } from './workflows/workflow-routes';
 import { registerGithubRoutes } from './github/github-routes';
 import type { RepoService } from './repos/repo-service';
 import type { TaskService } from './tasks/task-service';
+import type { WorkflowService } from './workflows/workflow-service';
+import type { WorkflowRunner } from './workflows/workflow-runner';
 import type { UserEnvService } from './user-env/user-env-service';
 import type { UserSettingsService } from './user-settings/user-settings-service';
 import type { CanvasLayoutService } from './canvas-layout/canvas-layout-service';
@@ -43,6 +46,8 @@ export interface AppDeps {
   githubCredentialService: GithubCredentialService;
   userSettingsService: UserSettingsService;
   canvasLayoutService: CanvasLayoutService;
+  workflowService: WorkflowService;
+  workflowRunner: WorkflowRunner;
   containerTerminal: ContainerTerminal;
   volume: Volume;
   scheduler: Scheduler;
@@ -81,6 +86,7 @@ export const buildApp = (deps: AppDeps): FastifyInstance => {
   registerUserSettingsRoutes(app, deps);
   registerWorkerRoutes(app, deps);
   registerCanvasLayoutRoutes(app, deps);
+  registerWorkflowRoutes(app, deps);
 
   registerStreamRoute(app, deps);
 
