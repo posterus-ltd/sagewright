@@ -2,6 +2,7 @@ import {
   Box,
   Button,
   IconButton,
+  Stack,
   Switch,
   Tooltip,
   Typography,
@@ -14,6 +15,8 @@ import { Cron } from 'croner';
 import { DateTime } from 'luxon';
 import { useEffect, useMemo, useState, type FC } from 'react';
 
+import { Header } from '../components/Header';
+import { MainContainer } from '../components/MainContainer';
 import { WorkerChip } from '../components/WorkerChip';
 import {
   useDeleteScheduledPrompt,
@@ -190,45 +193,50 @@ export const ScheduledPromptsPage: FC = () => {
   );
 
   return (
-    <Box>
-      <Button
-        variant="contained"
-        onClick={() => setEditing('new')}
-        sx={{ mb: 2 }}
-      >
-        Schedule a task
-      </Button>
-      {prompts.length === 0 ? (
-        <Typography variant="body2" color="text.secondary">
-          No scheduled tasks yet.
-        </Typography>
-      ) : (
-        <DataGrid
-          rows={prompts}
-          columns={columns}
-          autoHeight
-          // Small admin list — render everything so the grid stays simple and testable.
-          disableVirtualization
-          disableRowSelectionOnClick
-          // Dim disabled schedules so the active ones stand out at a glance.
-          getRowClassName={(params) => (params.row.enabled ? '' : 'disabled')}
-          initialState={{
-            sorting: { sortModel: [{ field: 'nextRun', sort: 'asc' }] },
-          }}
-          pageSizeOptions={[25, 50, 100]}
-          sx={{
-            // Dim disabled rows, but keep the status switch fully legible/clickable.
-            '& .MuiDataGrid-row.disabled': { opacity: 0.5 },
-            '& .MuiDataGrid-row.disabled [data-field="status"]': { opacity: 1 },
-            // Reveal the row actions only while the row is hovered or focused.
-            '& .row-actions': { opacity: 0, transition: 'opacity 0.15s' },
-            '& .MuiDataGrid-row:hover .row-actions, & .MuiDataGrid-row:focus-within .row-actions':
-              {
+    <MainContainer>
+      <Stack spacing={3}>
+        <Header
+          title="Scheduled tasks"
+          actions={
+            <Button variant="contained" onClick={() => setEditing('new')}>
+              Schedule a task
+            </Button>
+          }
+        />
+        {prompts.length === 0 ? (
+          <Typography variant="body2" color="text.secondary">
+            No scheduled tasks yet.
+          </Typography>
+        ) : (
+          <DataGrid
+            rows={prompts}
+            columns={columns}
+            autoHeight
+            // Small admin list — render everything so the grid stays simple and testable.
+            disableVirtualization
+            disableRowSelectionOnClick
+            // Dim disabled schedules so the active ones stand out at a glance.
+            getRowClassName={(params) => (params.row.enabled ? '' : 'disabled')}
+            initialState={{
+              sorting: { sortModel: [{ field: 'nextRun', sort: 'asc' }] },
+            }}
+            pageSizeOptions={[25, 50, 100]}
+            sx={{
+              // Dim disabled rows, but keep the status switch fully legible/clickable.
+              '& .MuiDataGrid-row.disabled': { opacity: 0.5 },
+              '& .MuiDataGrid-row.disabled [data-field="status"]': {
                 opacity: 1,
               },
-          }}
-        />
-      )}
+              // Reveal the row actions only while the row is hovered or focused.
+              '& .row-actions': { opacity: 0, transition: 'opacity 0.15s' },
+              '& .MuiDataGrid-row:hover .row-actions, & .MuiDataGrid-row:focus-within .row-actions':
+                {
+                  opacity: 1,
+                },
+            }}
+          />
+        )}
+      </Stack>
       {editing && (
         <ScheduledPromptDialog
           key={editing === 'new' ? 'new' : editing.id}
@@ -237,6 +245,6 @@ export const ScheduledPromptsPage: FC = () => {
           onClose={() => setEditing(null)}
         />
       )}
-    </Box>
+    </MainContainer>
   );
 };

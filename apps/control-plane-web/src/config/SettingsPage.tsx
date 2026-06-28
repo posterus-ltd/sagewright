@@ -30,6 +30,7 @@ import {
   useUserEnv,
   useWorkers,
 } from '../api/hooks';
+import { MainContainer } from '../components/MainContainer';
 
 const REPOS_PLACEHOLDER = `https://github.com/owner/repo
 https://github.com/owner/another-repo
@@ -239,13 +240,15 @@ const WorkerSection: FC = () => {
 };
 
 export const SettingsPage: FC = () => (
-  <Stack spacing={3}>
-    <GithubSection />
-    <Divider />
-    <ReposSection />
-    <Divider />
-    <EnvironmentSection />
-    <Divider />
-    <WorkerSection />
-  </Stack>
+  <MainContainer>
+    <Stack spacing={3}>
+      <GithubSection />
+      <Divider />
+      <ReposSection />
+      <Divider />
+      <EnvironmentSection />
+      <Divider />
+      <WorkerSection />
+    </Stack>
+  </MainContainer>
 );

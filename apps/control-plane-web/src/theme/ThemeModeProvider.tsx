@@ -1,12 +1,10 @@
 import { CssBaseline, ThemeProvider } from '@mui/material';
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type FC, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useMemo, useState, type FC, type ReactNode } from 'react';
 
-import { buildTheme, type ResolvedMode } from './theme';
+import { useUserPreferences } from '../preferences/UserPreferencesProvider';
+import { buildTheme, type ResolvedMode, type ThemeMode } from './theme';
 
-export type ThemeMode = 'system' | 'light' | 'dark';
-
-const STORAGE_KEY = 'sagewright.theme-mode';
-const MODES: ThemeMode[] = ['system', 'light', 'dark'];
+export type { ThemeMode } from './theme';
 
 interface ThemeModeContextValue {
   mode: ThemeMode; // the user's preference
@@ -15,14 +13,6 @@ interface ThemeModeContextValue {
 }
 
 const ThemeModeContext = createContext<ThemeModeContextValue | null>(null);
-
-const isMode = (value: string | null): value is ThemeMode =>
-  value !== null && MODES.includes(value as ThemeMode);
-
-const readStoredMode = (): ThemeMode => {
-  const stored = localStorage.getItem(STORAGE_KEY);
-  return isMode(stored) ? stored : 'system';
-};
 
 const systemPrefersDark = (): boolean =>
   typeof window !== 'undefined' &&
@@ -35,7 +25,9 @@ export const resolveMode = (mode: ThemeMode, prefersDark: boolean): ResolvedMode
 };
 
 export const ThemeModeProvider: FC<{ children: ReactNode }> = ({ children }) => {
-  const [mode, setModeState] = useState<ThemeMode>(readStoredMode);
+  // The user's choice is persisted as a user preference; only the live
+  // OS-preference resolution stays local to this provider.
+  const { preference: mode, updatePreference: setMode } = useUserPreferences('themeMode', 'system');
   const [prefersDark, setPrefersDark] = useState<boolean>(systemPrefersDark);
 
   // Follow the OS preference live while the user is on "system".
@@ -45,11 +37,6 @@ export const ThemeModeProvider: FC<{ children: ReactNode }> = ({ children }) => 
     const onChange = (e: MediaQueryListEvent): void => setPrefersDark(e.matches);
     query.addEventListener('change', onChange);
     return () => query.removeEventListener('change', onChange);
-  }, []);
-
-  const setMode = useCallback((next: ThemeMode): void => {
-    setModeState(next);
-    localStorage.setItem(STORAGE_KEY, next);
   }, []);
 
   const resolvedMode = resolveMode(mode, prefersDark);

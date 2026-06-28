@@ -1,5 +1,13 @@
 import AddRounded from '@mui/icons-material/AddRounded';
-import { Box, Button, CircularProgress, Menu, MenuItem, Typography, useTheme } from '@mui/material';
+import {
+  Box,
+  Button,
+  CircularProgress,
+  Menu,
+  MenuItem,
+  Typography,
+  useTheme,
+} from '@mui/material';
 import { taskLabel, type CanvasLayout, type Task } from '@sagewright/shared';
 import {
   Background,
@@ -14,13 +22,26 @@ import {
   type NodeTypes,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { useCallback, useEffect, useMemo, useRef, useState, type FC } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type FC,
+} from 'react';
 
 import { useCanvasLayout, useTasks, useUpdateCanvasLayout } from '../api/hooks';
+import { MainContainer } from '../components/MainContainer';
 import { NewSessionButton } from '../components/NewSessionButton';
 import { distinctBorderColors, pickRandomBorderColor } from './border-colors';
 import { CanvasActionsContext, type SessionNodeData } from './canvas-actions';
-import { buildLayout, DEFAULT_HEIGHT, DEFAULT_WIDTH, placementToNode } from './canvas-mapping';
+import {
+  buildLayout,
+  DEFAULT_HEIGHT,
+  DEFAULT_WIDTH,
+  placementToNode,
+} from './canvas-mapping';
 import { SessionNode } from './SessionNode';
 
 const SAVE_DEBOUNCE_MS = 500;
@@ -29,7 +50,12 @@ const STAGGER = 36;
 const nodeTypes: NodeTypes = { session: SessionNode };
 
 // Changes worth persisting — ignore pure selection/hover churn.
-const PERSISTABLE_CHANGE_TYPES = new Set(['position', 'dimensions', 'remove', 'add']);
+const PERSISTABLE_CHANGE_TYPES = new Set([
+  'position',
+  'dimensions',
+  'remove',
+  'add',
+]);
 
 const isActive = (t: Task): boolean => t.archivedAt === null;
 
@@ -44,13 +70,19 @@ const CanvasBoard: FC<BoardProps> = ({ initialLayout, tasks }) => {
   const updateLayout = useUpdateCanvasLayout();
   const wrapperRef = useRef<HTMLDivElement>(null);
 
-  const activeIds = useMemo(() => new Set(tasks.filter(isActive).map((t) => t.id)), [tasks]);
+  const activeIds = useMemo(
+    () => new Set(tasks.filter(isActive).map((t) => t.id)),
+    [tasks],
+  );
 
   // Seed nodes once from the saved layout, keeping only still-active sessions.
   const [initialNodes] = useState<Node<SessionNodeData>[]>(() =>
-    initialLayout.placements.filter((p) => activeIds.has(p.sessionId)).map(placementToNode),
+    initialLayout.placements
+      .filter((p) => activeIds.has(p.sessionId))
+      .map(placementToNode),
   );
-  const [nodes, setNodes, onNodesChange] = useNodesState<Node<SessionNodeData>>(initialNodes);
+  const [nodes, setNodes, onNodesChange] =
+    useNodesState<Node<SessionNodeData>>(initialNodes);
 
   // Keep a ref to the latest nodes so the debounced save reads current state.
   const nodesRef = useRef(nodes);
@@ -79,7 +111,8 @@ const CanvasBoard: FC<BoardProps> = ({ initialLayout, tasks }) => {
   const handleNodesChange = useCallback(
     (changes: NodeChange<Node<SessionNodeData>>[]) => {
       onNodesChange(changes);
-      if (changes.some((c) => PERSISTABLE_CHANGE_TYPES.has(c.type))) scheduleSave();
+      if (changes.some((c) => PERSISTABLE_CHANGE_TYPES.has(c.type)))
+        scheduleSave();
     },
     [onNodesChange, scheduleSave],
   );
@@ -89,9 +122,15 @@ const CanvasBoard: FC<BoardProps> = ({ initialLayout, tasks }) => {
     (index: number): { x: number; y: number } => {
       const rect = wrapperRef.current?.getBoundingClientRect();
       const center = rect
-        ? screenToFlowPosition({ x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 })
+        ? screenToFlowPosition({
+            x: rect.left + rect.width / 2,
+            y: rect.top + rect.height / 2,
+          })
         : { x: 0, y: 0 };
-      return { x: center.x - DEFAULT_WIDTH / 2 + index * STAGGER, y: center.y - DEFAULT_HEIGHT / 2 + index * STAGGER };
+      return {
+        x: center.x - DEFAULT_WIDTH / 2 + index * STAGGER,
+        y: center.y - DEFAULT_HEIGHT / 2 + index * STAGGER,
+      };
     },
     [screenToFlowPosition],
   );
@@ -102,7 +141,15 @@ const CanvasBoard: FC<BoardProps> = ({ initialLayout, tasks }) => {
         if (nds.some((n) => n.id === sessionId)) return nds;
         const pos = nextDropPosition(nds.length);
         // New widgets get a random border color so they're distinguishable at a glance.
-        return [...nds, placementToNode({ sessionId, x: pos.x, y: pos.y, borderColor: pickRandomBorderColor() })];
+        return [
+          ...nds,
+          placementToNode({
+            sessionId,
+            x: pos.x,
+            y: pos.y,
+            borderColor: pickRandomBorderColor(),
+          }),
+        ];
       });
       scheduleSave();
     },
@@ -120,7 +167,11 @@ const CanvasBoard: FC<BoardProps> = ({ initialLayout, tasks }) => {
   const setBorderColor = useCallback(
     (sessionId: string, color: string | undefined) => {
       setNodes((nds) =>
-        nds.map((n) => (n.id === sessionId ? { ...n, data: { ...n.data, borderColor: color } } : n)),
+        nds.map((n) =>
+          n.id === sessionId
+            ? { ...n, data: { ...n.data, borderColor: color } }
+            : n,
+        ),
       );
       scheduleSave();
     },
@@ -130,9 +181,15 @@ const CanvasBoard: FC<BoardProps> = ({ initialLayout, tasks }) => {
   // Add-existing menu lists active sessions not already on the canvas.
   const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null);
   const placedIds = useMemo(() => new Set(nodes.map((n) => n.id)), [nodes]);
-  const addableSessions = useMemo(() => tasks.filter((t) => isActive(t) && !placedIds.has(t.id)), [tasks, placedIds]);
+  const addableSessions = useMemo(
+    () => tasks.filter((t) => isActive(t) && !placedIds.has(t.id)),
+    [tasks, placedIds],
+  );
 
-  const usedBorderColors = useMemo(() => distinctBorderColors(nodes.map((n) => n.data.borderColor)), [nodes]);
+  const usedBorderColors = useMemo(
+    () => distinctBorderColors(nodes.map((n) => n.data.borderColor)),
+    [nodes],
+  );
 
   const actions = useMemo(
     () => ({ removeSession, setBorderColor, usedBorderColors }),
@@ -159,18 +216,24 @@ const CanvasBoard: FC<BoardProps> = ({ initialLayout, tasks }) => {
 
           <Panel position="top-left">
             <Box sx={{ display: 'flex', gap: 1 }}>
-              <NewSessionButton label="New session" size="small" onCreated={(task) => addSession(task.id)} />
+              <NewSessionButton
+                label="New session"
+                onCreated={(task) => addSession(task.id)}
+              />
               {addableSessions.length > 0 && (
                 <>
                   <Button
                     variant="outlined"
-                    size="small"
                     startIcon={<AddRounded />}
                     onClick={(e) => setMenuAnchor(e.currentTarget)}
                   >
                     Add existing
                   </Button>
-                  <Menu anchorEl={menuAnchor} open={Boolean(menuAnchor)} onClose={() => setMenuAnchor(null)}>
+                  <Menu
+                    anchorEl={menuAnchor}
+                    open={Boolean(menuAnchor)}
+                    onClose={() => setMenuAnchor(null)}
+                  >
                     {addableSessions.map((t) => (
                       <MenuItem
                         key={t.id}
@@ -190,7 +253,11 @@ const CanvasBoard: FC<BoardProps> = ({ initialLayout, tasks }) => {
 
           {nodes.length === 0 && (
             <Panel position="top-center">
-              <Typography variant="body2" color="text.secondary" sx={{ mt: 6 }}>
+              <Typography
+                variant="body2"
+                color="text.secondary"
+                sx={{ mt: 12 }}
+              >
                 Add a session to start building your canvas.
               </Typography>
             </Panel>
@@ -207,17 +274,24 @@ export const CanvasPage: FC = () => {
 
   if (layoutLoading || tasksLoading || !layout || !tasks) {
     return (
-      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+      <Box
+        sx={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          height: '100%',
+        }}
+      >
         <CircularProgress />
       </Box>
     );
   }
 
   return (
-    <Box sx={{ height: '100%', m: -3 }}>
+    <MainContainer flush>
       <ReactFlowProvider>
         <CanvasBoard initialLayout={layout} tasks={tasks} />
       </ReactFlowProvider>
-    </Box>
+    </MainContainer>
   );
 };

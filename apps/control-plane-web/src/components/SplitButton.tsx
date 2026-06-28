@@ -1,5 +1,13 @@
 import ArrowDropDownRounded from '@mui/icons-material/ArrowDropDownRounded';
-import { Button, ButtonGroup, Divider, ListItemText, Menu, MenuItem, type ButtonProps } from '@mui/material';
+import {
+  Button,
+  ButtonGroup,
+  Divider,
+  ListItemText,
+  Menu,
+  MenuItem,
+  type ButtonProps,
+} from '@mui/material';
 import { Fragment, useState, type FC, type ReactNode } from 'react';
 
 export interface SplitButtonOption {
@@ -27,7 +35,7 @@ export const SplitButton: FC<{
   onSelect,
   startIcon,
   disabled = false,
-  size = 'medium',
+  size = 'small',
   variant = 'contained',
 }) => {
   const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null);
@@ -46,7 +54,11 @@ export const SplitButton: FC<{
           <ArrowDropDownRounded />
         </Button>
       </ButtonGroup>
-      <Menu anchorEl={menuAnchor} open={Boolean(menuAnchor)} onClose={() => setMenuAnchor(null)}>
+      <Menu
+        anchorEl={menuAnchor}
+        open={Boolean(menuAnchor)}
+        onClose={() => setMenuAnchor(null)}
+      >
         {options.map((option) => (
           <Fragment key={option.id}>
             <MenuItem
@@ -58,7 +70,10 @@ export const SplitButton: FC<{
               }}
             >
               {option.description != null ? (
-                <ListItemText primary={option.label} secondary={option.description} />
+                <ListItemText
+                  primary={option.label}
+                  secondary={option.description}
+                />
               ) : (
                 option.label
               )}

@@ -162,24 +162,23 @@ export const SessionPanel: FC<{
               >
                 Stop
               </Button>
-          )}
+            )}
           {!compact && (
-            <Button
-              size="small"
-              color="secondary"
-              aria-label="Fullscreen"
-              onClick={() => setFullscreen((prev) => !prev)}
-              sx={{ ml: 'auto' }}
-              startIcon={
-                fullscreen ? (
+            <Tooltip title="Fullscreen">
+              <IconButton
+                size="small"
+                color="secondary"
+                aria-label="Fullscreen"
+                onClick={() => setFullscreen((prev) => !prev)}
+                sx={{ ml: 'auto' }}
+              >
+                {fullscreen ? (
                   <FullscreenExitRounded fontSize="small" />
                 ) : (
                   <FullscreenRounded fontSize="small" />
-                )
-              }
-            >
-              Fullscreen
-            </Button>
+                )}
+              </IconButton>
+            </Tooltip>
           )}
         </Stack>
       )}
