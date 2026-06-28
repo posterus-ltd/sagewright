@@ -162,12 +162,12 @@ export const SessionPanel: FC<{
               >
                 Stop
               </Button>
-            )}
+          )}
           {!compact && (
             <Button
               size="small"
               color="secondary"
-              aria-label={fullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
+              aria-label="Fullscreen"
               onClick={() => setFullscreen((prev) => !prev)}
               sx={{ ml: 'auto' }}
               startIcon={
@@ -178,7 +178,7 @@ export const SessionPanel: FC<{
                 )
               }
             >
-              {fullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
+              Fullscreen
             </Button>
           )}
         </Stack>
