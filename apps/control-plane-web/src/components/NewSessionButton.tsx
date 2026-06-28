@@ -1,4 +1,3 @@
-import AddRounded from '@mui/icons-material/AddRounded';
 import { type ButtonProps } from '@mui/material';
 import { type Task } from '@sagewright/shared';
 import { type FC, type ReactNode } from 'react';
@@ -19,7 +18,7 @@ export const NewSessionButton: FC<Props> = ({
   label = 'New session',
   size,
   variant,
-  startIcon = <AddRounded />,
+  startIcon = undefined,
 }) => {
   const { data } = useWorkers();
   const workers = data?.workers ?? [];
