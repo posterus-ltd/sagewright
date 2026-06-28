@@ -89,8 +89,17 @@ export const CommandPalette: FC<CommandPaletteProps> = ({
           },
         }));
     }
+    const nonDefaultWorkers = defaultImage
+      ? workers.filter((w) => w.image !== defaultImage)
+      : workers;
     const actions: Item[] = [
-      ...workers.map((w) => ({
+      {
+        id: 'new-session',
+        label: 'New session',
+        icon: <AddRounded fontSize="small" />,
+        run: () => startSession(),
+      },
+      ...nonDefaultWorkers.map((w) => ({
         id: `new-session-${w.image}`,
         label: `New session (${w.name})`,
         icon: <AddRounded fontSize="small" />,
@@ -104,7 +113,7 @@ export const CommandPalette: FC<CommandPaletteProps> = ({
       },
       {
         id: 'new-scheduled',
-        label: 'New scheduled task',
+        label: 'Schedule a task',
         icon: <ScheduleRounded fontSize="small" />,
         run: onNewScheduledTask,
       },

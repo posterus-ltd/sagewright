@@ -47,7 +47,7 @@ describe('CommandPalette', () => {
 
     expect(await screen.findByText('New session')).toBeTruthy();
     expect(screen.getByText('Open session…')).toBeTruthy();
-    expect(screen.getByText('New scheduled task')).toBeTruthy();
+    expect(screen.getByText('Schedule a task')).toBeTruthy();
   });
 
   it('lists a "New session (Name)" action per non-default worker; the default is the plain entry', async () => {
@@ -76,7 +76,7 @@ describe('CommandPalette', () => {
 
     fireEvent.change(await screen.findByLabelText('Type a command'), { target: { value: 'sched' } });
 
-    expect(screen.getByText('New scheduled task')).toBeTruthy();
+    expect(screen.getByText('Schedule a task')).toBeTruthy();
     expect(screen.queryByText('New session')).toBeNull();
   });
 
@@ -100,7 +100,7 @@ describe('CommandPalette', () => {
     const onNewScheduledTask = vi.fn();
     renderPalette({ onNewScheduledTask });
 
-    fireEvent.click(await screen.findByText('New scheduled task'));
+    fireEvent.click(await screen.findByText('Schedule a task'));
 
     expect(onNewScheduledTask).toHaveBeenCalledOnce();
   });

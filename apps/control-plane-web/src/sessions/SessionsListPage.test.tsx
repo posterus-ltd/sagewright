@@ -11,6 +11,7 @@ import { type ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { SessionsListPage } from './SessionsListPage';
+import { UserPreferencesProvider } from '../preferences/UserPreferencesProvider';
 
 const navigate = vi.fn();
 vi.mock('react-router', () => ({ useNavigate: () => navigate }));
@@ -61,7 +62,9 @@ const renderPage = () => {
     defaultOptions: { queries: { retry: false, refetchInterval: false } },
   });
   const Wrapper = ({ children }: { children: ReactNode }) => (
-    <QueryClientProvider client={qc}>{children}</QueryClientProvider>
+    <QueryClientProvider client={qc}>
+      <UserPreferencesProvider>{children}</UserPreferencesProvider>
+    </QueryClientProvider>
   );
   return render(<SessionsListPage />, { wrapper: Wrapper });
 };

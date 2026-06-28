@@ -4,8 +4,8 @@
 #
 # The control plane runs THIS over `docker exec` when the user opens a session's
 # interactive "agent" terminal. Its one job: resume the harness you installed in
-# worker/Dockerfile in the foreground, attached to the PTY, so the user can keep
-# working with the same agent session that the headless run (start-agent) created.
+# worker/Dockerfile in a tmux session, attached to the PTY, so the user can keep
+# working after closing or refreshing the browser tab.
 #
 # Swapping harness? Change the launch line below to your harness's interactive
 # resume command, and update start-agent + worker/Dockerfile to match. Nothing in
@@ -13,6 +13,7 @@
 # ─────────────────────────────────────────────────────────────────────────────
 set -euo pipefail
 
-# Default harness: opencode. `opencode --continue` resumes the most recent session
-# interactively in the current working directory.
-exec opencode --continue
+# Default harness: opencode. `opencode --continue` resumes the most recent
+# session interactively in the current working directory. tmux keeps it running
+# when the browser WebSocket disconnects; the next attach reconnects to it.
+exec tmux new-session -A -s sagewright-agent "exec opencode --continue"

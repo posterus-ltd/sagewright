@@ -8,7 +8,11 @@ import {
   type PropsWithChildren,
 } from 'react';
 
-import { PREFERENCES_STORAGE_KEY, type UserPreferences } from './model';
+import {
+  LEGACY_DISPLAY_NAME_STORAGE_KEY,
+  PREFERENCES_STORAGE_KEY,
+  type UserPreferences,
+} from './model';
 
 interface UserPreferencesContextValue {
   preferences: Partial<UserPreferences>;
@@ -19,13 +23,26 @@ const UserPreferencesContext = createContext<UserPreferencesContextValue | null>
 
 const readStoredPreferences = (): Partial<UserPreferences> => {
   try {
-    return JSON.parse(
+    const preferences = JSON.parse(
       localStorage.getItem(PREFERENCES_STORAGE_KEY) ?? '{}',
     ) as Partial<UserPreferences>;
+    return migrateLegacyDisplayName(preferences);
   } catch {
     // Corrupt or unavailable storage falls back to defaults rather than crashing.
-    return {};
+    return migrateLegacyDisplayName({});
   }
+};
+
+const migrateLegacyDisplayName = (preferences: Partial<UserPreferences>): Partial<UserPreferences> => {
+  if (preferences.displayName !== undefined) return preferences;
+
+  const legacyDisplayName = localStorage.getItem(LEGACY_DISPLAY_NAME_STORAGE_KEY);
+  if (!legacyDisplayName) return preferences;
+
+  const next = { ...preferences, displayName: legacyDisplayName };
+  localStorage.setItem(PREFERENCES_STORAGE_KEY, JSON.stringify(next));
+  localStorage.removeItem(LEGACY_DISPLAY_NAME_STORAGE_KEY);
+  return next;
 };
 
 export const UserPreferencesProvider: FC<PropsWithChildren> = ({ children }) => {

@@ -25,6 +25,23 @@ import { Stop } from '@mui/icons-material';
 type TabValue = 'transcript' | 'agent' | 'shell' | 'log';
 
 const TERMINAL_DEAD_STATUSES = ['done', 'failed', 'stopped'];
+const sessionTabSx = {
+  minHeight: 32,
+  minWidth: 64,
+  px: 1.25,
+  borderRadius: 0.75,
+  color: 'text.secondary',
+  fontSize: '0.8125rem',
+  fontWeight: 600,
+  letterSpacing: 0,
+  lineHeight: 1,
+  textTransform: 'none',
+  '&.Mui-selected': {
+    bgcolor: 'background.paper',
+    color: 'text.primary',
+    boxShadow: 1,
+  },
+};
 
 /**
  * The interactive view of a single session: agent/shell terminals, the event
@@ -164,31 +181,65 @@ export const SessionPanel: FC<{
               </Button>
             )}
           {!compact && (
-            <Button
-              size="small"
-              color="secondary"
-              aria-label={fullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
-              onClick={() => setFullscreen((prev) => !prev)}
-              sx={{ ml: 'auto' }}
-              startIcon={
-                fullscreen ? (
+            <Tooltip title="Fullscreen">
+              <IconButton
+                size="small"
+                color="secondary"
+                aria-label="Fullscreen"
+                onClick={() => setFullscreen((prev) => !prev)}
+                sx={{ ml: 'auto' }}
+              >
+                {fullscreen ? (
                   <FullscreenExitRounded fontSize="small" />
                 ) : (
                   <FullscreenRounded fontSize="small" />
-                )
-              }
-            >
-              {fullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
-            </Button>
+                )}
+              </IconButton>
+            </Tooltip>
           )}
         </Stack>
       )}
 
-      <Tabs value={current} onChange={(_, v: TabValue) => setTab(v)}>
-        {headless && <Tab value="transcript" label="Transcript" />}
-        {!headless && <Tab value="agent" label="Agent" disabled={!live} />}
-        <Tab value="shell" label="Shell" disabled={!live} />
-        <Tab value="log" label="Log" />
+      <Tabs
+        value={current}
+        onChange={(_, v: TabValue) => setTab(v)}
+        variant="scrollable"
+        scrollButtons={false}
+        sx={{
+          minHeight: 36,
+          maxWidth: '100%',
+          borderRadius: 1,
+          bgcolor: 'action.hover',
+          p: 0.25,
+          '& .MuiTabs-scroller': {
+            minHeight: 32,
+          },
+          '& .MuiTabs-flexContainer': {
+            gap: 0.5,
+          },
+          '& .MuiTabs-indicator': {
+            display: 'none',
+          },
+        }}
+      >
+        {headless && (
+          <Tab value="transcript" label="Transcript" sx={sessionTabSx} />
+        )}
+        {!headless && (
+          <Tab
+            value="agent"
+            label="Agent"
+            disabled={!live}
+            sx={sessionTabSx}
+          />
+        )}
+        <Tab
+          value="shell"
+          label="Shell"
+          disabled={!live}
+          sx={sessionTabSx}
+        />
+        <Tab value="log" label="Log" sx={sessionTabSx} />
       </Tabs>
 
       {current === 'transcript' && (
