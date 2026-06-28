@@ -107,6 +107,8 @@ export const workflowRunSchema = z.object({
   prUrl: z.string().nullable(),
   currentStepKey: z.string().nullable(),
   iteration: z.number().int(),
+  /** Failure reason when the run failed / hit max iterations; null otherwise. */
+  error: z.string().nullable(),
   createdBy: z.string(),
   createdAt: z.string(),
 });

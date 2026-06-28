@@ -168,6 +168,14 @@ export const createWorkflowRunner = (deps: WorkflowRunnerDeps) => {
     const dir = runDir(runId);
     let opsContainerId: string | null = null;
     let status: WorkflowRunStatus = 'failed';
+    // Why a non-success run ended, and on which step — persisted so the run UI can
+    // explain the failure instead of leaving it buried in the server log.
+    let reason: string | null = null;
+    let failedStepKey: string | null = null;
+    let currentKey = def.steps[0]!.key;
+    // True once the step loop is entered — lets the catch tell an in-step crash
+    // (attribute to currentKey) from a setup-phase crash (no step ran yet).
+    let inLoop = false;
 
     try {
       // Resolve the creator's repos + GitHub auth, then lay down one shared worktree.
@@ -182,15 +190,17 @@ export const createWorkflowRunner = (deps: WorkflowRunnerDeps) => {
       );
       await files.ensureDir(`${dir}/.sagewright`);
 
-      let currentKey = def.steps[0]!.key;
       let iteration = 0;
       let carried: string | null = input ?? null;
+      inLoop = true;
 
       // Sequential step loop — never parallel: all steps share one worktree.
       for (;;) {
         const step = stepsByKey.get(currentKey);
         if (!step) {
           status = 'failed';
+          reason = `unknown step "${currentKey}" referenced in the workflow`;
+          failedStepKey = currentKey;
           break;
         }
         await setRun(runId, { currentStepKey: currentKey, iteration });
@@ -214,6 +224,8 @@ export const createWorkflowRunner = (deps: WorkflowRunnerDeps) => {
         });
         if (exitCode !== 0) {
           status = 'failed';
+          reason = `step "${step.name}" (${currentKey}) exited with code ${exitCode}`;
+          failedStepKey = currentKey;
           break;
         }
 
@@ -240,6 +252,10 @@ export const createWorkflowRunner = (deps: WorkflowRunnerDeps) => {
           await setRun(runId, { iteration });
           if (iteration >= def.maxIterations) {
             status = 'max_iterations';
+            reason = `validation "${step.name}" did not pass after ${def.maxIterations} iterations${
+              verdict.summary ? `: ${verdict.summary}` : ''
+            }${commandsOk ? '' : ' (objective commands failed)'}`;
+            failedStepKey = currentKey;
             break;
           }
           currentKey = step.onFailureGoTo ?? def.steps[0]!.key;
@@ -286,11 +302,15 @@ export const createWorkflowRunner = (deps: WorkflowRunnerDeps) => {
       }
     } catch (err) {
       status = 'failed';
+      reason = err instanceof Error ? err.message : String(err);
+      failedStepKey = inLoop ? currentKey : null;
       logger.error(err, `workflow run ${runId} failed`);
     } finally {
       if (opsContainerId) await deps.spawner.retire(opsContainerId).catch(() => undefined);
       await deps.volume.removeSessionWorktrees(runId).catch(() => undefined);
-      await setRun(runId, { status, currentStepKey: null });
+      // Keep the failed step on the run so the graph can highlight where it died;
+      // clear it for runs that reached an end state (succeeded / max_iterations).
+      await setRun(runId, { status, error: reason, currentStepKey: status === 'failed' ? failedStepKey : null });
     }
   };
 
@@ -316,7 +336,8 @@ export const createWorkflowRunner = (deps: WorkflowRunnerDeps) => {
 
       void drive(run!.id, def, createdBy, input).catch(async (err) => {
         logger.error(err, `workflow run ${run!.id} crashed`);
-        await setRun(run!.id, { status: 'failed', currentStepKey: null }).catch(() => undefined);
+        const error = err instanceof Error ? err.message : String(err);
+        await setRun(run!.id, { status: 'failed', error, currentStepKey: null }).catch(() => undefined);
       });
 
       return {
@@ -327,6 +348,7 @@ export const createWorkflowRunner = (deps: WorkflowRunnerDeps) => {
         prUrl: null,
         currentStepKey: def.steps[0]!.key,
         iteration: 0,
+        error: null,
         createdBy,
         createdAt: run!.createdAt.toISOString(),
       };

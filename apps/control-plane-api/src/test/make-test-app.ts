@@ -123,6 +123,7 @@ const TABLE_STMTS = [
     "pr_url" text,
     "current_step_key" text,
     "iteration" integer DEFAULT 0 NOT NULL,
+    "error" text,
     "trigger_context" jsonb,
     "created_by" text NOT NULL,
     "created_at" timestamp with time zone DEFAULT now() NOT NULL

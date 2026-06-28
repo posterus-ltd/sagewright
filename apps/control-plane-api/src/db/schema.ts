@@ -62,6 +62,9 @@ export const workflowRuns = pgTable('workflow_runs', {
   prUrl: text('pr_url'),
   currentStepKey: text('current_step_key'),
   iteration: integer('iteration').notNull().default(0),
+  // Human-readable failure reason when status is 'failed'/'max_iterations'; null
+  // otherwise. Surfaced in the run UI so failures aren't buried in server logs.
+  error: text('error'),
   triggerContext: jsonb('trigger_context'),
   createdBy: text('created_by').notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),

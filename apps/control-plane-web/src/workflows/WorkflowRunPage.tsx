@@ -1,4 +1,4 @@
-import { Box, Button, Chip, CircularProgress, Link as MuiLink, Typography, useTheme } from '@mui/material';
+import { Alert, AlertTitle, Box, Button, Chip, CircularProgress, Link as MuiLink, Typography, useTheme } from '@mui/material';
 import { Background, Controls, ReactFlow, ReactFlowProvider, type NodeTypes } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { useMemo, type FC } from 'react';
@@ -51,6 +51,23 @@ export const WorkflowRunPage: FC = () => {
           </MuiLink>
         )}
       </Box>
+
+      {run.error && (
+        <Alert severity={run.status === 'failed' ? 'error' : 'warning'}>
+          <AlertTitle>
+            {run.status === 'failed' ? 'Run failed' : 'Stopped at max iterations'}
+            {run.currentStepKey && ` — step "${run.currentStepKey}"`}
+          </AlertTitle>
+          <Box component="pre" sx={{ m: 0, whiteSpace: 'pre-wrap', fontFamily: 'inherit' }}>
+            {run.error}
+          </Box>
+          {run.currentStepKey && (
+            <Typography variant="body2" sx={{ mt: 1 }}>
+              Click the highlighted step in the graph to open its transcript.
+            </Typography>
+          )}
+        </Alert>
+      )}
 
       <Box sx={{ flexGrow: 1, minHeight: 320, border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
         <ReactFlowProvider>

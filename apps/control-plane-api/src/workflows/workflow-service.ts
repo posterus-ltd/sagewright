@@ -34,6 +34,7 @@ const rowToRun = (r: typeof workflowRuns.$inferSelect): WorkflowRun => ({
   prUrl: r.prUrl,
   currentStepKey: r.currentStepKey,
   iteration: r.iteration,
+  error: r.error,
   createdBy: r.createdBy,
   createdAt: r.createdAt.toISOString(),
 });

@@ -161,6 +161,29 @@ describe('workflow-runner', () => {
     expect(captures.some((c) => c[0] === 'git')).toBe(false);
   });
 
+  it('records the failure reason and keeps the failed step when a step exits non-zero', async () => {
+    const { db, runner, workflowId } = await setup({ verdicts: [true], stepExit: 2 });
+    const run = await runner.start(workflowId, 'al');
+    const settled = await waitForRun(db, run!.id);
+
+    expect(settled.status).toBe('failed');
+    // The reason names the step and its exit code so the UI can show "what happened".
+    expect(settled.error).toContain('plan');
+    expect(settled.error).toContain('2');
+    // The failed step stays on the run (not nulled) so the graph can highlight it.
+    expect(settled.currentStepKey).toBe('plan');
+  });
+
+  it('records a reason and clears the step on a successful run', async () => {
+    const { db, runner, workflowId } = await setup({ verdicts: [true] });
+    const run = await runner.start(workflowId, 'al');
+    const settled = await waitForRun(db, run!.id);
+
+    expect(settled.status).toBe('succeeded');
+    expect(settled.error).toBeNull();
+    expect(settled.currentStepKey).toBeNull();
+  });
+
   it('fails validation when objective commands fail even if the verdict passes', async () => {
     const def = {
       ...definition,
