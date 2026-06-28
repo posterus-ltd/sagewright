@@ -1,4 +1,3 @@
-import AddRounded from '@mui/icons-material/AddRounded';
 import {
   Box,
   Button,
@@ -224,7 +223,6 @@ const CanvasBoard: FC<BoardProps> = ({ initialLayout, tasks }) => {
                 <>
                   <Button
                     variant="outlined"
-                    startIcon={<AddRounded />}
                     onClick={(e) => setMenuAnchor(e.currentTarget)}
                   >
                     Add existing
