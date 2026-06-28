@@ -184,7 +184,13 @@ export const SessionPanel: FC<{
         </Stack>
       )}
 
-      <Tabs value={current} onChange={(_, v: TabValue) => setTab(v)}>
+      <Tabs
+        value={current}
+        onChange={(_, v: TabValue) => setTab(v)}
+        textColor="inherit"
+        indicatorColor="primary"
+        variant="fullWidth"
+      >
         {headless && <Tab value="transcript" label="Transcript" />}
         {!headless && <Tab value="agent" label="Agent" disabled={!live} />}
         <Tab value="shell" label="Shell" disabled={!live} />
