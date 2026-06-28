@@ -101,6 +101,7 @@ const Row: FC<RowProps> = ({
       sx={{
         display: 'flex',
         alignItems: 'center',
+        justifyContent: collapsed ? 'center' : 'flex-start',
         gap: 1.5,
         width: '100%',
         px: 1.5,
@@ -212,9 +213,10 @@ export const Sidebar: FC = () => {
         sx={{
           display: 'flex',
           alignItems: 'center',
+          justifyContent: collapsed ? 'center' : 'flex-start',
           gap: 1,
           height: 56,
-          px: 2,
+          px: collapsed ? 0 : 2,
           flexShrink: 0,
         }}
       >
@@ -340,7 +342,7 @@ export const Sidebar: FC = () => {
           sx={{
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'end',
+            justifyContent: collapsed ? 'center' : 'end',
             gap: 0.5,
             px: 1.5,
             py: 0.5,
