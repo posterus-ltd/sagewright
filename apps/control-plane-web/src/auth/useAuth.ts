@@ -1,15 +1,18 @@
-import { useCallback, useState } from 'react';
+import { useCallback } from 'react';
 
 import { apiClient } from '../api/client';
-import { clearSession, readSession, writeSession } from './session';
+import { useUserPreferences } from '../preferences/UserPreferencesProvider';
+import { clearSession } from './session';
 
 export const useAuth = () => {
-  const [displayName, setDisplayName] = useState<string | null>(() => readSession());
+  const { preference: displayName, updatePreference: setDisplayName } = useUserPreferences('displayName', null);
+
   const login = useCallback(async (name: string, password: string): Promise<void> => {
     await apiClient.post('/api/login', { displayName: name, password });
-    writeSession(name);
     setDisplayName(name);
-  }, []);
-  const logout = useCallback((): void => { clearSession(); setDisplayName(null); }, []);
+  }, [setDisplayName]);
+
+  const logout = useCallback((): void => { clearSession(); setDisplayName(null); }, [setDisplayName]);
+
   return { displayName, login, logout };
 };
