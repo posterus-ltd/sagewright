@@ -13,6 +13,9 @@ class FakeEventSource {
   emit(type: string, data: unknown, lastEventId: string) {
     for (const cb of this.listeners[type] ?? []) cb({ data: JSON.stringify(data), lastEventId } as MessageEvent);
   }
+  emitRaw(type: string, data: unknown, lastEventId: string) {
+    for (const cb of this.listeners[type] ?? []) cb({ data, lastEventId } as MessageEvent);
+  }
   close() {}
 }
 
@@ -40,6 +43,15 @@ describe('useTaskStream', () => {
     const es = FakeEventSource.instances[0];
     act(() => { es.onopen?.(); });
     await waitFor(() => expect(result.current.connected).toBe(true));
+  });
+
+  it('ignores malformed reconnect payloads instead of throwing', () => {
+    const { result } = renderHook(() => useTaskStream('t1'));
+    const es = FakeEventSource.instances[0];
+
+    act(() => { es.emitRaw(EventType.ASSISTANT, undefined, '1'); });
+
+    expect(result.current.events).toHaveLength(0);
   });
 
   it('resets dedup set when taskId changes so seq-1 event from new task is not dropped', async () => {
