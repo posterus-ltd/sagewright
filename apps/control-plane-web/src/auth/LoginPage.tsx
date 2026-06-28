@@ -182,7 +182,7 @@ export const LoginPage: FC = () => {
   };
 
   return (
-    <Box sx={{ minHeight: '100vh', display: 'flex', bgcolor: 'background.default' }}>
+    <Box sx={{ minHeight: '100dvh', display: 'flex', bgcolor: 'background.default' }}>
       <MarketingPanel />
 
       <Box

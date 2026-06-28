@@ -198,7 +198,7 @@ export const Sidebar: FC = () => {
       sx={{
         width: collapsed ? COLLAPSED : EXPANDED,
         flexShrink: 0,
-        height: '100vh',
+        height: '100dvh',
         display: 'flex',
         flexDirection: 'column',
         bgcolor: 'background.paper',

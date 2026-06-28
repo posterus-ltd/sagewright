@@ -7,9 +7,9 @@ import { Sidebar } from './Sidebar';
 
 export const Layout: FC = () => (
   <CommandPaletteProvider>
-    <Box sx={{ display: 'flex', height: '100vh', bgcolor: 'background.default' }}>
+    <Box sx={{ display: 'flex', height: '100dvh', bgcolor: 'background.default' }}>
       <Sidebar />
-      <Box component="main" sx={{ flexGrow: 1, minWidth: 0, height: '100vh', overflow: 'auto', p: 3 }}>
+      <Box component="main" sx={{ flexGrow: 1, minWidth: 0, height: '100dvh', overflow: 'auto', p: 3 }}>
         <Outlet />
       </Box>
     </Box>
