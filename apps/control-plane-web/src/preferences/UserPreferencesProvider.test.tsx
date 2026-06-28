@@ -69,6 +69,24 @@ describe('useUserPreferences', () => {
     expect(result.current.b.preference).toBe(true);
   });
 
+  it('persists independent preference keys side by side', () => {
+    const { result } = renderHook(
+      () => ({
+        width: useUserPreferences('fullWidthContent', false),
+        collapsed: useUserPreferences('sidebarCollapsed', false),
+      }),
+      { wrapper },
+    );
+
+    act(() => result.current.width.updatePreference(true));
+    act(() => result.current.collapsed.updatePreference(true));
+
+    expect(JSON.parse(localStorage.getItem('sagewright.preferences')!)).toEqual({
+      fullWidthContent: true,
+      sidebarCollapsed: true,
+    });
+  });
+
   it('throws when used outside the provider', () => {
     expect(() => renderHook(() => useUserPreferences('fullWidthContent', false))).toThrow(
       /must be used within UserPreferencesProvider/,

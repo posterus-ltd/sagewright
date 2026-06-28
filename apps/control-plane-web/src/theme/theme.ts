@@ -6,6 +6,10 @@ import { fonts, palettes, radius } from './tokens';
 
 export type ResolvedMode = 'light' | 'dark';
 
+// The user's theme choice. 'system' follows the OS; ThemeModeProvider resolves
+// it live to a ResolvedMode for rendering.
+export type ThemeMode = 'system' | 'light' | 'dark';
+
 // Builds a MUI theme from our tokens. The overrides push MUI away from its
 // stock Material look (drop shadows, big radii, uppercase buttons) toward a
 // flat, hairline-bordered, terminal-adjacent surface.

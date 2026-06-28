@@ -1,6 +1,7 @@
 import { act, render, renderHook, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { UserPreferencesProvider } from '../preferences/UserPreferencesProvider';
 import { ThemeModeProvider, resolveMode, useThemeMode } from './ThemeModeProvider';
 
 // Node 22 ships a non-functional experimental `localStorage` global that
@@ -53,7 +54,9 @@ describe('ThemeModeProvider', () => {
   });
 
   const wrapper = ({ children }: { children: React.ReactNode }) => (
-    <ThemeModeProvider>{children}</ThemeModeProvider>
+    <UserPreferencesProvider>
+      <ThemeModeProvider>{children}</ThemeModeProvider>
+    </UserPreferencesProvider>
   );
 
   it('defaults to system preference (dark) on first load', () => {
@@ -70,12 +73,14 @@ describe('ThemeModeProvider', () => {
     act(() => result.current.setMode('light'));
 
     expect(result.current.resolvedMode).toBe('light');
-    expect(localStorage.getItem('sagewright.theme-mode')).toBe('light');
+    expect(JSON.parse(localStorage.getItem('sagewright.preferences')!)).toMatchObject({
+      themeMode: 'light',
+    });
   });
 
   it('restores the persisted choice on reload', () => {
     mockMatchMedia(true);
-    localStorage.setItem('sagewright.theme-mode', 'light');
+    localStorage.setItem('sagewright.preferences', JSON.stringify({ themeMode: 'light' }));
     const { result } = renderHook(() => useThemeMode(), { wrapper });
     expect(result.current.mode).toBe('light');
     expect(result.current.resolvedMode).toBe('light');

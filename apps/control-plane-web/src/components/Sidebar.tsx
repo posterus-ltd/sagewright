@@ -27,7 +27,6 @@ import {
   Tooltip,
 } from '@mui/material';
 import {
-  useCallback,
   useState,
   type FC,
   type MouseEvent,
@@ -44,7 +43,6 @@ import { shortcutLabel } from './command-palette/shortcut';
 
 const EXPANDED = 240;
 const COLLAPSED = 56;
-const STORAGE_KEY = 'sagewright.sidebar-collapsed';
 
 const NAV = [
   {
@@ -178,18 +176,11 @@ export const Sidebar: FC = () => {
     preference: fullWidthContent,
     updatePreference: setFullWidthContent,
   } = useUserPreferences('fullWidthContent', false);
-  const [collapsed, setCollapsed] = useState<boolean>(
-    () => localStorage.getItem(STORAGE_KEY) === '1',
-  );
+  const {
+    preference: collapsed,
+    updatePreference: setCollapsed,
+  } = useUserPreferences('sidebarCollapsed', false);
   const [userAnchor, setUserAnchor] = useState<HTMLElement | null>(null);
-
-  const toggleCollapsed = useCallback((): void => {
-    setCollapsed((c) => {
-      const next = !c;
-      localStorage.setItem(STORAGE_KEY, next ? '1' : '0');
-      return next;
-    });
-  }, []);
 
   const signOut = (): void => {
     setUserAnchor(null);
@@ -392,7 +383,7 @@ export const Sidebar: FC = () => {
           >
             <IconButton
               size="small"
-              onClick={toggleCollapsed}
+              onClick={() => setCollapsed(!collapsed)}
               sx={{ color: 'text.secondary' }}
             >
               {collapsed ? (
