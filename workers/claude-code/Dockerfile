@@ -5,8 +5,9 @@ LABEL sagewright.worker=true \
 
 # ─── Base tooling ─────────────────────────────────────────────────────────────
 # git + gh power the control plane's push + PR step; curl/neovim are for poking
-# around during interactive `docker exec` sessions.
-RUN apt-get update && apt-get install -y git curl neovim && rm -rf /var/lib/apt/lists/*
+# around during interactive `docker exec` sessions. tmux keeps the agent terminal
+# alive across browser refreshes.
+RUN apt-get update && apt-get install -y git curl neovim tmux && rm -rf /var/lib/apt/lists/*
 
 # Install gh CLI via official apt repository.
 RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
