@@ -2,7 +2,15 @@ import Archive from '@mui/icons-material/Archive';
 import DeleteForever from '@mui/icons-material/DeleteForever';
 import StopCircleIcon from '@mui/icons-material/StopCircle';
 import EditRounded from '@mui/icons-material/EditRounded';
-import { Box, IconButton, InputBase, Tab, Tabs, Tooltip } from '@mui/material';
+import {
+  Box,
+  IconButton,
+  InputBase,
+  Stack,
+  Tab,
+  Tabs,
+  Tooltip,
+} from '@mui/material';
 import {
   DataGrid,
   type GridColDef,
@@ -26,6 +34,8 @@ import {
   useTasks,
   useUpdateTask,
 } from '../api/hooks';
+import { Header } from '../components/Header';
+import { MainContainer } from '../components/MainContainer';
 import { NewSessionButton } from '../components/NewSessionButton';
 import { StatusChip } from '../components/StatusChip';
 import { WorkerChip } from '../components/WorkerChip';
@@ -251,37 +261,38 @@ export const SessionsListPage: FC = () => {
   };
 
   return (
-    <Box>
-      <Box
-        sx={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          mb: 2,
-        }}
-      >
-        <Tabs value={view} onChange={(_, v: SessionView) => setView(v)}>
-          <Tab label="Active" value={SessionView.ACTIVE} />
-          <Tab label="Archived" value={SessionView.ARCHIVED} />
-        </Tabs>
-        <NewSessionButton onCreated={(task) => navigate(`/tasks/${task.id}`)} />
-      </Box>
-      <DataGrid
-        rows={visible}
-        columns={columns}
-        autoHeight
-        disableVirtualization
-        disableRowSelectionOnClick
-        onRowClick={onRowClick}
-        pageSizeOptions={[25, 50, 100]}
-        sx={{
-          '& .MuiDataGrid-row': { cursor: 'pointer' },
-          // Reveal row actions only on hover/focus.
-          '& .row-actions': { opacity: 0, transition: 'opacity 0.15s' },
-          '& .MuiDataGrid-row:hover .row-actions, & .MuiDataGrid-row:focus-within .row-actions':
-            { opacity: 1 },
-        }}
-      />
-    </Box>
+    <MainContainer>
+      <Stack spacing={3}>
+        <Header
+          title={
+            <Tabs value={view} onChange={(_, v: SessionView) => setView(v)}>
+              <Tab label="Active" value={SessionView.ACTIVE} />
+              <Tab label="Archived" value={SessionView.ARCHIVED} />
+            </Tabs>
+          }
+          actions={
+            <NewSessionButton
+              onCreated={(task) => navigate(`/tasks/${task.id}`)}
+            />
+          }
+        />
+        <DataGrid
+          rows={visible}
+          columns={columns}
+          autoHeight
+          disableVirtualization
+          disableRowSelectionOnClick
+          onRowClick={onRowClick}
+          pageSizeOptions={[25, 50, 100]}
+          sx={{
+            '& .MuiDataGrid-row': { cursor: 'pointer' },
+            // Reveal row actions only on hover/focus.
+            '& .row-actions': { opacity: 0, transition: 'opacity 0.15s' },
+            '& .MuiDataGrid-row:hover .row-actions, & .MuiDataGrid-row:focus-within .row-actions':
+              { opacity: 1 },
+          }}
+        />
+      </Stack>
+    </MainContainer>
   );
 };

@@ -56,7 +56,7 @@ export const buildTheme = (mode: ResolvedMode): Theme => {
         defaultProps: {
           disableElevation: true,
           variant: 'outlined',
-          size: 'medium',
+          size: 'small',
         },
         styleOverrides: { root: { boxShadow: 'none' } },
       },

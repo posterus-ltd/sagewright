@@ -13,10 +13,13 @@ import {
   SettingsBrightnessRounded,
   SettingsRounded,
   TerminalRounded,
+  WidthFullRounded,
+  WidthNormalRounded,
 } from '@mui/icons-material';
 import {
   Box,
   Divider,
+  IconButton,
   ListItemIcon,
   ListItemText,
   Menu,
@@ -33,6 +36,7 @@ import {
 import { Link, useLocation, useNavigate } from 'react-router';
 
 import { useAuth } from '../auth/useAuth';
+import { useUserPreferences } from '../preferences/UserPreferencesProvider';
 import { useThemeMode, type ThemeMode } from '../theme/ThemeModeProvider';
 import { fonts } from '../theme/tokens';
 import { useCommandPalette } from './command-palette/CommandPaletteProvider';
@@ -170,6 +174,10 @@ export const Sidebar: FC = () => {
   const { open: openCommandPalette } = useCommandPalette();
   const { displayName, logout } = useAuth();
   const { mode, setMode } = useThemeMode();
+  const {
+    preference: fullWidthContent,
+    updatePreference: setFullWidthContent,
+  } = useUserPreferences('fullWidthContent', false);
   const [collapsed, setCollapsed] = useState<boolean>(
     () => localStorage.getItem(STORAGE_KEY) === '1',
   );
@@ -311,7 +319,7 @@ export const Sidebar: FC = () => {
 
       <Box sx={{ flexGrow: 1 }} />
 
-      {/* Settings · theme · user */}
+      {/* Settings · about · user */}
       <Box sx={{ display: 'flex', flexDirection: 'column', py: 1, gap: 0.5 }}>
         <Row
           to="/settings"
@@ -328,13 +336,6 @@ export const Sidebar: FC = () => {
           active={aboutActive}
         />
         <Row
-          icon={themeIcon(mode)}
-          label={`Theme: ${LABEL[mode]}`}
-          title={`Theme: ${LABEL[mode]}`}
-          collapsed={collapsed}
-          onClick={() => setMode(NEXT[mode])}
-        />
-        <Row
           icon={<AccountCircleRounded fontSize="small" />}
           label={displayName ?? 'Account'}
           title={displayName ?? 'Account'}
@@ -342,19 +343,66 @@ export const Sidebar: FC = () => {
           onClick={(e) => setUserAnchor(e.currentTarget)}
         />
         <Divider sx={{ my: 0.5 }} />
-        <Row
-          icon={
-            collapsed ? (
-              <ChevronRightRounded fontSize="small" />
-            ) : (
-              <ChevronLeftRounded fontSize="small" />
-            )
-          }
-          label="Collapse"
-          title="Expand"
-          collapsed={collapsed}
-          onClick={toggleCollapsed}
-        />
+        {/* Compact icon controls divided by rules: theme · width · collapse.
+            Collapsed, the row holds only the expand button. */}
+        <Box
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'end',
+            gap: 0.5,
+            px: 1.5,
+            py: 0.5,
+          }}
+        >
+          {!collapsed && (
+            <>
+              <Tooltip title={`Theme: ${LABEL[mode]}`} placement="top">
+                <IconButton
+                  size="small"
+                  onClick={() => setMode(NEXT[mode])}
+                  sx={{ color: 'text.secondary' }}
+                >
+                  {themeIcon(mode)}
+                </IconButton>
+              </Tooltip>
+              <Divider orientation="vertical" flexItem sx={{ my: 0.5 }} />
+              <Tooltip
+                title={`Width: ${fullWidthContent ? 'Full' : 'Contained'}`}
+                placement="top"
+              >
+                <IconButton
+                  size="small"
+                  onClick={() => setFullWidthContent(!fullWidthContent)}
+                  sx={{ color: 'text.secondary' }}
+                >
+                  {fullWidthContent ? (
+                    <WidthFullRounded fontSize="small" />
+                  ) : (
+                    <WidthNormalRounded fontSize="small" />
+                  )}
+                </IconButton>
+              </Tooltip>
+              <Divider orientation="vertical" flexItem sx={{ my: 0.5 }} />
+            </>
+          )}
+          <Tooltip
+            title={collapsed ? 'Expand' : 'Collapse'}
+            placement={collapsed ? 'right' : 'top'}
+          >
+            <IconButton
+              size="small"
+              onClick={toggleCollapsed}
+              sx={{ color: 'text.secondary' }}
+            >
+              {collapsed ? (
+                <ChevronRightRounded fontSize="small" />
+              ) : (
+                <ChevronLeftRounded fontSize="small" />
+              )}
+            </IconButton>
+          </Tooltip>
+        </Box>
       </Box>
 
       <Menu
