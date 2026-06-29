@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import license from 'rollup-plugin-license';
+import { VitePWA } from 'vite-plugin-pwa';
 import { nxViteTsPaths } from '@nx/vite/plugins/nx-tsconfig-paths.plugin';
 import { nxCopyAssetsPlugin } from '@nx/vite/plugins/nx-copy-assets.plugin';
 
@@ -24,6 +25,31 @@ export default defineConfig(() => ({
   },
   plugins: [
     react(),
+    // Make the control plane installable as a PWA. Generates a web manifest +
+    // a Workbox service worker that precaches the static app shell only. There
+    // is deliberately no runtime/API caching (no `runtimeCaching`) and `/api` +
+    // `/internal` are excluded from navigation fallback, so the SW never serves
+    // stale live data or interferes with cookie auth / the dev proxy.
+    VitePWA({
+      registerType: 'autoUpdate',
+      injectRegister: 'auto',
+      pwaAssets: { config: true },
+      manifest: {
+        name: 'Sagewright Control Plane',
+        short_name: 'Sagewright',
+        description:
+          'Control plane for running coding agents in isolated Docker containers',
+        theme_color: '#0d1117',
+        background_color: '#0d1117',
+        display: 'standalone',
+        start_url: '/',
+        scope: '/',
+      },
+      workbox: {
+        navigateFallbackDenylist: [/^\/api/, /^\/internal/],
+      },
+      devOptions: { enabled: false },
+    }),
     nxViteTsPaths(),
     nxCopyAssetsPlugin(['*.md']),
     // Emit a third-party license notice for every dependency bundled into the
