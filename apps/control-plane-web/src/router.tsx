@@ -2,6 +2,7 @@ import { type FC } from 'react';
 import { Navigate, RouterProvider, createBrowserRouter } from 'react-router';
 
 import { AboutPage } from './about/AboutPage';
+import { AdminPage } from './admin/AdminPage';
 import { LoginPage } from './auth/LoginPage';
 import { useAuth } from './auth/useAuth';
 import { CanvasPage } from './canvas/CanvasPage';
@@ -34,6 +35,8 @@ const router = createBrowserRouter([
         { path: 'workflows/runs/:id', element: <WorkflowRunPage /> },
         { path: 'settings', element: <SettingsPage /> },
         { path: 'about', element: <AboutPage /> },
+        // Hidden admin route — intentionally not surfaced in the sidebar.
+        { path: 'adm', element: <AdminPage /> },
         { path: 'tasks/:id', element: <TaskDetailPage /> },
       ] },
     ],

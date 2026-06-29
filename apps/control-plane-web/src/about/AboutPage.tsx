@@ -1,20 +1,12 @@
 import { Box, Button, Stack, Typography } from '@mui/material';
 import OpenInNewRoundedIcon from '@mui/icons-material/OpenInNewRounded';
-import BugReportRoundedIcon from '@mui/icons-material/BugReportRounded';
-import { type FC, useState } from 'react';
+import { type FC } from 'react';
 
 import { MainContainer } from '../components/MainContainer';
 
 const IMPRINT_URL = 'https://posterus.ventures/imprint';
 
 export const AboutPage: FC = () => {
-  // Error boundaries only catch errors thrown during render, so flip state on
-  // click and throw on the next render to exercise the boundary.
-  const [shouldThrow, setShouldThrow] = useState(false);
-  if (shouldThrow) {
-    throw new Error('Test exception thrown from the About page.');
-  }
-
   return (
     <MainContainer>
       <Stack spacing={3}>
@@ -66,25 +58,6 @@ export const AboutPage: FC = () => {
             startIcon={<OpenInNewRoundedIcon />}
           >
             Impressum
-          </Button>
-        </Box>
-
-        <Box sx={{ maxWidth: 560 }}>
-          <Typography variant="h6" gutterBottom>
-            Diagnostics
-          </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-            Throw a test exception to verify the error boundary renders its
-            fallback page correctly.
-          </Typography>
-          <Button
-            type="button"
-            onClick={() => setShouldThrow(true)}
-            variant="outlined"
-            color="error"
-            startIcon={<BugReportRoundedIcon />}
-          >
-            Throw an exception
           </Button>
         </Box>
       </Stack>
