@@ -1,3 +1,7 @@
+import DeleteOutlineRounded from '@mui/icons-material/DeleteOutlineRounded';
+import EditRounded from '@mui/icons-material/EditRounded';
+import OpenInNewRounded from '@mui/icons-material/OpenInNewRounded';
+import PlayArrowRounded from '@mui/icons-material/PlayArrowRounded';
 import {
   Box,
   Button,
@@ -6,33 +10,38 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
-  Divider,
   IconButton,
-  List,
-  ListItem,
-  ListItemButton,
-  ListItemText,
   Stack,
+  Tab,
+  Tabs,
   TextField,
-  Typography,
+  Tooltip,
 } from '@mui/material';
-import DeleteOutlineRounded from '@mui/icons-material/DeleteOutlineRounded';
-import PlayArrowRounded from '@mui/icons-material/PlayArrowRounded';
-import { workflowDefinitionSchema, type Workflow } from '@sagewright/shared';
+import {
+  DataGrid,
+  type GridColDef,
+  type GridRowParams,
+} from '@mui/x-data-grid';
+import { type Workflow, type WorkflowRun } from '@sagewright/shared';
+import { DateTime } from 'luxon';
 import { useMemo, useState, type FC } from 'react';
 import { useNavigate } from 'react-router';
 
 import {
-  useCreateWorkflow,
   useDeleteWorkflow,
   useRunWorkflow,
-  useUpdateWorkflow,
   useWorkflowRuns,
   useWorkflows,
 } from '../api/hooks';
+import { ButtonType, useConfirmation } from '../components/ConfirmDialogProvider';
 import { Header } from '../components/Header';
 import { MainContainer } from '../components/MainContainer';
-import { EXAMPLE_WORKFLOW_JSON } from './example-workflow';
+import { WorkflowEditorDialog } from './WorkflowEditorDialog';
+
+enum WorkflowsView {
+  CONFIG = 'config',
+  RUNS = 'runs',
+}
 
 const RUN_STATUS_COLOR = {
   queued: 'info',
@@ -42,77 +51,53 @@ const RUN_STATUS_COLOR = {
   max_iterations: 'warning',
 } as const;
 
+const formatTime = (iso: string): string =>
+  DateTime.fromISO(iso).toLocaleString(DateTime.DATETIME_MED);
+
+// Reveal row actions only on hover/focus — mirrors the Sessions grid.
+const ROW_ACTIONS_SX = {
+  '& .MuiDataGrid-row': { cursor: 'pointer' },
+  '& .row-actions': { opacity: 0, transition: 'opacity 0.15s' },
+  '& .MuiDataGrid-row:hover .row-actions, & .MuiDataGrid-row:focus-within .row-actions':
+    { opacity: 1 },
+} as const;
+
 export const WorkflowsListPage: FC = () => {
   const navigate = useNavigate();
+  const { confirm } = useConfirmation();
   const { data: workflows = [] } = useWorkflows();
   const { data: runs = [] } = useWorkflowRuns();
-  const createWorkflow = useCreateWorkflow();
-  const updateWorkflow = useUpdateWorkflow();
   const deleteWorkflow = useDeleteWorkflow();
   const runWorkflow = useRunWorkflow();
 
-  const [editing, setEditing] = useState<Workflow | null>(null);
-  const [json, setJson] = useState('');
-  const [error, setError] = useState<string | null>(null);
+  const [view, setView] = useState<WorkflowsView>(WorkflowsView.CONFIG);
+  // `null` = editor closed; otherwise the workflow to edit (or null inside to
+  // signal "create new"). We wrap in an object so "create" stays distinct.
+  const [editing, setEditing] = useState<{ workflow: Workflow | null } | null>(
+    null,
+  );
   const [runFor, setRunFor] = useState<Workflow | null>(null);
   const [runInput, setRunInput] = useState('');
 
-  const editorOpen = json !== '' || editing !== null;
+  const workflowNameById = useMemo(
+    () => new Map(workflows.map((wf) => [wf.id, wf.name])),
+    [workflows],
+  );
 
-  const openNew = (): void => {
-    setEditing(null);
-    setJson(EXAMPLE_WORKFLOW_JSON);
-    setError(null);
-  };
-  const openEdit = (wf: Workflow): void => {
-    setEditing(wf);
-    setJson(JSON.stringify(wf.definition, null, 2));
-    setError(null);
-  };
-  const closeEditor = (): void => {
-    setEditing(null);
-    setJson('');
-    setError(null);
-  };
-
-  const parsed = useMemo(() => {
-    if (!editorOpen) return null;
-    try {
-      return workflowDefinitionSchema.safeParse(JSON.parse(json));
-    } catch (e) {
-      return {
-        success: false as const,
-        error: { message: (e as Error).message },
-      };
-    }
-  }, [editorOpen, json]);
-
-  const save = async (): Promise<void> => {
-    if (!parsed) return;
-    if (!parsed.success) {
-      setError(
-        'error' in parsed
-          ? JSON.stringify(parsed.error, null, 2)
-          : 'Invalid JSON',
-      );
-      return;
-    }
-    try {
-      if (editing) {
-        await updateWorkflow.mutateAsync({
-          id: editing.id,
-          definition: parsed.data,
-        });
-      } else {
-        await createWorkflow.mutateAsync({
-          definition: parsed.data,
-          enabled: true,
-        });
-      }
-      closeEditor();
-    } catch (e) {
-      setError((e as Error).message);
-    }
+  const requestDelete = (wf: Workflow): void => {
+    confirm({
+      title: `Delete "${wf.name}"?`,
+      content:
+        'This permanently removes the workflow definition. This cannot be undone.',
+      buttons: [
+        { label: 'Cancel' },
+        {
+          label: 'Delete',
+          type: ButtonType.DANGER,
+          onClick: () => deleteWorkflow.mutate(wf.id),
+        },
+      ],
+    });
   };
 
   const triggerRun = async (): Promise<void> => {
@@ -126,149 +111,244 @@ export const WorkflowsListPage: FC = () => {
     navigate(`/workflows/runs/${run.id}`);
   };
 
+  const workflowColumns = useMemo<GridColDef<Workflow>[]>(
+    () => [
+      {
+        field: 'name',
+        headerName: 'Workflow',
+        flex: 1,
+        minWidth: 220,
+        sortable: false,
+      },
+      {
+        field: 'steps',
+        headerName: 'Steps',
+        width: 90,
+        sortable: false,
+        valueGetter: (_value, row) => row.definition.steps.length,
+      },
+      {
+        field: 'trigger',
+        headerName: 'Trigger',
+        width: 120,
+        sortable: false,
+        valueGetter: (_value, row) => row.definition.trigger.type,
+      },
+      {
+        field: 'enabled',
+        headerName: 'Status',
+        width: 120,
+        renderCell: (params) => (
+          <Chip
+            label={params.row.enabled ? 'enabled' : 'disabled'}
+            color={params.row.enabled ? 'success' : 'default'}
+            size="small"
+            variant={params.row.enabled ? 'filled' : 'outlined'}
+          />
+        ),
+      },
+      {
+        field: 'actions',
+        headerName: '',
+        width: 130,
+        sortable: false,
+        filterable: false,
+        disableColumnMenu: true,
+        align: 'right',
+        renderCell: (params) => {
+          const wf = params.row;
+          return (
+            <Box
+              className="row-actions"
+              sx={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'flex-end',
+                height: '100%',
+                gap: 0.25,
+              }}
+            >
+              <Tooltip title="Edit">
+                <IconButton
+                  size="small"
+                  aria-label="Edit workflow"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setEditing({ workflow: wf });
+                  }}
+                >
+                  <EditRounded fontSize="small" />
+                </IconButton>
+              </Tooltip>
+              <Tooltip title="Run">
+                <IconButton
+                  size="small"
+                  aria-label="Run workflow"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setRunFor(wf);
+                  }}
+                >
+                  <PlayArrowRounded fontSize="small" />
+                </IconButton>
+              </Tooltip>
+              <Tooltip title="Delete">
+                <IconButton
+                  size="small"
+                  aria-label="Delete workflow"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    requestDelete(wf);
+                  }}
+                >
+                  <DeleteOutlineRounded fontSize="small" />
+                </IconButton>
+              </Tooltip>
+            </Box>
+          );
+        },
+      },
+    ],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [deleteWorkflow],
+  );
+
+  const runColumns = useMemo<GridColDef<WorkflowRun>[]>(
+    () => [
+      {
+        field: 'createdAt',
+        headerName: 'Started',
+        width: 200,
+        valueGetter: (_value, row) => new Date(row.createdAt),
+        renderCell: (params) => formatTime(params.row.createdAt),
+      },
+      {
+        field: 'workflow',
+        headerName: 'Workflow',
+        flex: 1,
+        minWidth: 200,
+        sortable: false,
+        valueGetter: (_value, row) =>
+          workflowNameById.get(row.workflowId) ?? row.workflowId,
+      },
+      {
+        field: 'currentStepKey',
+        headerName: 'Step',
+        width: 160,
+        sortable: false,
+        valueGetter: (_value, row) => row.currentStepKey ?? '—',
+      },
+      {
+        field: 'status',
+        headerName: 'Status',
+        width: 140,
+        renderCell: (params) => (
+          <Chip
+            label={params.row.status}
+            color={RUN_STATUS_COLOR[params.row.status]}
+            size="small"
+          />
+        ),
+      },
+      {
+        field: 'actions',
+        headerName: '',
+        width: 80,
+        sortable: false,
+        filterable: false,
+        disableColumnMenu: true,
+        align: 'right',
+        renderCell: (params) => (
+          <Box
+            className="row-actions"
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'flex-end',
+              height: '100%',
+            }}
+          >
+            <Tooltip title="Open run">
+              <IconButton
+                size="small"
+                aria-label="Open run"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  navigate(`/workflows/runs/${params.row.id}`);
+                }}
+              >
+                <OpenInNewRounded fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          </Box>
+        ),
+      },
+    ],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [workflowNameById],
+  );
+
   return (
     <MainContainer>
       <Stack spacing={3}>
         <Header
-          title="Workflows"
+          title={
+            <Tabs
+              value={view}
+              onChange={(_, v: WorkflowsView) => setView(v)}
+            >
+              <Tab label="Workflows" value={WorkflowsView.CONFIG} />
+              <Tab label="Recent runs" value={WorkflowsView.RUNS} />
+            </Tabs>
+          }
           actions={
-            <Button variant="contained" onClick={openNew}>
-              New workflow
-            </Button>
+            view === WorkflowsView.CONFIG && (
+              <Button
+                variant="contained"
+                onClick={() => setEditing({ workflow: null })}
+              >
+                New workflow
+              </Button>
+            )
           }
         />
 
-        {editorOpen && (
-          <Box
-            sx={{
-              border: '1px solid',
-              borderColor: 'divider',
-              borderRadius: 1,
-              p: 2,
+        {view === WorkflowsView.CONFIG ? (
+          <DataGrid
+            rows={workflows}
+            columns={workflowColumns}
+            autoHeight
+            disableVirtualization
+            disableRowSelectionOnClick
+            onRowClick={(params: GridRowParams<Workflow>) =>
+              setEditing({ workflow: params.row })
+            }
+            pageSizeOptions={[25, 50, 100]}
+            sx={ROW_ACTIONS_SX}
+          />
+        ) : (
+          <DataGrid
+            rows={runs}
+            columns={runColumns}
+            autoHeight
+            disableVirtualization
+            disableRowSelectionOnClick
+            onRowClick={(params: GridRowParams<WorkflowRun>) =>
+              navigate(`/workflows/runs/${params.row.id}`)
+            }
+            initialState={{
+              sorting: { sortModel: [{ field: 'createdAt', sort: 'desc' }] },
             }}
-          >
-            <Typography variant="subtitle1" sx={{ mb: 1 }}>
-              {editing ? `Edit "${editing.name}"` : 'New workflow'}
-            </Typography>
-            <TextField
-              value={json}
-              onChange={(e) => setJson(e.target.value)}
-              multiline
-              minRows={14}
-              fullWidth
-              slotProps={{
-                htmlInput: { style: { fontFamily: 'monospace', fontSize: 13 } },
-              }}
-            />
-            {error && (
-              <Typography
-                component="pre"
-                color="error"
-                sx={{ mt: 1, fontSize: 12, whiteSpace: 'pre-wrap' }}
-              >
-                {error}
-              </Typography>
-            )}
-            {parsed && !parsed.success && !error && (
-              <Typography color="warning.main" sx={{ mt: 1, fontSize: 12 }}>
-                Definition is not yet valid.
-              </Typography>
-            )}
-            <Stack direction="row" spacing={1} sx={{ mt: 1.5 }}>
-              <Button
-                variant="contained"
-                onClick={save}
-                disabled={!parsed?.success}
-              >
-                {editing ? 'Save' : 'Create'}
-              </Button>
-              <Button onClick={closeEditor}>Cancel</Button>
-            </Stack>
-          </Box>
+            pageSizeOptions={[25, 50, 100]}
+            sx={ROW_ACTIONS_SX}
+          />
         )}
 
-        <Box>
-          <Typography variant="subtitle1" sx={{ mb: 1 }}>
-            Defined workflows
-          </Typography>
-          {workflows.length === 0 ? (
-            <Typography color="text.secondary">
-              No workflows yet — create one to get started.
-            </Typography>
-          ) : (
-            <List disablePadding>
-              {workflows.map((wf) => (
-                <ListItem
-                  key={wf.id}
-                  divider
-                  secondaryAction={
-                    <Stack direction="row" spacing={0.5}>
-                      <IconButton
-                        edge="end"
-                        title="Run"
-                        onClick={() => setRunFor(wf)}
-                      >
-                        <PlayArrowRounded />
-                      </IconButton>
-                      <IconButton
-                        edge="end"
-                        title="Delete"
-                        onClick={() => deleteWorkflow.mutate(wf.id)}
-                      >
-                        <DeleteOutlineRounded />
-                      </IconButton>
-                    </Stack>
-                  }
-                >
-                  <ListItemButton
-                    onClick={() => openEdit(wf)}
-                    sx={{ borderRadius: 1 }}
-                  >
-                    <ListItemText
-                      primary={wf.name}
-                      secondary={`${wf.definition.steps.length} steps · trigger: ${wf.definition.trigger.type}${wf.enabled ? '' : ' · disabled'}`}
-                    />
-                  </ListItemButton>
-                </ListItem>
-              ))}
-            </List>
-          )}
-        </Box>
-
-        <Divider />
-
-        <Box>
-          <Typography variant="subtitle1" sx={{ mb: 1 }}>
-            Recent runs
-          </Typography>
-          {runs.length === 0 ? (
-            <Typography color="text.secondary">No runs yet.</Typography>
-          ) : (
-            <List disablePadding>
-              {runs.slice(0, 20).map((run) => (
-                <ListItemButton
-                  key={run.id}
-                  onClick={() => navigate(`/workflows/runs/${run.id}`)}
-                  sx={{ borderRadius: 1 }}
-                >
-                  <ListItemText
-                    primary={new Date(run.createdAt).toLocaleString()}
-                    secondary={
-                      run.currentStepKey
-                        ? `at step: ${run.currentStepKey}`
-                        : run.id
-                    }
-                  />
-                  <Chip
-                    label={run.status}
-                    color={RUN_STATUS_COLOR[run.status]}
-                    size="small"
-                  />
-                </ListItemButton>
-              ))}
-            </List>
-          )}
-        </Box>
+        <WorkflowEditorDialog
+          open={editing !== null}
+          workflow={editing?.workflow ?? null}
+          onClose={() => setEditing(null)}
+        />
 
         <Dialog
           open={Boolean(runFor)}
