@@ -38,8 +38,24 @@ describe('terminal route (live websocket)', () => {
       await app.inject({ method: 'POST', url: '/api/tasks', headers: { cookie }, payload: {} })
     ).json();
 
-    return { port: addr.port, cookie, taskId: task.id, stream, exec };
+    return { port: addr.port, cookie, taskId: task.id, stream, exec, app };
   };
+
+  it('rejects attaching to a session owned by another user (4403)', async () => {
+    const { port, taskId, app } = await boot();
+    // A different authenticated user must not be able to attach by guessing the id.
+    const other = (
+      await app.inject({ method: 'POST', url: '/api/login', payload: { displayName: 'mallory', password: 'pw' } })
+    ).cookies[0];
+    const ws = new WebSocket(`ws://127.0.0.1:${port}/api/tasks/${taskId}/terminal?kind=shell`, {
+      headers: { cookie: `${other.name}=${other.value}` },
+    });
+    const code = await new Promise<number>((resolve, reject) => {
+      ws.once('close', (c: number) => resolve(c));
+      ws.once('error', reject);
+    });
+    expect(code).toBe(4403);
+  });
 
   it('rejects an unauthenticated upgrade', async () => {
     const { port, taskId } = await boot();

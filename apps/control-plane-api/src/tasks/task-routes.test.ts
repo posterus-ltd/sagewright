@@ -302,4 +302,25 @@ describe('task routes', () => {
     expect(taskRow.status).toBe(SessionStatus.FAILED);
     expect(taskRow.workerImage).toBe('evil:latest');
   });
+
+  it('forbids a non-owner from reading or mutating another user’s session (403)', async () => {
+    const { app } = await makeTestApp();
+    const login = async (displayName: string) => {
+      const c = (await app.inject({ method: 'POST', url: '/api/login', payload: { displayName, password: 'pw' } })).cookies[0];
+      return { cookie: `${c.name}=${c.value}` };
+    };
+    const alice = await login('alice');
+    const created = (await app.inject({ method: 'POST', url: '/api/tasks', headers: alice, payload: {} })).json();
+
+    const bob = await login('bob');
+    expect((await app.inject({ method: 'GET', url: `/api/tasks/${created.id}`, headers: bob })).statusCode).toBe(403);
+    expect((await app.inject({ method: 'POST', url: `/api/tasks/${created.id}/stop`, headers: bob })).statusCode).toBe(403);
+    expect((await app.inject({ method: 'DELETE', url: `/api/tasks/${created.id}`, headers: bob })).statusCode).toBe(403);
+    expect(
+      (await app.inject({ method: 'POST', url: `/api/tasks/${created.id}/messages`, headers: bob, payload: { body: 'hi' } })).statusCode,
+    ).toBe(403);
+
+    // The owner still has access.
+    expect((await app.inject({ method: 'GET', url: `/api/tasks/${created.id}`, headers: alice })).statusCode).toBe(200);
+  });
 });

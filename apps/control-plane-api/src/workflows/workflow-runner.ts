@@ -3,6 +3,7 @@ import { mkdir, readFile } from 'node:fs/promises';
 import {
   EventType,
   SessionStatus,
+  isTerminalStatus,
   runBranch,
   runDir,
   workflowDefinitionSchema,
@@ -154,6 +155,7 @@ export const createWorkflowRunner = (deps: WorkflowRunnerDeps) => {
     def: WorkflowDefinition,
     createdBy: string,
     input: string | undefined,
+    startKey?: string,
   ): Promise<void> => {
     const stepsByKey = new Map(def.steps.map((s) => [s.key, s]));
     const dir = runDir(runId);
@@ -165,7 +167,8 @@ export const createWorkflowRunner = (deps: WorkflowRunnerDeps) => {
     // explain the failure instead of leaving it buried in the server log.
     let reason: string | null = null;
     let failedStepKey: string | null = null;
-    let currentKey = def.steps[0]!.key;
+    // Resume from the persisted step on a reconciled restart; else start at step 1.
+    let currentKey = startKey ?? def.steps[0]!.key;
     // True once the step loop is entered — lets the catch tell an in-step crash
     // (attribute to currentKey) from a setup-phase crash (no step ran yet).
     let inLoop = false;
@@ -340,6 +343,22 @@ export const createWorkflowRunner = (deps: WorkflowRunnerDeps) => {
         createdBy,
         createdAt: run!.createdAt.toISOString(),
       };
+    },
+
+    /** Re-drive a run whose in-process loop died (e.g. an API restart) from its
+     *  persisted current_step_key. Used by the boot reconciler. No-op if the run
+     *  is missing, already terminal, or not a workflow parent. */
+    resume: async (parentId: string): Promise<void> => {
+      const [run] = await deps.db.select().from(sessions).where(eq(sessions.id, parentId)).limit(1);
+      if (!run || run.kind !== 'workflow' || !run.workflowId || isTerminalStatus(run.status as SessionStatus)) return;
+      const [wf] = await deps.db.select().from(workflows).where(eq(workflows.id, run.workflowId)).limit(1);
+      if (!wf) return;
+      const def = workflowDefinitionSchema.parse(wf.definition);
+      const input = (run.triggerContext as { input?: string } | null)?.input;
+      void drive(parentId, def, run.createdBy, input, run.currentStepKey ?? undefined).catch(async (err) => {
+        logger.error(err, `workflow run ${parentId} crashed on resume`);
+        await setRun(parentId, { status: SessionStatus.FAILED, error: String(err), currentStepKey: null }).catch(() => undefined);
+      });
     },
   };
 };

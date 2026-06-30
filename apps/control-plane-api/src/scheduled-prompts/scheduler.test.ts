@@ -74,4 +74,39 @@ describe('createScheduler', () => {
     scheduler.stopAll();
     expect(create).not.toHaveBeenCalled();
   });
+
+  it('runs no crons and does not even query when this instance is not the leader', async () => {
+    const create = vi.fn(async () => ({}) as never);
+    const select = vi.fn();
+    const db = { select } as never;
+    const scheduler = createScheduler({
+      db,
+      taskService: { create } as never,
+      leadership: { acquire: async () => false },
+    });
+
+    await scheduler.start();
+    scheduler.stopAll();
+
+    expect(select).not.toHaveBeenCalled();
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it('fires a catch-up run on start for a prompt whose scheduled time passed while down', async () => {
+    const create = vi.fn(async () => ({}) as never);
+    const where = vi.fn(async () => undefined);
+    const set = vi.fn(() => ({ where }));
+    // Daily 09:00; lastRunAt years ago → the most recent 09:00 is unrun → catch-up now.
+    const rows = [
+      { id: 'sp', cron: '0 9 * * *', prompt: 'daily', enabled: true, createdBy: 'al', workerImage: null, lastRunAt: new Date('2000-01-01T00:00:00Z') },
+    ];
+    const db = { select: () => ({ from: async () => rows }), update: () => ({ set }) } as never;
+
+    const scheduler = createScheduler({ db, taskService: { create } as never });
+    await scheduler.start();
+    await vi.waitFor(() => expect(create).toHaveBeenCalled(), { timeout: 2000 });
+    scheduler.stopAll();
+
+    expect(create).toHaveBeenCalledWith({ prompt: 'daily' }, 'al', { mode: 'headless', scheduledPromptId: 'sp' });
+  });
 });

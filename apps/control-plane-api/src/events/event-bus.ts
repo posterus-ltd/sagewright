@@ -5,6 +5,10 @@ interface Subscriber {
   resolve: ((r: IteratorResult<StreamEvent>) => void) | null;
 }
 
+// Cap a slow/stuck subscriber's backlog. Past this we drop the OLDEST events so a
+// wedged SSE client can't grow the queue without bound (memory backpressure).
+const HIGH_WATER = 1000;
+
 export const createEventBus = () => {
   const subs = new Map<string, Set<Subscriber>>();
 
@@ -18,6 +22,7 @@ export const createEventBus = () => {
         resolve({ value: e, done: false });
       } else {
         sub.queue.push(e);
+        if (sub.queue.length > HIGH_WATER) sub.queue.shift();
       }
     }
   };
@@ -38,6 +43,14 @@ export const createEventBus = () => {
           return new Promise((resolve) => { sub.resolve = resolve; });
         },
         return: (): Promise<IteratorResult<StreamEvent>> => {
+          // Settle a parked next() FIRST so its awaiter (the SSE loop) unblocks and
+          // returns — otherwise the promise never resolves and the subscriber leaks
+          // in the set on every disconnect.
+          if (sub.resolve) {
+            const resolve = sub.resolve;
+            sub.resolve = null;
+            resolve({ value: undefined as never, done: true });
+          }
           cleanup();
           return Promise.resolve({ value: undefined as never, done: true });
         },

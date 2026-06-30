@@ -6,6 +6,7 @@ import { createEventStore } from './events/event-store';
 import { createVolume } from './git/volume';
 import { createScheduler } from './scheduled-prompts/scheduler';
 import { createRepoService } from './repos/repo-service';
+import { createReconciler } from './sessions/reconciler';
 import { createSessionRuntime } from './sessions/session-runtime';
 import { createSessionService } from './sessions/session-service';
 import { createTaskService } from './tasks/task-service';
@@ -48,7 +49,38 @@ const sessionRuntime = createSessionRuntime({ agentRunner });
 const taskService = createTaskService({ db, eventStore, eventBus, spawner, agentRunner, volume, sessionService, sessionRuntime });
 const workflowService = createWorkflowService({ db });
 const workflowRunner = createWorkflowRunner({ db, spawner, sessionService, agentRunner, exec: containerExec, volume, config, githubCredentialService });
-const scheduler = createScheduler({ db, taskService, workflowService, workflowRunner });
+// Single-leader scheduling across replicas: only the instance that wins this session
+// advisory lock runs the crons. The lock is held for the life of the pool connection.
+const SCHEDULER_LOCK_KEY = 0x5a6e_7c01; // arbitrary fixed key for the scheduler lock
+const scheduler = createScheduler({
+  db,
+  taskService,
+  workflowService,
+  workflowRunner,
+  leadership: {
+    acquire: async () => {
+      const res = await pool.query<{ ok: boolean }>('SELECT pg_try_advisory_lock($1) AS ok', [SCHEDULER_LOCK_KEY]);
+      return res.rows[0]?.ok ?? false;
+    },
+  },
+});
+// Boot-time DB↔container reconciliation. A container is "alive" if dockerode can inspect it.
+const reconciler = createReconciler({
+  db,
+  eventStore,
+  eventBus,
+  containerAlive: async (id) => {
+    try {
+      await docker.getContainer(id).inspect();
+      return true;
+    } catch {
+      return false;
+    }
+  },
+  retire: spawner.retire,
+  removeSessionWorktrees: volume.removeSessionWorktrees,
+  resumeWorkflow: workflowRunner.resume,
+});
 
 const app = buildApp({ config, db, eventStore, eventBus, sessionService, sessionRuntime, taskService, repoService, userEnvService, githubCredentialService, userSettingsService, canvasLayoutService, workflowService, workflowRunner, containerTerminal, volume, scheduler, workerRegistry });
 
@@ -69,6 +101,9 @@ const start = async (): Promise<void> => {
           `Sessions falling back to this default will fail at container creation.`,
       );
     }
+    // Reconcile DB↔container reality BEFORE accepting traffic so the API never serves
+    // stale 'running' rows or leaks orphaned containers across a restart.
+    await reconciler.reconcile().catch((err) => app.log.error({ err: String(err) }, 'boot reconcile failed'));
     await scheduler.start();
     await app.listen({ port: config.port, host: '0.0.0.0' });
     app.log.info(`control-plane-api listening on port ${config.port}`);

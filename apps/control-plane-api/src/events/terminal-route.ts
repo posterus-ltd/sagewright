@@ -115,6 +115,12 @@ export const registerTerminalRoute = (app: FastifyInstance, deps: AppDeps): void
       socket.close(4404, 'task not found');
       return;
     }
+    // Owner-only: a session belongs to its creator. Check before opening any PTY/attach
+    // so another authenticated user can't hijack a session by guessing its id.
+    if (task.createdBy !== req.displayName) {
+      socket.close(4403, 'forbidden');
+      return;
+    }
     if (!task.containerId) {
       socket.close(4409, 'no container for task');
       return;
