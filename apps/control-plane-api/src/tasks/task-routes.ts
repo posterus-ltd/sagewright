@@ -32,6 +32,13 @@ export const registerTaskRoutes = (app: FastifyInstance, deps: AppDeps): void =>
     return { ok: true };
   });
 
+  // Finalize an interactive session: push the agent's work, open PRs, and retire the box.
+  // `stop` aborts without a PR; `complete` is the "I'm done, ship it" path.
+  app.post('/api/tasks/:id/complete', { preHandler: app.requireUser }, async (req) => {
+    await deps.sessionRuntime.complete((req.params as { id: string }).id);
+    return { ok: true };
+  });
+
   app.post('/api/tasks/:id/archive', { preHandler: app.requireUser }, async (req) => {
     await deps.taskService.archive((req.params as { id: string }).id);
     return { ok: true };

@@ -6,9 +6,11 @@ import {
   terminalKindSchema,
   terminalResizeSchema,
   type TerminalKind,
+  type TerminalSize,
 } from '@sagewright/shared';
 
 import type { AppDeps } from '../app';
+import type { SessionRuntime } from '../sessions/session-runtime';
 import type { TerminalSession } from '../tasks/docker-client';
 
 /**
@@ -49,6 +51,46 @@ export const bridgeTerminal = (socket: WebSocket, session: TerminalSession): voi
   socket.on('close', () => close());
 };
 
+/**
+ * Wire a browser WebSocket to a session's PERSISTENT agent exec via the runtime.
+ * Unlike `bridgeTerminal`, the socket does not own the exec:
+ *   - attach only fans live PTY bytes to this socket; closing the socket detaches it
+ *     but leaves the agent running (DETACHED), so reopening the tab resumes the view;
+ *   - a binary keystroke when no turn is live resumes the session (continue-agent);
+ *   - resize control frames re-size the live PTY.
+ */
+export const bridgeAgentTerminal = (
+  socket: WebSocket,
+  runtime: Pick<SessionRuntime, 'attach' | 'write' | 'resize' | 'isLive' | 'resume'>,
+  sessionId: string,
+  initialSize?: TerminalSize,
+): void => {
+  const detach = runtime.attach(sessionId, (chunk: Buffer) => {
+    if (socket.readyState === socket.OPEN) socket.send(chunk);
+  });
+  if (initialSize) runtime.resize(sessionId, initialSize);
+
+  socket.on('message', (data: Buffer, isBinary: boolean) => {
+    if (isBinary) {
+      // First keystroke into a detached session starts the next turn before writing it.
+      if (!runtime.isLive(sessionId)) {
+        try {
+          runtime.resume(sessionId);
+        } catch {
+          // Lost the race to another attacher that resumed first — just write.
+        }
+      }
+      runtime.write(sessionId, data.toString());
+      return;
+    }
+    const parsed = terminalResizeSchema.safeParse(safeJson(data.toString()));
+    if (parsed.success) runtime.resize(sessionId, { cols: parsed.data.cols, rows: parsed.data.rows });
+  });
+
+  // Detach only — the agent exec survives the socket so the session stays resumable.
+  socket.on('close', () => detach());
+};
+
 const safeJson = (s: string): unknown => {
   try {
     return JSON.parse(s);
@@ -78,6 +120,14 @@ export const registerTerminalRoute = (app: FastifyInstance, deps: AppDeps): void
       return;
     }
 
+    // Agent terminal: attach to the persistent runtime exec — no per-attach continue-agent,
+    // and the socket closing never tears the agent down.
+    if (kind.data === 'agent') {
+      bridgeAgentTerminal(socket, deps.sessionRuntime, task.id, initialSize);
+      return;
+    }
+
+    // Shell: a throwaway bash PTY bound to this socket (closing it tears the bash down).
     let session: TerminalSession;
     try {
       session = await deps.containerTerminal.exec(task.containerId, {

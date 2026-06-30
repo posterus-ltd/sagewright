@@ -3,7 +3,11 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { loadConfig } from '../config';
 import { tasks, workflowRuns } from '../db/schema';
-import { makeTestApp } from '../test/make-test-app';
+import { createEventBus } from '../events/event-bus';
+import { createEventStore } from '../events/event-store';
+import { createSessionService } from '../sessions/session-service';
+import { fakeWorkerRegistry, makeTestApp } from '../test/make-test-app';
+import type { SpawnInput } from '../tasks/worker-spawner';
 import { createWorkflowService } from './workflow-service';
 import { createWorkflowRunner, type RunFiles } from './workflow-runner';
 
@@ -34,12 +38,14 @@ const setup = async (opts: {
   stepExit?: number;
   commandsExit?: number;
   definitionOverride?: typeof definition;
+  envBlob?: string;
+  spawn?: (i: SpawnInput) => Promise<{ containerId: string }>;
 }) => {
   const { db } = await makeTestApp();
   const service = createWorkflowService({ db: db as never });
   const wf = await service.create({ definition: opts.definitionOverride ?? definition, enabled: true }, 'al');
 
-  const spawns: string[] = [];
+  const spawnInputs: SpawnInput[] = [];
   const captures: string[][] = [];
   let verdictIdx = 0;
 
@@ -55,15 +61,49 @@ const setup = async (opts: {
     },
   };
 
+  // One spawner shared by the step seam (sessionService) and the runner's ops
+  // containers, so every container creation is captured in declared order.
+  const spawner = {
+    spawn: async (i: SpawnInput) => {
+      spawnInputs.push(i);
+      if (opts.spawn) return opts.spawn(i);
+      return { containerId: `c-${spawnInputs.length}` };
+    },
+    retire: async () => undefined,
+  };
+
+  const volume = {
+    slugFromUrl: (u: string) => u,
+    cloneOrPull: async (r: { slug: string; url: string }) => ({ slug: r.slug, url: r.url, defaultBranch: 'main' }),
+    reconcile: () => undefined,
+    describe: () => ({ status: 'present', error: null }),
+    addSessionWorktrees: async () => [],
+    addRunWorktrees: async () => [{ slug: 'a-b', url: 'u', defaultBranch: 'main', path: '/v/a-b' }],
+    removeSessionWorktrees: vi.fn(async () => undefined),
+    removeRepo: async () => undefined,
+  } as never;
+
+  const eventStore = createEventStore(db as never);
+  const eventBus = createEventBus();
+  // Real session seam over the test db — this is what now provisions each step,
+  // so steps inherit the full resolved user env (the {GITHUB_TOKEN}-only bug fix).
+  const sessionService = createSessionService({
+    db: db as never,
+    eventStore,
+    eventBus,
+    spawner: spawner as never,
+    volume,
+    config,
+    userEnvService: { get: async () => opts.envBlob ?? '' } as never,
+    githubCredentialService: { resolve: async () => undefined } as never,
+    userSettingsService: { getDefaultWorker: async () => null } as never,
+    workerRegistry: fakeWorkerRegistry(),
+  });
+
   const runner = createWorkflowRunner({
     db: db as never,
-    spawner: {
-      spawn: async (i) => {
-        spawns.push(i.taskId);
-        return { containerId: `c-${spawns.length}` };
-      },
-      retire: async () => undefined,
-    },
+    spawner: spawner as never,
+    sessionService,
     agentRunner: { execStep: async () => ({ exitCode: opts.stepExit ?? 0 }) },
     exec: {
       startAgent: async () => { throw new Error('unused'); },
@@ -72,24 +112,14 @@ const setup = async (opts: {
         return { exitCode: opts.commandsExit ?? 0, stdout: '', stderr: '' };
       },
     },
-    volume: {
-      slugFromUrl: (u: string) => u,
-      cloneOrPull: async (r) => ({ slug: r.slug, url: r.url, defaultBranch: 'main' }),
-      reconcile: () => undefined,
-      describe: () => ({ status: 'present', error: null }),
-      addSessionWorktrees: async () => [],
-      addRunWorktrees: async () => [{ slug: 'a-b', url: 'u', defaultBranch: 'main', path: '/v/a-b' }],
-      removeSessionWorktrees: vi.fn(async () => undefined),
-      removeRepo: async () => undefined,
-    } as never,
+    volume,
     config,
-    userEnvService: { getValue: async () => undefined } as never,
     githubCredentialService: { resolve: async () => undefined } as never,
     files,
     logger: { error: () => undefined },
   });
 
-  return { db, runner, workflowId: wf.id, spawns, captures };
+  return { db, runner, workflowId: wf.id, spawnInputs, captures };
 };
 
 // start() is fire-and-forget; poll the run row until it leaves 'running'.
@@ -199,5 +229,36 @@ describe('workflow-runner', () => {
     const settled = await waitForRun(db, run!.id);
 
     expect(settled.status).toBe('max_iterations');
+  });
+
+  it('passes the full resolved user env to each step, not just GITHUB_TOKEN', async () => {
+    const { db, runner, workflowId, spawnInputs } = await setup({ verdicts: [true], envBlob: 'FOO=bar\n' });
+    const run = await runner.start(workflowId, 'al');
+    await waitForRun(db, run!.id);
+
+    // Steps are now provisioned through the session seam, which merges the user's
+    // stored .env — the old workflow-runner built step env as { GITHUB_TOKEN } only.
+    expect(spawnInputs.some((i) => i.userEnv['FOO'] === 'bar')).toBe(true);
+  });
+
+  it('settles a step task to failed (not stuck provisioning) when its spawn throws', async () => {
+    const { db, runner, workflowId } = await setup({
+      verdicts: [true],
+      spawn: async () => {
+        throw new Error('docker daemon unreachable');
+      },
+    });
+    const run = await runner.start(workflowId, 'al');
+    const settled = await waitForRun(db, run!.id);
+
+    expect(settled.status).toBe('failed');
+    // The seam stamps the step task FAILED before rethrowing — previously it stayed
+    // stuck at 'provisioning' because the duplicated spawn path had no failure handler.
+    const rows = (await (db as never as { select: () => never })
+      .select()
+      .from(tasks)
+      .where(eq(tasks.workflowRunId, run!.id))) as (typeof tasks.$inferSelect)[];
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.status).toBe('failed');
   });
 });

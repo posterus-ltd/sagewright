@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { PassThrough } from 'node:stream';
 
-import { bridgeTerminal, cmdForKind } from './terminal-route';
+import { bridgeAgentTerminal, bridgeTerminal, cmdForKind } from './terminal-route';
 import type { TerminalSession } from '../tasks/docker-client';
 
 // Minimal EventEmitter-ish fake WebSocket matching the bits bridgeTerminal uses.
@@ -86,5 +86,81 @@ describe('bridgeTerminal', () => {
     stream.end();
     await new Promise((r) => setImmediate(r));
     expect(socket.closed).not.toBeNull();
+  });
+});
+
+const fakeRuntime = (over: { live?: boolean } = {}) => {
+  let sink: ((b: Buffer) => void) | null = null;
+  let live = over.live ?? true;
+  const detach = vi.fn(() => {
+    sink = null;
+  });
+  return {
+    runtime: {
+      attach: (_id: string, s: (b: Buffer) => void) => {
+        sink = s;
+        return detach;
+      },
+      write: vi.fn(),
+      resize: vi.fn(),
+      isLive: () => live,
+      resume: vi.fn(() => {
+        live = true;
+      }),
+    },
+    feed: (b: Buffer) => sink?.(b),
+    detach,
+    setLive: (v: boolean) => {
+      live = v;
+    },
+  };
+};
+
+describe('bridgeAgentTerminal', () => {
+  it('fans the runtime exec output to the socket (no continue-agent exec on attach)', () => {
+    const socket = new FakeSocket();
+    const f = fakeRuntime();
+    bridgeAgentTerminal(socket as never, f.runtime as never, 's1');
+
+    f.feed(Buffer.from('agent says hi'));
+    expect(socket.sent.map((b) => (b as Buffer).toString())).toContain('agent says hi');
+  });
+
+  it('writes keystrokes to the live exec without resuming', () => {
+    const socket = new FakeSocket();
+    const f = fakeRuntime({ live: true });
+    bridgeAgentTerminal(socket as never, f.runtime as never, 's1');
+
+    socket.emit('message', Buffer.from('ls\n'), true);
+    expect(f.runtime.resume).not.toHaveBeenCalled();
+    expect(f.runtime.write).toHaveBeenCalledWith('s1', 'ls\n');
+  });
+
+  it('resumes the session when the first keystroke arrives with no live exec', () => {
+    const socket = new FakeSocket();
+    const f = fakeRuntime({ live: false });
+    bridgeAgentTerminal(socket as never, f.runtime as never, 's1');
+
+    socket.emit('message', Buffer.from('go\n'), true);
+    expect(f.runtime.resume).toHaveBeenCalledWith('s1');
+    expect(f.runtime.write).toHaveBeenCalledWith('s1', 'go\n');
+  });
+
+  it('detaches but does NOT destroy the exec when the socket closes', () => {
+    const socket = new FakeSocket();
+    const f = fakeRuntime();
+    bridgeAgentTerminal(socket as never, f.runtime as never, 's1');
+
+    socket.emit('close');
+    expect(f.detach).toHaveBeenCalled();
+  });
+
+  it('treats a JSON text frame as a resize of the live PTY', () => {
+    const socket = new FakeSocket();
+    const f = fakeRuntime();
+    bridgeAgentTerminal(socket as never, f.runtime as never, 's1');
+
+    socket.emit('message', Buffer.from(JSON.stringify({ type: 'resize', cols: 120, rows: 40 })), false);
+    expect(f.runtime.resize).toHaveBeenCalledWith('s1', { cols: 120, rows: 40 });
   });
 });

@@ -100,4 +100,72 @@ describe('agent-runner', () => {
       .limit(1);
     expect((row as { status: string }).status).toBe(TaskStatus.FAILED);
   });
+
+  it('runInteractive settles DETACHED on turn exit, hands over the live exec, and does NOT retire', async () => {
+    const { db } = await makeTestApp();
+    const id = await insertTask(db as never);
+    const eventStore = createEventStore(db as never);
+    const eventBus = createEventBus();
+    const { stream, exec } = fakeExec(0);
+    const retire = vi.fn(async () => {});
+
+    const runner = createAgentRunner({ db: db as never, eventStore, eventBus, exec: exec as never, retire });
+    let live: unknown = null;
+    const fanned: Buffer[] = [];
+    const done = runner.runInteractive(
+      { taskId: id, containerId: 'c1', manifest: [], sessionDir: '/v' },
+      { onSession: (s) => { live = s; }, onData: (b) => fanned.push(b) },
+    );
+
+    await waitListening(stream);
+    stream.write('live output\n');
+    await tick();
+    stream.end();
+    await done;
+
+    const evs = await eventStore.readSince(id, 0);
+    const statuses = evs.filter((e) => e.type === EventType.STATUS).map((e) => e.payload['status']);
+    expect(statuses).toEqual([TaskStatus.RUNNING, TaskStatus.DETACHED]);
+    // The turn's output was both persisted (OUTPUT) and teed live to the sink.
+    expect(evs.some((e) => e.type === EventType.OUTPUT && e.payload['chunk'] === 'live output\n')).toBe(true);
+    expect(Buffer.concat(fanned).toString()).toBe('live output\n');
+    expect(live).not.toBeNull();
+    expect(retire).not.toHaveBeenCalled();
+
+    const [row] = await (db as never as { select: () => never })
+      .select()
+      .from(tasks)
+      .where(eq(tasks.id, id))
+      .limit(1);
+    expect((row as { status: string }).status).toBe(TaskStatus.DETACHED);
+  });
+
+  it('complete pushes changed repos, opens a PR, settles DONE, and retires', async () => {
+    const { db } = await makeTestApp();
+    const id = await insertTask(db as never);
+    const eventStore = createEventStore(db as never);
+    const eventBus = createEventBus();
+    const retire = vi.fn(async () => {});
+    const exec = {
+      startAgent: async () => { throw new Error('unused'); },
+      capture: async (_id: string, o: { cmd: string[] }) => {
+        if (o.cmd[0] === 'git' && o.cmd[1] === 'status') return { exitCode: 0, stdout: ' M file\n', stderr: '' };
+        if (o.cmd[0] === 'gh') return { exitCode: 0, stdout: 'https://gh/pr/1', stderr: '' };
+        return { exitCode: 0, stdout: '', stderr: '' };
+      },
+    };
+
+    const runner = createAgentRunner({ db: db as never, eventStore, eventBus, exec: exec as never, retire });
+    await runner.complete({
+      taskId: id,
+      containerId: 'c1',
+      manifest: [{ slug: 'a-b', url: 'u', defaultBranch: 'main', path: '/v/a-b' }],
+    });
+
+    const evs = await eventStore.readSince(id, 0);
+    const statuses = evs.filter((e) => e.type === EventType.STATUS).map((e) => e.payload['status']);
+    expect(statuses).toEqual([TaskStatus.PUSHING, TaskStatus.DONE]);
+    expect(evs.some((e) => e.type === EventType.PR_OPENED && e.payload['url'] === 'https://gh/pr/1')).toBe(true);
+    expect(retire).toHaveBeenCalledWith('c1');
+  });
 });

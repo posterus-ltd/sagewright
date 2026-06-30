@@ -1,18 +1,15 @@
-import { EventType, RESERVED_ENV_KEYS, TaskStatus, parseEnvBlob, sessionDir, type CreateTaskInput, type SessionMode, type Task, type UpdateTaskInput } from '@sagewright/shared';
+import { EventType, TaskStatus, type CreateTaskInput, type SessionKind, type SessionMode, type Task, type UpdateTaskInput } from '@sagewright/shared';
 import { and, desc, eq, isNull } from 'drizzle-orm';
 
-import type { AppConfig } from '../config';
 import type { Db } from '../db/client';
-import { events, inboundMessages, repos, tasks } from '../db/schema';
+import { events, inboundMessages, tasks } from '../db/schema';
 import type { EventStore } from '../events/event-store';
 import type { EventBus } from '../events/event-bus';
+import type { SessionRuntime } from '../sessions/session-runtime';
+import type { SessionService } from '../sessions/session-service';
 import type { AgentRunner } from './agent-runner';
 import type { SpawnInput } from './worker-spawner';
-import type { UserEnvService } from '../user-env/user-env-service';
-import type { UserSettingsService } from '../user-settings/user-settings-service';
-import type { WorkerRegistry } from '../workers/worker-registry';
 import type { Volume } from '../git/volume';
-import type { GithubCredentialService } from '../github/github-credential-service';
 
 interface TaskServiceDeps {
   db: Db;
@@ -21,20 +18,9 @@ interface TaskServiceDeps {
   spawner: { spawn: (i: SpawnInput) => Promise<{ containerId: string }>; retire: (id: string) => Promise<void> };
   agentRunner: AgentRunner;
   volume: Volume;
-  config: AppConfig;
-  userEnvService: UserEnvService;
-  githubCredentialService: GithubCredentialService;
-  userSettingsService: UserSettingsService;
-  workerRegistry: WorkerRegistry;
+  sessionService: SessionService;
+  sessionRuntime: SessionRuntime;
 }
-
-// Parse the requester's stored blob and drop operational keys so a user's `.env`
-// can't hijack the worker token or repoint the control plane.
-const resolveUserEnv = async (userEnvService: UserEnvService, userKey: string): Promise<Record<string, string>> => {
-  const parsed = parseEnvBlob(await userEnvService.get(userKey));
-  for (const k of RESERVED_ENV_KEYS) delete parsed[k];
-  return parsed;
-};
 
 interface CreateOpts {
   mode?: SessionMode;
@@ -68,100 +54,44 @@ export const createTaskService = (deps: TaskServiceDeps) => {
 
   const create = async (input: CreateTaskInput, createdBy: string, opts: CreateOpts = {}): Promise<Task> => {
     const mode: SessionMode = opts.mode ?? 'interactive';
-    const prompt = input.prompt ?? null;
+    // A scheduled fire is a headless run with a distinct kind; everything else maps 1:1.
+    const kind: SessionKind = opts.scheduledPromptId
+      ? 'scheduled'
+      : mode === 'interactive'
+        ? 'interactive'
+        : 'headless';
 
-    // Precedence: explicit request → user's stored default → operator config fallback.
-    const stored = await deps.userSettingsService.getDefaultWorker(createdBy);
-    const workerImage = input.workerImage ?? stored ?? deps.config.workerImage;
+    // Provisioning (insert, image validation, env, worktrees, spawn, FAILED-on-throw)
+    // is owned by the single session seam; here we only attach the drive policy.
+    const { id, containerId, sessionDir: dir, manifest, githubCredential } = await deps.sessionService.spawnSession({
+      kind,
+      createdBy,
+      prompt: input.prompt ?? null,
+      workerImage: input.workerImage,
+      scheduledPromptId: opts.scheduledPromptId,
+    });
+    const [row] = await deps.db.select().from(tasks).where(eq(tasks.id, id)).limit(1);
 
-    // Insert the row up front so every failure path below leaves a visible FAILED
-    // session in the list (with the reason in its transcript) rather than throwing
-    // before any row exists — which is invisible to callers like the scheduler.
-    const [row] = await deps.db
-      .insert(tasks)
-      .values({
-        mode,
-        prompt,
-        workerImage,
-        status: TaskStatus.QUEUED,
-        createdBy,
-        branch: null,
-        scheduledPromptId: opts.scheduledPromptId ?? null,
-      })
-      .returning();
-
-    await deps.db
-      .update(tasks)
-      .set({ status: TaskStatus.PROVISIONING, branch: `task/${row.id}` })
-      .where(eq(tasks.id, row.id));
-
-    let containerId: string;
-    try {
-      // Reject an unknown user-chosen image (security: can't spawn an arbitrary image). The operator's
-      // config default is trusted and skips this check so the default path never breaks when no images
-      // are labeled yet. Inside the try so a bad image surfaces as a FAILED session.
-      if (workerImage !== deps.config.workerImage) {
-        const workers = await deps.workerRegistry.list();
-        if (!workers.some((w) => w.image === workerImage)) {
-          throw new Error(`unknown worker image: ${workerImage}`);
-        }
-      }
-
-      // The requester's stored env overrides the worker's baked secrets AND the
-      // worker image defaults. GitHub auth is resolved structurally so the same
-      // user credential drives control-plane git, worker git/gh, and PR commits.
-      const userEnv = await resolveUserEnv(deps.userEnvService, createdBy);
-      const githubCredential = await deps.githubCredentialService.resolve(createdBy);
-      if (githubCredential) userEnv.GITHUB_TOKEN = githubCredential.token;
-
-      // Clone/pull the creator's configured repos onto the shared volume and create
-      // this session's per-repo worktrees, then spawn the worker pointing at them.
-      const configured = await deps.db.select().from(repos).where(eq(repos.userKey, createdBy));
-      const manifest = await deps.volume.addSessionWorktrees(
-        row.id,
-        configured.map((r) => ({ url: r.url, slug: r.slug })),
-        githubCredential?.token,
-      );
-      ({ containerId } = await deps.spawner.spawn({
-        taskId: row.id,
-        mode,
-        prompt: prompt ?? undefined,
-        manifest,
-        sessionDir: sessionDir(row.id),
-        userEnv,
-        workerImage,
-      }));
-
-      await deps.db.update(tasks).set({ containerId }).where(eq(tasks.id, row.id));
-
-      if (mode === 'headless') {
-        // The box is up; drive the agent over `docker exec` and stream it as the transcript.
-        // Fire-and-forget: the run owns its own status/PR events; surface a crash as FAILED.
-        void deps.agentRunner
-          .run({ taskId: row.id, containerId, manifest, sessionDir: sessionDir(row.id), githubIdentity: githubCredential })
-          .catch(async (err) => {
-            await emit(row.id, [
-              { type: EventType.ERROR, payload: { message: String(err) } },
-              { type: EventType.STATUS, payload: { status: TaskStatus.FAILED } },
-            ]);
-            await deps.db.update(tasks).set({ status: TaskStatus.FAILED }).where(eq(tasks.id, row.id));
-          });
-        return { ...rowToTask(row), status: TaskStatus.RUNNING, branch: `task/${row.id}`, containerId };
-      }
-
-      // Interactive: nobody drives the box — the human attaches via the terminal route.
-      await emit(row.id, [{ type: EventType.STATUS, payload: { status: TaskStatus.RUNNING } }]);
-      await deps.db.update(tasks).set({ status: TaskStatus.RUNNING }).where(eq(tasks.id, row.id));
-      return { ...rowToTask(row), status: TaskStatus.RUNNING, branch: `task/${row.id}`, containerId };
-    } catch (err) {
-      await deps.volume.removeSessionWorktrees(row.id).catch(() => undefined);
-      await emit(row.id, [
-        { type: EventType.ERROR, payload: { message: String(err) } },
-        { type: EventType.STATUS, payload: { status: TaskStatus.FAILED } },
-      ]);
-      await deps.db.update(tasks).set({ status: TaskStatus.FAILED }).where(eq(tasks.id, row.id));
-      throw err;
+    if (mode === 'headless') {
+      // The box is up; drive the agent over `docker exec` and stream it as the transcript.
+      // Fire-and-forget: the run owns its own status/PR events; surface a crash as FAILED.
+      void deps.agentRunner
+        .run({ taskId: id, containerId, manifest, sessionDir: dir, githubIdentity: githubCredential })
+        .catch(async (err) => {
+          await emit(id, [
+            { type: EventType.ERROR, payload: { message: String(err) } },
+            { type: EventType.STATUS, payload: { status: TaskStatus.FAILED } },
+          ]);
+          await deps.db.update(tasks).set({ status: TaskStatus.FAILED }).where(eq(tasks.id, id));
+        });
+      return { ...rowToTask(row!), status: TaskStatus.RUNNING };
     }
+
+    // Interactive: bring up the persistent agent runtime. Its first turn streams to the
+    // durable event log AND to any attached socket, and the agent's life is decoupled from
+    // the browser — closing the tab leaves it DETACHED and resumable, not destroyed.
+    deps.sessionRuntime.start({ sessionId: id, containerId, manifest, sessionDir: dir, githubIdentity: githubCredential });
+    return { ...rowToTask(row!), status: TaskStatus.RUNNING };
   };
 
   return {

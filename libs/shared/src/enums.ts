@@ -2,6 +2,9 @@ export enum TaskStatus {
   QUEUED = 'queued',
   PROVISIONING = 'provisioning',
   RUNNING = 'running',
+  // Alive in the background with no live agent exec — the resting state of an
+  // interactive session whose turn ended but whose container stays up for resume.
+  DETACHED = 'detached',
   NEEDS_ASSISTANCE = 'needs_assistance',
   PUSHING = 'pushing',
   DONE = 'done',

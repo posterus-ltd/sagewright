@@ -25,6 +25,8 @@ import { registerCanvasLayoutRoutes } from './canvas-layout/canvas-layout-routes
 import { registerWorkflowRoutes } from './workflows/workflow-routes';
 import { registerGithubRoutes } from './github/github-routes';
 import type { RepoService } from './repos/repo-service';
+import type { SessionRuntime } from './sessions/session-runtime';
+import type { SessionService } from './sessions/session-service';
 import type { TaskService } from './tasks/task-service';
 import type { WorkflowService } from './workflows/workflow-service';
 import type { WorkflowRunner } from './workflows/workflow-runner';
@@ -40,6 +42,8 @@ export interface AppDeps {
   db: Db;
   eventStore: EventStore;
   eventBus: EventBus;
+  sessionService: SessionService;
+  sessionRuntime: SessionRuntime;
   taskService: TaskService;
   repoService: RepoService;
   userEnvService: UserEnvService;

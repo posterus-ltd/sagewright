@@ -2,6 +2,8 @@ import { EventType, TaskStatus } from '@sagewright/shared';
 import { describe, expect, it, vi } from 'vitest';
 
 import { scheduledPrompts, tasks } from '../db/schema';
+import { createSessionRuntime } from '../sessions/session-runtime';
+import { createSessionService } from '../sessions/session-service';
 import { fakeVolume, fakeWorkerRegistry, makeTestApp } from '../test/make-test-app';
 import { createTaskService } from './task-service';
 
@@ -17,24 +19,60 @@ const fakeGithubCredentialService = (token?: string) => ({
   disconnect: async () => {},
 });
 
+// Provisioning now lives in the session seam; build it alongside the task service
+// over the same db/spawner/volume/events so the create-path assertions still hold.
+interface BuildServiceDeps {
+  db: unknown;
+  spawner: unknown;
+  volume: unknown;
+  eventStore?: unknown;
+  eventBus?: unknown;
+  agentRunner?: unknown;
+  userEnvService?: unknown;
+  githubCredentialService?: unknown;
+  userSettingsService?: unknown;
+  workerRegistry?: unknown;
+  config?: unknown;
+}
+
+const buildService = (deps: BuildServiceDeps) => {
+  const eventStore = deps.eventStore ?? { append: vi.fn(async () => []), readSince: vi.fn() };
+  const eventBus = deps.eventBus ?? { publish: vi.fn(), subscribe: vi.fn() };
+  const sessionService = createSessionService({
+    db: deps.db as never,
+    eventStore: eventStore as never,
+    eventBus: eventBus as never,
+    spawner: deps.spawner as never,
+    volume: deps.volume as never,
+    config: (deps.config ?? {}) as never,
+    userEnvService: (deps.userEnvService ?? { get: async () => '' }) as never,
+    githubCredentialService: (deps.githubCredentialService ?? fakeGithubCredentialService()) as never,
+    userSettingsService: (deps.userSettingsService ?? fakeUserSettingsService()) as never,
+    workerRegistry: (deps.workerRegistry ?? fakeWorkerRegistry()) as never,
+  });
+  const agentRunner = deps.agentRunner ?? { run: vi.fn(async () => {}), runInteractive: vi.fn(async () => 0), complete: vi.fn(async () => {}) };
+  return createTaskService({
+    db: deps.db as never,
+    eventStore: eventStore as never,
+    eventBus: eventBus as never,
+    spawner: deps.spawner as never,
+    agentRunner: agentRunner as never,
+    volume: deps.volume as never,
+    sessionService,
+    sessionRuntime: createSessionRuntime({ agentRunner: agentRunner as never }),
+  });
+};
+
 describe('task routes', () => {
   it('creates an interactive session and spawns a worker', async () => {
     const spawn = vi.fn(async () => ({ containerId: 'c1' }));
     const addSessionWorktrees = vi.fn(async () => []);
     const { db } = await makeTestApp();
 
-    const service = createTaskService({
-      db: db as never,
-      eventStore: { append: vi.fn(async () => []), readSince: vi.fn() } as never,
-      eventBus: { publish: vi.fn(), subscribe: vi.fn() } as never,
-      spawner: { spawn, retire: vi.fn() } as never,
+    const service = buildService({
+      db,
+      spawner: { spawn, retire: vi.fn() },
       volume: fakeVolume({ addSessionWorktrees }),
-      config: {} as never,
-      userEnvService: { get: async () => '' } as never,
-      githubCredentialService: fakeGithubCredentialService() as never,
-      agentRunner: { run: vi.fn(async () => {}) } as never,
-      userSettingsService: fakeUserSettingsService() as never,
-      workerRegistry: fakeWorkerRegistry(),
     });
 
     const task = await service.create({}, 'al');
@@ -50,18 +88,12 @@ describe('task routes', () => {
     const addSessionWorktrees = vi.fn(async () => []);
     const { db } = await makeTestApp();
 
-    const service = createTaskService({
-      db: db as never,
-      eventStore: { append: vi.fn(async () => []), readSince: vi.fn() } as never,
-      eventBus: { publish: vi.fn(), subscribe: vi.fn() } as never,
-      spawner: { spawn, retire: vi.fn() } as never,
+    const service = buildService({
+      db,
+      spawner: { spawn, retire: vi.fn() },
       volume: fakeVolume({ addSessionWorktrees }),
-      config: {} as never,
-      userEnvService: { get: async () => 'GITHUB_TOKEN=legacy\nOTHER=ok' } as never,
-      githubCredentialService: fakeGithubCredentialService('resolved-token') as never,
-      agentRunner: { run: vi.fn(async () => {}) } as never,
-      userSettingsService: fakeUserSettingsService() as never,
-      workerRegistry: fakeWorkerRegistry(),
+      userEnvService: { get: async () => 'GITHUB_TOKEN=legacy\nOTHER=ok' },
+      githubCredentialService: fakeGithubCredentialService('resolved-token'),
     });
 
     await service.create({}, 'al');
@@ -77,18 +109,10 @@ describe('task routes', () => {
       .insert(scheduledPrompts)
       .values({ cron: '0 9 * * *', prompt: 'nightly', createdBy: 'scheduler' })
       .returning();
-    const service = createTaskService({
-      db: db as never,
-      eventStore: { append: vi.fn(async () => []), readSince: vi.fn() } as never,
-      eventBus: { publish: vi.fn(), subscribe: vi.fn() } as never,
-      spawner: { spawn, retire: vi.fn() } as never,
+    const service = buildService({
+      db,
+      spawner: { spawn, retire: vi.fn() },
       volume: fakeVolume(),
-      config: {} as never,
-      userEnvService: { get: async () => '' } as never,
-      githubCredentialService: fakeGithubCredentialService() as never,
-      agentRunner: { run: vi.fn(async () => {}) } as never,
-      userSettingsService: fakeUserSettingsService() as never,
-      workerRegistry: fakeWorkerRegistry(),
     });
 
     const task = await service.create({ prompt: 'nightly' }, 'scheduler', { mode: 'headless', scheduledPromptId: sp.id });
@@ -106,18 +130,12 @@ describe('task routes', () => {
     const eventStore = (await import('../events/event-store')).createEventStore(db as never);
     const eventBus = (await import('../events/event-bus')).createEventBus();
 
-    const service = createTaskService({
-      db: db as never,
+    const service = buildService({
+      db,
       eventStore,
       eventBus,
-      spawner: { spawn: vi.fn(async () => { throw spawnError; }), retire: vi.fn() } as never,
+      spawner: { spawn: vi.fn(async () => { throw spawnError; }), retire: vi.fn() },
       volume: fakeVolume({ removeSessionWorktrees }),
-      config: {} as never,
-      userEnvService: { get: async () => '' } as never,
-      githubCredentialService: fakeGithubCredentialService() as never,
-      agentRunner: { run: vi.fn(async () => {}) } as never,
-      userSettingsService: fakeUserSettingsService() as never,
-      workerRegistry: fakeWorkerRegistry(),
     });
 
     await expect(service.create({}, 'al')).rejects.toThrow('docker unavailable');
@@ -134,18 +152,10 @@ describe('task routes', () => {
 
   it('archives a session by stamping archivedAt without removing the row', async () => {
     const { db } = await makeTestApp();
-    const service = createTaskService({
-      db: db as never,
-      eventStore: { append: vi.fn(async () => []), readSince: vi.fn() } as never,
-      eventBus: { publish: vi.fn(), subscribe: vi.fn() } as never,
-      spawner: { spawn: vi.fn(async () => ({ containerId: 'c1' })), retire: vi.fn() } as never,
+    const service = buildService({
+      db,
+      spawner: { spawn: vi.fn(async () => ({ containerId: 'c1' })), retire: vi.fn() },
       volume: fakeVolume(),
-      config: {} as never,
-      userEnvService: { get: async () => '' } as never,
-      githubCredentialService: fakeGithubCredentialService() as never,
-      agentRunner: { run: vi.fn(async () => {}) } as never,
-      userSettingsService: fakeUserSettingsService() as never,
-      workerRegistry: fakeWorkerRegistry(),
     });
 
     const task = await service.create({}, 'al');
@@ -162,18 +172,12 @@ describe('task routes', () => {
     const retire = vi.fn(async () => undefined);
     const { db } = await makeTestApp();
     const eventStore = (await import('../events/event-store')).createEventStore(db as never);
-    const service = createTaskService({
-      db: db as never,
+    const service = buildService({
+      db,
       eventStore,
       eventBus: (await import('../events/event-bus')).createEventBus(),
-      spawner: { spawn: vi.fn(async () => ({ containerId: 'c1' })), retire } as never,
+      spawner: { spawn: vi.fn(async () => ({ containerId: 'c1' })), retire },
       volume: fakeVolume({ removeSessionWorktrees }),
-      config: {} as never,
-      userEnvService: { get: async () => '' } as never,
-      githubCredentialService: fakeGithubCredentialService() as never,
-      agentRunner: { run: vi.fn(async () => {}) } as never,
-      userSettingsService: fakeUserSettingsService() as never,
-      workerRegistry: fakeWorkerRegistry(),
     });
 
     const task = await service.create({}, 'al');

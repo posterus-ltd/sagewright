@@ -2,7 +2,7 @@ import { Chip } from '@mui/material';
 import { TaskStatus } from '@sagewright/shared';
 import type { FC } from 'react';
 
-const COLOR: Record<TaskStatus, 'success' | 'error' | 'warning' | 'info'> = {
+const COLOR: Record<TaskStatus, 'success' | 'error' | 'warning' | 'info' | 'default'> = {
   [TaskStatus.DONE]: 'success',
   [TaskStatus.FAILED]: 'error',
   [TaskStatus.STOPPED]: 'error',
@@ -10,6 +10,8 @@ const COLOR: Record<TaskStatus, 'success' | 'error' | 'warning' | 'info'> = {
   [TaskStatus.QUEUED]: 'info',
   [TaskStatus.PROVISIONING]: 'info',
   [TaskStatus.RUNNING]: 'info',
+  // Backgrounded and resumable — distinct from the active 'info' states.
+  [TaskStatus.DETACHED]: 'default',
   [TaskStatus.PUSHING]: 'info',
 };
 

@@ -69,17 +69,30 @@ describe('terminal route (live websocket)', () => {
     ws.close();
   });
 
-  it('forwards the initial terminal size from the query so the PTY is born sized', async () => {
+  it('forwards the initial terminal size from the query so the shell PTY is born sized', async () => {
     const { port, cookie, taskId, exec } = await boot();
-    const ws = new WebSocket(`ws://127.0.0.1:${port}/api/tasks/${taskId}/terminal?kind=agent&cols=137&rows=42`, {
+    const ws = new WebSocket(`ws://127.0.0.1:${port}/api/tasks/${taskId}/terminal?kind=shell&cols=137&rows=42`, {
       headers: { cookie },
     });
     await once(ws, 'open');
 
     expect(exec).toHaveBeenCalledWith(
       'test-container',
-      expect.objectContaining({ cmd: ['continue-agent'], initialSize: { cols: 137, rows: 42 } }),
+      expect.objectContaining({ cmd: ['bash'], initialSize: { cols: 137, rows: 42 } }),
     );
+    ws.close();
+  });
+
+  it('attaches an agent terminal to the runtime instead of exec-ing continue-agent', async () => {
+    const { port, cookie, taskId, exec } = await boot();
+    const ws = new WebSocket(`ws://127.0.0.1:${port}/api/tasks/${taskId}/terminal?kind=agent`, {
+      headers: { cookie },
+    });
+    await once(ws, 'open');
+
+    // The persistent agent exec is owned by the runtime — the terminal route must NOT
+    // open its own continue-agent PTY on attach (that was the per-attach exec bug).
+    expect(exec).not.toHaveBeenCalled();
     ws.close();
   });
 

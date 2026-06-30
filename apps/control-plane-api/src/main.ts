@@ -6,6 +6,8 @@ import { createEventStore } from './events/event-store';
 import { createVolume } from './git/volume';
 import { createScheduler } from './scheduled-prompts/scheduler';
 import { createRepoService } from './repos/repo-service';
+import { createSessionRuntime } from './sessions/session-runtime';
+import { createSessionService } from './sessions/session-service';
 import { createTaskService } from './tasks/task-service';
 import { createUserEnvService } from './user-env/user-env-service';
 import { createGithubCredentialService } from './github/github-credential-service';
@@ -38,12 +40,17 @@ const repoService = createRepoService({ db, volume, githubCredentialService });
 const canvasLayoutService = createCanvasLayoutService({ db });
 const userSettingsService = createUserSettingsService({ db });
 const workerRegistry = createWorkerRegistry({ docker });
-const taskService = createTaskService({ db, eventStore, eventBus, spawner, agentRunner, volume, config, userEnvService, githubCredentialService, userSettingsService, workerRegistry });
+// The single seam every run path provisions through. Owns insert→spawn→container_id
+// and the FAILED-on-throw contract; task/workflow services attach the drive policy.
+const sessionService = createSessionService({ db, eventStore, eventBus, spawner, volume, config, userEnvService, githubCredentialService, userSettingsService, workerRegistry });
+// In-process registry of live interactive agent execs, decoupled from the browser socket.
+const sessionRuntime = createSessionRuntime({ agentRunner });
+const taskService = createTaskService({ db, eventStore, eventBus, spawner, agentRunner, volume, sessionService, sessionRuntime });
 const workflowService = createWorkflowService({ db });
-const workflowRunner = createWorkflowRunner({ db, spawner, agentRunner, exec: containerExec, volume, config, userEnvService, githubCredentialService });
+const workflowRunner = createWorkflowRunner({ db, spawner, sessionService, agentRunner, exec: containerExec, volume, config, githubCredentialService });
 const scheduler = createScheduler({ db, taskService, workflowService, workflowRunner });
 
-const app = buildApp({ config, db, eventStore, eventBus, taskService, repoService, userEnvService, githubCredentialService, userSettingsService, canvasLayoutService, workflowService, workflowRunner, containerTerminal, volume, scheduler, workerRegistry });
+const app = buildApp({ config, db, eventStore, eventBus, sessionService, sessionRuntime, taskService, repoService, userEnvService, githubCredentialService, userSettingsService, canvasLayoutService, workflowService, workflowRunner, containerTerminal, volume, scheduler, workerRegistry });
 
 // The scheduler is built before the app (the app depends on it), so hand it the
 // Fastify logger now that the app exists — failed scheduled runs go to the app log.

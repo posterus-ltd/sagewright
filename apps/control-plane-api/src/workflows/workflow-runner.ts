@@ -2,7 +2,6 @@ import { mkdir, readFile } from 'node:fs/promises';
 
 import {
   EventType,
-  TaskStatus,
   runBranch,
   runDir,
   workflowDefinitionSchema,
@@ -16,13 +15,13 @@ import { eq } from 'drizzle-orm';
 
 import type { AppConfig } from '../config';
 import type { Db } from '../db/client';
-import { repos, tasks, workflowRuns, workflows } from '../db/schema';
+import { repos, workflowRuns, workflows } from '../db/schema';
+import type { SessionService } from '../sessions/session-service';
 import type { AgentRunner } from '../tasks/agent-runner';
 import type { ContainerExec } from '../tasks/docker-client';
 import { pushAndOpenPrs } from '../tasks/git-pr';
 import type { SpawnInput } from '../tasks/worker-spawner';
 import type { GithubCredentialService } from '../github/github-credential-service';
-import type { UserEnvService } from '../user-env/user-env-service';
 import type { Volume } from '../git/volume';
 
 /** Injectable filesystem access so the handoff/verdict contract is testable. */
@@ -40,11 +39,11 @@ const defaultFiles: RunFiles = {
 interface WorkflowRunnerDeps {
   db: Db;
   spawner: { spawn: (i: SpawnInput) => Promise<{ containerId: string }>; retire: (id: string) => Promise<void> };
+  sessionService: SessionService;
   agentRunner: Pick<AgentRunner, 'execStep'>;
   exec: ContainerExec;
   volume: Volume;
   config: AppConfig;
-  userEnvService: UserEnvService;
   githubCredentialService: GithubCredentialService;
   files?: RunFiles;
   logger?: { error: (err: unknown, msg?: string) => void };
@@ -99,6 +98,11 @@ export const createWorkflowRunner = (deps: WorkflowRunnerDeps) => {
     ].join('\n');
   };
 
+  // Spawn one step as a workflow_step session through the single seam. The step
+  // reuses the run's ONE shared worktree (passed in) so code carries over step to
+  // step, and inherits the full resolved user env + image validation + FAILED-on-throw
+  // contract the seam owns (a spawn throw now settles the step task FAILED, not stuck
+  // provisioning, and bubbles up to fail the run).
   const spawnStepTask = async (
     runId: string,
     createdBy: string,
@@ -106,33 +110,19 @@ export const createWorkflowRunner = (deps: WorkflowRunnerDeps) => {
     iteration: number,
     prompt: string,
     manifest: RepoManifestEntry[],
-    userEnv: Record<string, string>,
   ): Promise<{ taskId: string; containerId: string }> => {
-    const [row] = await deps.db
-      .insert(tasks)
-      .values({
-        mode: 'headless',
-        prompt,
-        workerImage: step.workerImage,
-        status: TaskStatus.PROVISIONING,
-        createdBy,
-        branch: runBranch(runId),
-        workflowRunId: runId,
-        workflowStepKey: step.key,
-        iteration,
-      })
-      .returning();
-    const { containerId } = await deps.spawner.spawn({
-      taskId: row!.id,
-      mode: 'headless',
+    const { id, containerId } = await deps.sessionService.spawnSession({
+      kind: 'workflow_step',
+      createdBy,
       prompt,
-      manifest,
-      sessionDir: runDir(runId),
-      userEnv,
       workerImage: step.workerImage,
+      parentSessionId: runId,
+      workflowStepKey: step.key,
+      iteration,
+      branch: runBranch(runId),
+      worktrees: { sessionDir: runDir(runId), manifest },
     });
-    await deps.db.update(tasks).set({ containerId }).where(eq(tasks.id, row!.id));
-    return { taskId: row!.id, containerId };
+    return { taskId: id, containerId };
   };
 
   const readVerdict = async (dir: string): Promise<Verdict> => {
@@ -206,15 +196,7 @@ export const createWorkflowRunner = (deps: WorkflowRunnerDeps) => {
         await setRun(runId, { currentStepKey: currentKey, iteration });
 
         const prompt = buildPrompt(step, dir, carried);
-        const { taskId, containerId } = await spawnStepTask(
-          runId,
-          createdBy,
-          step,
-          iteration,
-          prompt,
-          manifest,
-          userEnv,
-        );
+        const { taskId, containerId } = await spawnStepTask(runId, createdBy, step, iteration, prompt, manifest);
         const { exitCode } = await deps.agentRunner.execStep({
           taskId,
           containerId,

@@ -50,4 +50,29 @@ describe('streamTaskEvents', () => {
     const seq2Frames = calls.filter((f) => f.startsWith('id: 2'));
     expect(seq2Frames).toHaveLength(1);
   });
+
+  it('replays stored interactive OUTPUT so a reattaching viewer sees prior transcript', async () => {
+    // Interactive turns now persist their PTY as OUTPUT events; replaying them on
+    // (re)connect is what fixes the "reattach = blank screen" bug.
+    const stored = [
+      { seq: 1, type: EventType.STATUS, payload: { status: 'running' }, createdAt: 't1' },
+      { seq: 2, type: EventType.OUTPUT, payload: { chunk: 'hello from the agent' }, createdAt: 't2' },
+    ];
+    const emptyIterator = {
+      next: (): Promise<IteratorResult<(typeof stored)[number]>> =>
+        Promise.resolve({ value: undefined as never, done: true as const }),
+      return: (): Promise<IteratorResult<never>> =>
+        Promise.resolve({ value: undefined as never, done: true as const }),
+    };
+    const writes: string[] = [];
+
+    await streamTaskEvents({
+      iterator: emptyIterator,
+      readSince: () => Promise.resolve(stored),
+      lastEventId: 0,
+      write: (f) => writes.push(f),
+    });
+
+    expect(writes.some((f) => f.includes('event: output') && f.includes('hello from the agent'))).toBe(true);
+  });
 });

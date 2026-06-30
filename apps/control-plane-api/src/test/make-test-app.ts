@@ -11,6 +11,8 @@ import { createEventStore } from '../events/event-store';
 import type { Volume } from '../git/volume';
 import type { Scheduler } from '../scheduled-prompts/scheduler';
 import { createRepoService } from '../repos/repo-service';
+import { createSessionRuntime } from '../sessions/session-runtime';
+import { createSessionService } from '../sessions/session-service';
 import { createTaskService } from '../tasks/task-service';
 import type { SpawnInput } from '../tasks/worker-spawner';
 import { createUserEnvService } from '../user-env/user-env-service';
@@ -281,7 +283,27 @@ export const makeTestApp = async (
   });
 
   // No-op agent runner — headless drive is exercised in agent-runner's own unit tests.
-  const defaultAgentRunner = { run: async () => {}, execStep: async () => ({ exitCode: 0 }) };
+  const defaultAgentRunner = {
+    run: async () => {},
+    execStep: async () => ({ exitCode: 0 }),
+    runInteractive: async () => 0,
+    complete: async () => {},
+  };
+  const sessionRuntime = createSessionRuntime({ agentRunner: defaultAgentRunner as never });
+
+  // The single provisioning seam; the task service delegates spawning to it.
+  const sessionService = createSessionService({
+    db: db as never,
+    eventStore,
+    eventBus,
+    spawner: spawner as never,
+    volume: defaultVolume,
+    config,
+    userEnvService,
+    githubCredentialService,
+    userSettingsService,
+    workerRegistry,
+  });
 
   // Default task service wired to the test db
   const defaultTaskService = createTaskService({
@@ -289,13 +311,10 @@ export const makeTestApp = async (
     eventStore,
     eventBus,
     spawner: spawner as never,
-    agentRunner: defaultAgentRunner,
+    agentRunner: defaultAgentRunner as never,
     volume: defaultVolume,
-    config,
-    userEnvService,
-    githubCredentialService,
-    userSettingsService,
-    workerRegistry,
+    sessionService,
+    sessionRuntime,
   });
 
   // Default fake container terminal — tests exercising terminals override this.
@@ -314,6 +333,8 @@ export const makeTestApp = async (
     db: db as never,
     eventStore,
     eventBus,
+    sessionService,
+    sessionRuntime,
     taskService: defaultTaskService,
     repoService,
     userEnvService,

@@ -57,3 +57,23 @@ export const parseTerminalSize = (q: { cols?: string; rows?: string }): Terminal
 /** Worker session lifecycle mode, passed to the worker via SESSION_MODE. */
 export const sessionModeSchema = z.enum(['interactive', 'headless']);
 export type SessionMode = z.infer<typeof sessionModeSchema>;
+
+/**
+ * What a session is *for*. The single spawn path branches on this; every run path
+ * (interactive UI, headless one-shot, scheduled prompt, workflow step, workflow
+ * parent) maps to one kind. The worker only ever sees the derived `SessionMode`
+ * (see `modeForKind`) — `kind` stays control-plane side.
+ */
+export const sessionKindSchema = z.enum([
+  'interactive',
+  'headless',
+  'scheduled',
+  'workflow_step',
+  'workflow',
+]);
+export type SessionKind = z.infer<typeof sessionKindSchema>;
+
+/** Derive the worker-facing lifecycle mode from a session kind. Only an interactive
+ *  session keeps a human at the PTY; everything else is driven headless. */
+export const modeForKind = (kind: SessionKind): SessionMode =>
+  kind === 'interactive' ? 'interactive' : 'headless';
