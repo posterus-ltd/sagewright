@@ -1,4 +1,4 @@
-export enum TaskStatus {
+export enum SessionStatus {
   QUEUED = 'queued',
   PROVISIONING = 'provisioning',
   RUNNING = 'running',
@@ -10,13 +10,20 @@ export enum TaskStatus {
   DONE = 'done',
   FAILED = 'failed',
   STOPPED = 'stopped',
+  // A workflow parent that shipped a PR but never passed validation within maxIterations.
+  MAX_ITERATIONS = 'max_iterations',
 }
 
 /** Statuses where a session has stopped working — it can be archived. */
-export const TERMINAL_STATUSES: readonly TaskStatus[] = [TaskStatus.DONE, TaskStatus.FAILED, TaskStatus.STOPPED];
+export const TERMINAL_STATUSES: readonly SessionStatus[] = [
+  SessionStatus.DONE,
+  SessionStatus.FAILED,
+  SessionStatus.STOPPED,
+  SessionStatus.MAX_ITERATIONS,
+];
 
 /** True once a session has finished (or failed/stopped) and is no longer running. */
-export const isTerminalStatus = (status: TaskStatus): boolean => TERMINAL_STATUSES.includes(status);
+export const isTerminalStatus = (status: SessionStatus): boolean => TERMINAL_STATUSES.includes(status);
 
 export enum EventType {
   LOG = 'log',

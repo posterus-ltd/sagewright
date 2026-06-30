@@ -2,7 +2,7 @@ import { eq } from 'drizzle-orm';
 import { describe, expect, it, vi } from 'vitest';
 
 import { loadConfig } from '../config';
-import { tasks, workflowRuns } from '../db/schema';
+import { sessions } from '../db/schema';
 import { createEventBus } from '../events/event-bus';
 import { createEventStore } from '../events/event-store';
 import { createSessionService } from '../sessions/session-service';
@@ -122,15 +122,15 @@ const setup = async (opts: {
   return { db, runner, workflowId: wf.id, spawnInputs, captures };
 };
 
-// start() is fire-and-forget; poll the run row until it leaves 'running'.
-const waitForRun = async (db: unknown, runId: string): Promise<typeof workflowRuns.$inferSelect> => {
+// start() is fire-and-forget; poll the run's parent session until it leaves 'running'.
+const waitForRun = async (db: unknown, runId: string): Promise<typeof sessions.$inferSelect> => {
   for (let i = 0; i < 200; i += 1) {
     const [row] = await (db as never as { select: () => never })
       .select()
-      .from(workflowRuns)
-      .where(eq(workflowRuns.id, runId))
+      .from(sessions)
+      .where(eq(sessions.id, runId))
       .limit(1);
-    const r = row as typeof workflowRuns.$inferSelect | undefined;
+    const r = row as typeof sessions.$inferSelect | undefined;
     if (r && r.status !== 'running') return r;
     await new Promise((res) => setTimeout(res, 5));
   }
@@ -140,9 +140,9 @@ const waitForRun = async (db: unknown, runId: string): Promise<typeof workflowRu
 const stepKeys = async (db: unknown, runId: string): Promise<string[]> => {
   const rows = await (db as never as { select: () => never })
     .select()
-    .from(tasks)
-    .where(eq(tasks.workflowRunId, runId));
-  return (rows as (typeof tasks.$inferSelect)[]).map((r) => r.workflowStepKey!);
+    .from(sessions)
+    .where(eq(sessions.parentSessionId, runId));
+  return (rows as (typeof sessions.$inferSelect)[]).map((r) => r.workflowStepKey!);
 };
 
 describe('workflow-runner', () => {
@@ -151,7 +151,7 @@ describe('workflow-runner', () => {
     const run = await runner.start(workflowId, 'al', 'feature requirements');
     const settled = await waitForRun(db, run!.id);
 
-    expect(settled.status).toBe('succeeded');
+    expect(settled.status).toBe('done');
     const keys = await stepKeys(db, run!.id);
     expect(keys).toEqual(['plan', 'implement', 'validate']);
     expect(settled.currentStepKey).toBeNull();
@@ -162,7 +162,7 @@ describe('workflow-runner', () => {
     const run = await runner.start(workflowId, 'al');
     const settled = await waitForRun(db, run!.id);
 
-    expect(settled.status).toBe('succeeded');
+    expect(settled.status).toBe('done');
     // plan, implement, validate(fail) → implement, validate(pass)
     const keys = await stepKeys(db, run!.id);
     expect(keys).toEqual(['plan', 'implement', 'validate', 'implement', 'validate']);
@@ -209,7 +209,7 @@ describe('workflow-runner', () => {
     const run = await runner.start(workflowId, 'al');
     const settled = await waitForRun(db, run!.id);
 
-    expect(settled.status).toBe('succeeded');
+    expect(settled.status).toBe('done');
     expect(settled.error).toBeNull();
     expect(settled.currentStepKey).toBeNull();
   });
@@ -256,8 +256,8 @@ describe('workflow-runner', () => {
     // stuck at 'provisioning' because the duplicated spawn path had no failure handler.
     const rows = (await (db as never as { select: () => never })
       .select()
-      .from(tasks)
-      .where(eq(tasks.workflowRunId, run!.id))) as (typeof tasks.$inferSelect)[];
+      .from(sessions)
+      .where(eq(sessions.parentSessionId, run!.id))) as (typeof sessions.$inferSelect)[];
     expect(rows).toHaveLength(1);
     expect(rows[0]!.status).toBe('failed');
   });

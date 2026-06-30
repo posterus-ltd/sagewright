@@ -1,11 +1,11 @@
-import { EventType, TaskStatus } from '@sagewright/shared';
+import { EventType, SessionStatus } from '@sagewright/shared';
 import { PassThrough } from 'node:stream';
 import { eq } from 'drizzle-orm';
 import { describe, expect, it, vi } from 'vitest';
 
 import { createEventBus } from '../events/event-bus';
 import { createEventStore } from '../events/event-store';
-import { tasks } from '../db/schema';
+import { sessions } from '../db/schema';
 import { makeTestApp } from '../test/make-test-app';
 import { createAgentRunner } from './agent-runner';
 
@@ -18,8 +18,8 @@ const waitListening = async (stream: PassThrough): Promise<void> => {
 
 const insertTask = async (db: { insert: (t: unknown) => never }): Promise<string> => {
   const [row] = await db
-    .insert(tasks)
-    .values({ mode: 'headless', status: TaskStatus.PROVISIONING, createdBy: 'al' })
+    .insert(sessions)
+    .values({ kind: 'headless', status: SessionStatus.PROVISIONING, createdBy: 'al' })
     .returning();
   return (row as { id: string }).id;
 };
@@ -67,15 +67,15 @@ describe('agent-runner', () => {
 
     const evs = await eventStore.readSince(id, 0);
     const statuses = evs.filter((e) => e.type === EventType.STATUS).map((e) => e.payload['status']);
-    expect(statuses).toEqual([TaskStatus.RUNNING, TaskStatus.PUSHING, TaskStatus.DONE]);
+    expect(statuses).toEqual([SessionStatus.RUNNING, SessionStatus.PUSHING, SessionStatus.DONE]);
     expect(evs.some((e) => e.type === EventType.OUTPUT && e.payload['chunk'] === 'working...\n')).toBe(true);
 
     const [row] = await (db as never as { select: () => never })
       .select()
-      .from(tasks)
-      .where(eq(tasks.id, id))
+      .from(sessions)
+      .where(eq(sessions.id, id))
       .limit(1);
-    expect((row as { status: string }).status).toBe(TaskStatus.DONE);
+    expect((row as { status: string }).status).toBe(SessionStatus.DONE);
     expect(retire).toHaveBeenCalledWith('c1');
   });
 
@@ -95,10 +95,10 @@ describe('agent-runner', () => {
 
     const [row] = await (db as never as { select: () => never })
       .select()
-      .from(tasks)
-      .where(eq(tasks.id, id))
+      .from(sessions)
+      .where(eq(sessions.id, id))
       .limit(1);
-    expect((row as { status: string }).status).toBe(TaskStatus.FAILED);
+    expect((row as { status: string }).status).toBe(SessionStatus.FAILED);
   });
 
   it('runInteractive settles DETACHED on turn exit, hands over the live exec, and does NOT retire', async () => {
@@ -125,7 +125,7 @@ describe('agent-runner', () => {
 
     const evs = await eventStore.readSince(id, 0);
     const statuses = evs.filter((e) => e.type === EventType.STATUS).map((e) => e.payload['status']);
-    expect(statuses).toEqual([TaskStatus.RUNNING, TaskStatus.DETACHED]);
+    expect(statuses).toEqual([SessionStatus.RUNNING, SessionStatus.DETACHED]);
     // The turn's output was both persisted (OUTPUT) and teed live to the sink.
     expect(evs.some((e) => e.type === EventType.OUTPUT && e.payload['chunk'] === 'live output\n')).toBe(true);
     expect(Buffer.concat(fanned).toString()).toBe('live output\n');
@@ -134,10 +134,10 @@ describe('agent-runner', () => {
 
     const [row] = await (db as never as { select: () => never })
       .select()
-      .from(tasks)
-      .where(eq(tasks.id, id))
+      .from(sessions)
+      .where(eq(sessions.id, id))
       .limit(1);
-    expect((row as { status: string }).status).toBe(TaskStatus.DETACHED);
+    expect((row as { status: string }).status).toBe(SessionStatus.DETACHED);
   });
 
   it('complete pushes changed repos, opens a PR, settles DONE, and retires', async () => {
@@ -164,7 +164,7 @@ describe('agent-runner', () => {
 
     const evs = await eventStore.readSince(id, 0);
     const statuses = evs.filter((e) => e.type === EventType.STATUS).map((e) => e.payload['status']);
-    expect(statuses).toEqual([TaskStatus.PUSHING, TaskStatus.DONE]);
+    expect(statuses).toEqual([SessionStatus.PUSHING, SessionStatus.DONE]);
     expect(evs.some((e) => e.type === EventType.PR_OPENED && e.payload['url'] === 'https://gh/pr/1')).toBe(true);
     expect(retire).toHaveBeenCalledWith('c1');
   });

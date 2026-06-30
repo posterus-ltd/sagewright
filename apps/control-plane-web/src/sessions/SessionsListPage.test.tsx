@@ -6,7 +6,7 @@ import {
   waitFor,
   within,
 } from '@testing-library/react';
-import { TaskStatus, type Task } from '@sagewright/shared';
+import { SessionStatus, type Session } from '@sagewright/shared';
 import { type ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -16,13 +16,13 @@ import { UserPreferencesProvider } from '../preferences/UserPreferencesProvider'
 const navigate = vi.fn();
 vi.mock('react-router', () => ({ useNavigate: () => navigate }));
 
-const task = (overrides: Partial<Task>): Task => ({
+const task = (overrides: Partial<Session>): Session => ({
   id: 't1',
-  mode: 'interactive',
+  kind: 'interactive',
   name: 'My session',
   prompt: null,
   workerImage: null,
-  status: TaskStatus.RUNNING,
+  status: SessionStatus.RUNNING,
   branch: null,
   prUrl: null,
   createdBy: 'u1',
@@ -42,7 +42,7 @@ const jsonResponse = (body: unknown) =>
 // Serves the tasks list plus the workers lookup the WorkerChip needs; mutations
 // echo a task back. Pass a recorder to assert on specific calls.
 const stubApi = (
-  tasks: Task[],
+  tasks: Session[],
   onCall?: (url: string, init?: RequestInit) => void,
 ) => {
   const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {

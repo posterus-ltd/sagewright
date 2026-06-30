@@ -1,17 +1,17 @@
 import {
+  SessionStatus,
   workflowDefinitionSchema,
   type UpdateWorkflowInput,
   type Workflow,
   type WorkflowInput,
   type WorkflowRun,
   type WorkflowRunDetail,
-  type WorkflowRunStatus,
 } from '@sagewright/shared';
-import { asc, desc, eq } from 'drizzle-orm';
+import { and, asc, desc, eq } from 'drizzle-orm';
 
 import type { Db } from '../db/client';
-import { tasks, workflowRuns, workflows } from '../db/schema';
-import { rowToTask } from '../tasks/task-service';
+import { sessions, workflows } from '../db/schema';
+import { rowToSession } from '../tasks/task-service';
 
 interface WorkflowServiceDeps {
   db: Db;
@@ -26,21 +26,22 @@ const rowToWorkflow = (r: typeof workflows.$inferSelect): Workflow => ({
   createdAt: r.createdAt.toISOString(),
 });
 
-const rowToRun = (r: typeof workflowRuns.$inferSelect): WorkflowRun => ({
+// View a kind='workflow' parent session as a WorkflowRun.
+const rowToRun = (r: typeof sessions.$inferSelect): WorkflowRun => ({
   id: r.id,
-  workflowId: r.workflowId,
-  status: r.status as WorkflowRunStatus,
+  workflowId: r.workflowId ?? '',
+  status: r.status as SessionStatus,
   branch: r.branch,
   prUrl: r.prUrl,
   currentStepKey: r.currentStepKey,
-  iteration: r.iteration,
+  iteration: r.iteration ?? 0,
   error: r.error,
   createdBy: r.createdBy,
   createdAt: r.createdAt.toISOString(),
 });
 
 /**
- * CRUD for workflow definitions plus read access to runs and their step tasks.
+ * CRUD for workflow definitions plus read access to runs and their step sessions.
  * The definition is validated with the shared zod schema on every write so a bad
  * JSON shape surfaces as a 400 (mirrors canvas-layout-service).
  */
@@ -77,36 +78,36 @@ export const createWorkflowService = (deps: WorkflowServiceDeps) => ({
     return row ? rowToWorkflow(row) : null;
   },
 
-  // Drop the workflow and its runs. Step task rows survive (their workflowRunId is
-  // nulled by the FK) so their transcripts remain auditable.
+  // Drop the workflow and its run parent sessions; the parent_session_id cascade
+  // removes each run's step sessions (and their events) too.
   remove: async (id: string): Promise<void> => {
-    await deps.db.delete(workflowRuns).where(eq(workflowRuns.workflowId, id));
+    await deps.db.delete(sessions).where(eq(sessions.workflowId, id));
     await deps.db.delete(workflows).where(eq(workflows.id, id));
   },
 
   listRuns: async (workflowId?: string): Promise<WorkflowRun[]> => {
-    const rows = workflowId
-      ? await deps.db.select().from(workflowRuns).where(eq(workflowRuns.workflowId, workflowId)).orderBy(desc(workflowRuns.createdAt))
-      : await deps.db.select().from(workflowRuns).orderBy(desc(workflowRuns.createdAt));
+    const isRun = eq(sessions.kind, 'workflow');
+    const where = workflowId ? and(isRun, eq(sessions.workflowId, workflowId)) : isRun;
+    const rows = await deps.db.select().from(sessions).where(where).orderBy(desc(sessions.createdAt));
     return rows.map(rowToRun);
   },
 
-  // A run joined with its definition and the step task rows (one per step execution,
-  // ordered oldest-first) — the shape the run graph renders from.
+  // A run (kind='workflow' session) joined with its definition and its step child
+  // sessions (kind='workflow_step', oldest-first) — the shape the run graph renders from.
   getRunDetail: async (runId: string): Promise<WorkflowRunDetail | null> => {
-    const [run] = await deps.db.select().from(workflowRuns).where(eq(workflowRuns.id, runId)).limit(1);
-    if (!run) return null;
+    const [run] = await deps.db.select().from(sessions).where(eq(sessions.id, runId)).limit(1);
+    if (!run || !run.workflowId) return null;
     const [workflow] = await deps.db.select().from(workflows).where(eq(workflows.id, run.workflowId)).limit(1);
     if (!workflow) return null;
     const stepRows = await deps.db
       .select()
-      .from(tasks)
-      .where(eq(tasks.workflowRunId, runId))
-      .orderBy(asc(tasks.createdAt));
+      .from(sessions)
+      .where(eq(sessions.parentSessionId, runId))
+      .orderBy(asc(sessions.createdAt));
     return {
       ...rowToRun(run),
       definition: workflowDefinitionSchema.parse(workflow.definition),
-      steps: stepRows.map(rowToTask),
+      steps: stepRows.map(rowToSession),
     };
   },
 });

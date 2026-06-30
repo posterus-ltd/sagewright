@@ -1,12 +1,12 @@
 import { type ButtonProps } from '@mui/material';
-import { type Task } from '@sagewright/shared';
+import { type Session } from '@sagewright/shared';
 import { type FC, type ReactNode } from 'react';
 
 import { useCreateSession, useWorkers } from '../api/hooks';
 import { SplitButton } from './SplitButton';
 
 interface Props {
-  onCreated: (task: Task) => void;
+  onCreated: (task: Session) => void;
   label?: string;
   size?: 'small' | 'medium';
   variant?: ButtonProps['variant'];

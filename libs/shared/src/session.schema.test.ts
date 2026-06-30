@@ -1,17 +1,17 @@
 import { describe, expect, it } from 'vitest';
-import { createScheduledPromptSchema, createTaskSchema, saveReposSchema } from './index';
+import { createScheduledPromptSchema, createSessionSchema, saveReposSchema } from './index';
 
-describe('createTaskSchema', () => {
+describe('createSessionSchema', () => {
   it('accepts an empty body (friction-free interactive session)', () => {
-    expect(createTaskSchema.parse({})).toEqual({});
+    expect(createSessionSchema.parse({})).toEqual({});
   });
 
   it('accepts an optional prompt', () => {
-    expect(createTaskSchema.parse({ prompt: 'fix bug' }).prompt).toBe('fix bug');
+    expect(createSessionSchema.parse({ prompt: 'fix bug' }).prompt).toBe('fix bug');
   });
 
   it('rejects an empty prompt string', () => {
-    expect(() => createTaskSchema.parse({ prompt: '' })).toThrow();
+    expect(() => createSessionSchema.parse({ prompt: '' })).toThrow();
   });
 });
 

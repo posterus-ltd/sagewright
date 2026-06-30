@@ -1,20 +1,20 @@
 import { Chip } from '@mui/material';
-import { TaskStatus } from '@sagewright/shared';
+import { SessionStatus } from '@sagewright/shared';
 import type { FC } from 'react';
 
-const COLOR: Record<TaskStatus, 'success' | 'error' | 'warning' | 'info' | 'default'> = {
-  [TaskStatus.DONE]: 'success',
-  [TaskStatus.FAILED]: 'error',
-  [TaskStatus.STOPPED]: 'error',
-  [TaskStatus.NEEDS_ASSISTANCE]: 'warning',
-  [TaskStatus.QUEUED]: 'info',
-  [TaskStatus.PROVISIONING]: 'info',
-  [TaskStatus.RUNNING]: 'info',
+const COLOR: Record<SessionStatus, 'success' | 'error' | 'warning' | 'info' | 'default'> = {
+  [SessionStatus.DONE]: 'success',
+  [SessionStatus.FAILED]: 'error',
+  [SessionStatus.STOPPED]: 'error',
+  [SessionStatus.NEEDS_ASSISTANCE]: 'warning',
+  [SessionStatus.QUEUED]: 'info',
+  [SessionStatus.PROVISIONING]: 'info',
+  [SessionStatus.RUNNING]: 'info',
   // Backgrounded and resumable — distinct from the active 'info' states.
-  [TaskStatus.DETACHED]: 'default',
-  [TaskStatus.PUSHING]: 'info',
+  [SessionStatus.DETACHED]: 'default',
+  [SessionStatus.PUSHING]: 'info',
 };
 
-export const StatusChip: FC<{ status: TaskStatus }> = ({ status }) => (
+export const StatusChip: FC<{ status: SessionStatus }> = ({ status }) => (
   <Chip label={status} color={COLOR[status]} size="small" />
 );

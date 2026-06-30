@@ -29,7 +29,7 @@ const eventBus = createEventBus();
 const docker = createDockerClient();
 const spawner = createWorkerSpawner(config, () => docker);
 const containerTerminal = createContainerTerminal(docker);
-// Drives the predefined start script over `docker exec` and runs git/PR for headless tasks.
+// Drives the predefined start script over `docker exec` and runs git/PR for headless sessions.
 const containerExec = createContainerExec(docker);
 const agentRunner = createAgentRunner({ db, eventStore, eventBus, exec: containerExec, retire: spawner.retire });
 // Owns the shared repo volume: all clone/pull/worktree writes funnel through here.

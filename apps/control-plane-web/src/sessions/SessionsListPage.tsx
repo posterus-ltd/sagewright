@@ -16,7 +16,7 @@ import {
   type GridColDef,
   type GridRowParams,
 } from '@mui/x-data-grid';
-import { isTerminalStatus, taskLabel, type Task } from '@sagewright/shared';
+import { isTerminalStatus, sessionLabel, type Session } from '@sagewright/shared';
 import { DateTime } from 'luxon';
 import {
   useEffect,
@@ -100,24 +100,24 @@ export const SessionsListPage: FC = () => {
     [tasks, view],
   );
 
-  const startRename = (t: Task): void => {
+  const startRename = (t: Session): void => {
     setRenamingId(t.id);
     setDraft(t.name ?? '');
   };
 
-  const commitRename = (t: Task): void => {
+  const commitRename = (t: Session): void => {
     setRenamingId(null);
     const next = draft.trim();
     if (next === (t.name ?? '')) return;
     updateTask.mutate({ id: t.id, name: next || null });
   };
 
-  const onRenameKeyDown = (e: KeyboardEvent, t: Task): void => {
+  const onRenameKeyDown = (e: KeyboardEvent, t: Session): void => {
     if (e.key === 'Enter') commitRename(t);
     else if (e.key === 'Escape') setRenamingId(null);
   };
 
-  const columns = useMemo<GridColDef<Task>[]>(
+  const columns = useMemo<GridColDef<Session>[]>(
     () => [
       {
         field: 'session',
@@ -125,7 +125,7 @@ export const SessionsListPage: FC = () => {
         flex: 1,
         minWidth: 220,
         sortable: false,
-        valueGetter: (_value, row) => taskLabel(row, 80),
+        valueGetter: (_value, row) => sessionLabel(row, 80),
         renderCell: (params) =>
           renamingId === params.row.id ? (
             <InputBase
@@ -145,7 +145,7 @@ export const SessionsListPage: FC = () => {
               inputProps={{ 'aria-label': 'Session name', maxLength: 200 }}
             />
           ) : (
-            taskLabel(params.row, 80)
+            sessionLabel(params.row, 80)
           ),
       },
       {
@@ -255,7 +255,7 @@ export const SessionsListPage: FC = () => {
   );
 
   // Clicking a row opens the session, except while renaming it inline.
-  const onRowClick = (params: GridRowParams<Task>): void => {
+  const onRowClick = (params: GridRowParams<Session>): void => {
     if (renamingId === params.row.id) return;
     navigate(`/tasks/${params.row.id}`);
   };

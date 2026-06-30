@@ -1,4 +1,4 @@
-import { createTaskSchema, postMessageSchema, updateTaskSchema } from '@sagewright/shared';
+import { createSessionSchema, postMessageSchema, updateSessionSchema } from '@sagewright/shared';
 import type { FastifyInstance } from 'fastify';
 
 import type { AppDeps } from '../app';
@@ -6,7 +6,7 @@ import { inboundMessages } from '../db/schema';
 
 export const registerTaskRoutes = (app: FastifyInstance, deps: AppDeps): void => {
   app.post('/api/tasks', { preHandler: app.requireUser }, async (req, reply) => {
-    const input = createTaskSchema.parse(req.body);
+    const input = createSessionSchema.parse(req.body);
     const task = await deps.taskService.create(input, req.displayName!);
     return reply.code(201).send(task);
   });
@@ -22,7 +22,7 @@ export const registerTaskRoutes = (app: FastifyInstance, deps: AppDeps): void =>
   });
 
   app.patch('/api/tasks/:id', { preHandler: app.requireUser }, async (req, reply) => {
-    const input = updateTaskSchema.parse(req.body);
+    const input = updateSessionSchema.parse(req.body);
     const task = await deps.taskService.update((req.params as { id: string }).id, input);
     return task ?? reply.code(404).send({ error: 'not found' });
   });
@@ -51,7 +51,7 @@ export const registerTaskRoutes = (app: FastifyInstance, deps: AppDeps): void =>
 
   app.post('/api/tasks/:id/messages', { preHandler: app.requireUser }, async (req, reply) => {
     const { body } = postMessageSchema.parse(req.body);
-    await deps.db.insert(inboundMessages).values({ taskId: (req.params as { id: string }).id, body });
+    await deps.db.insert(inboundMessages).values({ sessionId: (req.params as { id: string }).id, body });
     return reply.code(202).send({ ok: true });
   });
 };

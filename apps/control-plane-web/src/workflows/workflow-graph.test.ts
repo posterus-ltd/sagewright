@@ -1,4 +1,4 @@
-import { TaskStatus, type Task, type WorkflowDefinition } from '@sagewright/shared';
+import { SessionStatus, type Session, type WorkflowDefinition } from '@sagewright/shared';
 import { describe, expect, it } from 'vitest';
 
 import { buildWorkflowGraph } from './workflow-graph';
@@ -14,19 +14,19 @@ const def: WorkflowDefinition = {
   ],
 };
 
-const task = (over: Partial<Task>): Task => ({
+const task = (over: Partial<Session>): Session => ({
   id: 't',
-  mode: 'headless',
+  kind: 'headless',
   name: null,
   prompt: null,
   workerImage: 'w',
-  status: TaskStatus.DONE,
+  status: SessionStatus.DONE,
   branch: null,
   prUrl: null,
   createdBy: 'al',
   containerId: null,
   scheduledPromptId: null,
-  workflowRunId: 'r1',
+  parentSessionId: 'r1',
   workflowStepKey: null,
   iteration: 0,
   archivedAt: null,
@@ -48,9 +48,9 @@ describe('buildWorkflowGraph', () => {
 
   it('reflects the latest task status per step and picks the highest iteration', () => {
     const tasks = [
-      task({ id: 'p', workflowStepKey: 'plan', status: TaskStatus.DONE }),
-      task({ id: 'i0', workflowStepKey: 'implement', iteration: 0, status: TaskStatus.DONE }),
-      task({ id: 'i1', workflowStepKey: 'implement', iteration: 1, status: TaskStatus.RUNNING }),
+      task({ id: 'p', workflowStepKey: 'plan', status: SessionStatus.DONE }),
+      task({ id: 'i0', workflowStepKey: 'implement', iteration: 0, status: SessionStatus.DONE }),
+      task({ id: 'i1', workflowStepKey: 'implement', iteration: 1, status: SessionStatus.RUNNING }),
     ];
     const { nodes } = buildWorkflowGraph(def, tasks);
     const implement = nodes.find((n) => n.id === 'implement')!;
@@ -61,7 +61,7 @@ describe('buildWorkflowGraph', () => {
   });
 
   it('maps failed/stopped task statuses to a failed node', () => {
-    const { nodes } = buildWorkflowGraph(def, [task({ workflowStepKey: 'plan', status: TaskStatus.FAILED })]);
+    const { nodes } = buildWorkflowGraph(def, [task({ workflowStepKey: 'plan', status: SessionStatus.FAILED })]);
     expect(nodes.find((n) => n.id === 'plan')!.data.status).toBe('failed');
   });
 });

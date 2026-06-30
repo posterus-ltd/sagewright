@@ -1,7 +1,7 @@
 import {
   EventType,
   RESERVED_ENV_KEYS,
-  TaskStatus,
+  SessionStatus,
   modeForKind,
   parseEnvBlob,
   sessionDir,
@@ -13,7 +13,7 @@ import { eq } from 'drizzle-orm';
 
 import type { AppConfig } from '../config';
 import type { Db } from '../db/client';
-import { repos, tasks } from '../db/schema';
+import { repos, sessions } from '../db/schema';
 import type { EventStore } from '../events/event-store';
 import type { EventBus } from '../events/event-bus';
 import type { GithubCredentialService, ResolvedGithubCredential } from '../github/github-credential-service';
@@ -102,23 +102,23 @@ export const createSessionService = (deps: SessionServiceDeps) => {
     // session (with the reason in its transcript) rather than throwing before any
     // row exists — which is invisible to callers like the scheduler.
     const [row] = await deps.db
-      .insert(tasks)
+      .insert(sessions)
       .values({
-        mode,
+        kind: input.kind,
         prompt,
         workerImage,
-        status: TaskStatus.QUEUED,
+        status: SessionStatus.QUEUED,
         createdBy: input.createdBy,
         branch: null,
         scheduledPromptId: input.scheduledPromptId ?? null,
-        workflowRunId: input.parentSessionId ?? null,
+        parentSessionId: input.parentSessionId ?? null,
         workflowStepKey: input.workflowStepKey ?? null,
         iteration: input.iteration ?? null,
       })
       .returning();
 
     const branch = input.branch ?? `task/${row.id}`;
-    await deps.db.update(tasks).set({ status: TaskStatus.PROVISIONING, branch }).where(eq(tasks.id, row.id));
+    await deps.db.update(sessions).set({ status: SessionStatus.PROVISIONING, branch }).where(eq(sessions.id, row.id));
 
     try {
       // Reject an unknown user-chosen image (security: can't spawn an arbitrary image). The operator's
@@ -164,16 +164,16 @@ export const createSessionService = (deps: SessionServiceDeps) => {
         userEnv,
         workerImage,
       });
-      await deps.db.update(tasks).set({ containerId }).where(eq(tasks.id, row.id));
+      await deps.db.update(sessions).set({ containerId }).where(eq(sessions.id, row.id));
 
       return { id: row.id, containerId, branch, sessionDir: dir, manifest, mode, githubCredential };
     } catch (err) {
       await deps.volume.removeSessionWorktrees(row.id).catch(() => undefined);
       await emit(row.id, [
         { type: EventType.ERROR, payload: { message: String(err) } },
-        { type: EventType.STATUS, payload: { status: TaskStatus.FAILED } },
+        { type: EventType.STATUS, payload: { status: SessionStatus.FAILED } },
       ]);
-      await deps.db.update(tasks).set({ status: TaskStatus.FAILED }).where(eq(tasks.id, row.id));
+      await deps.db.update(sessions).set({ status: SessionStatus.FAILED }).where(eq(sessions.id, row.id));
       throw err;
     }
   };

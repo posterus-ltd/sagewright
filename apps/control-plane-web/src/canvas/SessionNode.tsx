@@ -4,7 +4,7 @@ import EditRounded from '@mui/icons-material/EditRounded';
 import OpenInNewRounded from '@mui/icons-material/OpenInNewRounded';
 import PaletteRounded from '@mui/icons-material/PaletteRounded';
 import { Box, Button, IconButton, InputBase, Popover, TextField, Tooltip, Typography, alpha, useTheme } from '@mui/material';
-import { taskLabel } from '@sagewright/shared';
+import { sessionLabel } from '@sagewright/shared';
 import { NodeResizer, type NodeProps } from '@xyflow/react';
 import { useState, type FC, type KeyboardEvent, type MouseEvent } from 'react';
 
@@ -30,7 +30,7 @@ export const SessionNode: FC<NodeProps> = ({ id, data, selected }) => {
   const updateTask = useUpdateTask();
   const theme = useTheme();
 
-  const title = task ? taskLabel(task) : 'Interactive session';
+  const title = task ? sessionLabel(task) : 'Interactive session';
 
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState('');

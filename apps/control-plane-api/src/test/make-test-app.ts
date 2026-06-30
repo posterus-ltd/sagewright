@@ -46,9 +46,9 @@ const TABLE_STMTS = [
     "last_run_at" timestamp with time zone,
     "created_at" timestamp with time zone DEFAULT now() NOT NULL
   )`,
-  `CREATE TABLE "tasks" (
+  `CREATE TABLE "sessions" (
     "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-    "mode" text DEFAULT 'interactive' NOT NULL,
+    "kind" text NOT NULL,
     "name" text,
     "prompt" text,
     "status" text DEFAULT 'queued' NOT NULL,
@@ -56,18 +56,24 @@ const TABLE_STMTS = [
     "pr_url" text,
     "created_by" text NOT NULL,
     "container_id" text,
-    "worker_token_hash" text,
     "scheduled_prompt_id" uuid,
-    "workflow_run_id" uuid,
+    "parent_session_id" uuid,
+    "workflow_id" uuid,
     "workflow_step_key" text,
+    "current_step_key" text,
     "iteration" integer,
+    "error" text,
+    "trigger_context" jsonb,
     "archived_at" timestamp with time zone,
     "worker_image" text,
-    "created_at" timestamp with time zone DEFAULT now() NOT NULL
+    "started_at" timestamp with time zone,
+    "ended_at" timestamp with time zone,
+    "created_at" timestamp with time zone DEFAULT now() NOT NULL,
+    "updated_at" timestamp with time zone DEFAULT now() NOT NULL
   )`,
   `CREATE TABLE "events" (
     "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-    "task_id" uuid NOT NULL,
+    "session_id" uuid NOT NULL,
     "seq" bigint NOT NULL,
     "type" text NOT NULL,
     "payload" jsonb NOT NULL,
@@ -75,7 +81,7 @@ const TABLE_STMTS = [
   )`,
   `CREATE TABLE "inbound_messages" (
     "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-    "task_id" uuid NOT NULL,
+    "session_id" uuid NOT NULL,
     "body" text NOT NULL,
     "consumed_at" timestamp with time zone,
     "created_at" timestamp with time zone DEFAULT now() NOT NULL
@@ -117,25 +123,13 @@ const TABLE_STMTS = [
     "created_by" text NOT NULL,
     "created_at" timestamp with time zone DEFAULT now() NOT NULL
   )`,
-  `CREATE TABLE "workflow_runs" (
-    "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-    "workflow_id" uuid NOT NULL,
-    "status" text DEFAULT 'queued' NOT NULL,
-    "branch" text,
-    "pr_url" text,
-    "current_step_key" text,
-    "iteration" integer DEFAULT 0 NOT NULL,
-    "error" text,
-    "trigger_context" jsonb,
-    "created_by" text NOT NULL,
-    "created_at" timestamp with time zone DEFAULT now() NOT NULL
-  )`,
-  `ALTER TABLE "events" ADD CONSTRAINT "events_task_id_tasks_id_fk" FOREIGN KEY ("task_id") REFERENCES "public"."tasks"("id") ON DELETE no action ON UPDATE no action`,
-  `ALTER TABLE "inbound_messages" ADD CONSTRAINT "inbound_messages_task_id_tasks_id_fk" FOREIGN KEY ("task_id") REFERENCES "public"."tasks"("id") ON DELETE no action ON UPDATE no action`,
-  `ALTER TABLE "tasks" ADD CONSTRAINT "tasks_scheduled_prompt_id_scheduled_prompts_id_fk" FOREIGN KEY ("scheduled_prompt_id") REFERENCES "public"."scheduled_prompts"("id") ON DELETE set null ON UPDATE no action`,
-  `ALTER TABLE "workflow_runs" ADD CONSTRAINT "workflow_runs_workflow_id_workflows_id_fk" FOREIGN KEY ("workflow_id") REFERENCES "public"."workflows"("id") ON DELETE no action ON UPDATE no action`,
-  `ALTER TABLE "tasks" ADD CONSTRAINT "tasks_workflow_run_id_workflow_runs_id_fk" FOREIGN KEY ("workflow_run_id") REFERENCES "public"."workflow_runs"("id") ON DELETE set null ON UPDATE no action`,
-  `CREATE UNIQUE INDEX "events_task_seq_idx" ON "events" USING btree ("task_id","seq")`,
+  `ALTER TABLE "events" ADD CONSTRAINT "events_session_id_sessions_id_fk" FOREIGN KEY ("session_id") REFERENCES "public"."sessions"("id") ON DELETE cascade ON UPDATE no action`,
+  `ALTER TABLE "inbound_messages" ADD CONSTRAINT "inbound_messages_session_id_sessions_id_fk" FOREIGN KEY ("session_id") REFERENCES "public"."sessions"("id") ON DELETE cascade ON UPDATE no action`,
+  `ALTER TABLE "sessions" ADD CONSTRAINT "sessions_scheduled_prompt_id_scheduled_prompts_id_fk" FOREIGN KEY ("scheduled_prompt_id") REFERENCES "public"."scheduled_prompts"("id") ON DELETE set null ON UPDATE no action`,
+  `ALTER TABLE "sessions" ADD CONSTRAINT "sessions_parent_session_id_sessions_id_fk" FOREIGN KEY ("parent_session_id") REFERENCES "public"."sessions"("id") ON DELETE cascade ON UPDATE no action`,
+  `ALTER TABLE "sessions" ADD CONSTRAINT "sessions_workflow_id_workflows_id_fk" FOREIGN KEY ("workflow_id") REFERENCES "public"."workflows"("id") ON DELETE set null ON UPDATE no action`,
+  `CREATE UNIQUE INDEX "events_session_seq_idx" ON "events" USING btree ("session_id","seq")`,
+  `CREATE INDEX "events_session_created_idx" ON "events" USING btree ("session_id","created_at")`,
 ];
 
 /** Fake worker registry for tests; returns one worker by default. */

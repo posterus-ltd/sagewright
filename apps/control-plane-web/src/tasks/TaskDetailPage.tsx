@@ -1,5 +1,5 @@
 import { Breadcrumbs, Link as MuiLink, Stack, Typography } from '@mui/material';
-import { taskLabel } from '@sagewright/shared';
+import { sessionLabel } from '@sagewright/shared';
 import { type FC } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 
@@ -19,7 +19,7 @@ export const TaskDetailPage: FC = () => {
           <MuiLink component={Link} to="/" underline="hover" color="inherit">
             Sessions
           </MuiLink>
-          <Typography color="text.primary">{task ? taskLabel(task) : '…'}</Typography>
+          <Typography color="text.primary">{task ? sessionLabel(task) : '…'}</Typography>
         </Breadcrumbs>
         <SessionPanel taskId={id} onStopped={() => navigate('/')} />
       </Stack>

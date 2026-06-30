@@ -8,7 +8,7 @@ import { CommandPalette } from './CommandPalette';
 
 const task = (id: string, prompt: string | null) => ({
   id,
-  mode: 'interactive',
+  kind: 'interactive',
   prompt,
   status: 'running',
   branch: null,

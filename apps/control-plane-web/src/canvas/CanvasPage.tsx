@@ -7,7 +7,7 @@ import {
   Typography,
   useTheme,
 } from '@mui/material';
-import { taskLabel, type CanvasLayout, type Task } from '@sagewright/shared';
+import { sessionLabel, type CanvasLayout, type Session } from '@sagewright/shared';
 import {
   Background,
   Controls,
@@ -56,11 +56,11 @@ const PERSISTABLE_CHANGE_TYPES = new Set([
   'add',
 ]);
 
-const isActive = (t: Task): boolean => t.archivedAt === null;
+const isActive = (t: Session): boolean => t.archivedAt === null;
 
 interface BoardProps {
   initialLayout: CanvasLayout;
-  tasks: Task[];
+  tasks: Session[];
 }
 
 const CanvasBoard: FC<BoardProps> = ({ initialLayout, tasks }) => {
@@ -240,7 +240,7 @@ const CanvasBoard: FC<BoardProps> = ({ initialLayout, tasks }) => {
                           addSession(t.id);
                         }}
                       >
-                        {taskLabel(t, 48)}
+                        {sessionLabel(t, 48)}
                       </MenuItem>
                     ))}
                   </Menu>

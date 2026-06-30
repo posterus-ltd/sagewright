@@ -46,7 +46,7 @@ enum WorkflowsView {
 const RUN_STATUS_COLOR = {
   queued: 'info',
   running: 'info',
-  succeeded: 'success',
+  done: 'success',
   failed: 'error',
   max_iterations: 'warning',
 } as const;

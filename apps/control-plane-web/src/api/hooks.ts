@@ -1,10 +1,10 @@
 import {
   type CanvasLayout,
   type CreateScheduledPromptInput,
-  type CreateTaskInput,
+  type CreateSessionInput,
   type RepoWithStatus,
   type ScheduledPrompt,
-  type Task,
+  type Session,
   type UpdateWorkflowInput,
   type WorkerImage,
   type Workflow,
@@ -44,10 +44,10 @@ export const useSetDefaultWorker = () => {
 };
 
 export const useTasks = (mine: boolean) =>
-  useQuery({ queryKey: ['tasks', mine], queryFn: () => apiClient.get<Task[]>(`/api/tasks${mine ? '?mine=1' : ''}`), refetchInterval: 5000 });
+  useQuery({ queryKey: ['tasks', mine], queryFn: () => apiClient.get<Session[]>(`/api/tasks${mine ? '?mine=1' : ''}`), refetchInterval: 5000 });
 
 export const useTask = (id: string) =>
-  useQuery({ queryKey: ['task', id], queryFn: () => apiClient.get<Task>(`/api/tasks/${id}`) });
+  useQuery({ queryKey: ['task', id], queryFn: () => apiClient.get<Session>(`/api/tasks/${id}`) });
 
 // Repos carry live reconcile status; poll faster while any clone is in flight.
 export const useRepos = () =>
@@ -87,7 +87,7 @@ export const useDisconnectGithub = () => {
 export const useCreateSession = () => {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (input: CreateTaskInput = {}) => apiClient.post<Task>('/api/tasks', input),
+    mutationFn: (input: CreateSessionInput = {}) => apiClient.post<Session>('/api/tasks', input),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['tasks'] }),
   });
 };
@@ -96,7 +96,7 @@ export const useUpdateTask = () => {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ id, name }: { id: string; name: string | null }) =>
-      apiClient.patch<Task>(`/api/tasks/${id}`, { name }),
+      apiClient.patch<Session>(`/api/tasks/${id}`, { name }),
     onSuccess: (task) => {
       qc.setQueryData(['task', task.id], task);
       void qc.invalidateQueries({ queryKey: ['tasks'] });

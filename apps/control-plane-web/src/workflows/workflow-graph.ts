@@ -1,4 +1,4 @@
-import { TaskStatus, type Task, type WorkflowDefinition } from '@sagewright/shared';
+import { SessionStatus, type Session, type WorkflowDefinition } from '@sagewright/shared';
 import type { Edge, Node } from '@xyflow/react';
 
 export type StepNodeStatus = 'pending' | 'running' | 'done' | 'failed';
@@ -20,15 +20,15 @@ export const NODE_H = 96;
 const GAP_X = 90;
 
 /** The most recent execution of a step: highest iteration, then newest createdAt. */
-const latestTaskFor = (steps: Task[], key: string): Task | undefined =>
+const latestTaskFor = (steps: Session[], key: string): Session | undefined =>
   steps
     .filter((t) => t.workflowStepKey === key)
     .sort((a, b) => (b.iteration ?? 0) - (a.iteration ?? 0) || b.createdAt.localeCompare(a.createdAt))[0];
 
-const toStatus = (t: Task | undefined): StepNodeStatus => {
+const toStatus = (t: Session | undefined): StepNodeStatus => {
   if (!t) return 'pending';
-  if (t.status === TaskStatus.DONE) return 'done';
-  if (t.status === TaskStatus.FAILED || t.status === TaskStatus.STOPPED) return 'failed';
+  if (t.status === SessionStatus.DONE) return 'done';
+  if (t.status === SessionStatus.FAILED || t.status === SessionStatus.STOPPED) return 'failed';
   return 'running';
 };
 
@@ -39,7 +39,7 @@ const toStatus = (t: Task | undefined): StepNodeStatus => {
  */
 export const buildWorkflowGraph = (
   def: WorkflowDefinition,
-  taskRows: Task[],
+  taskRows: Session[],
 ): { nodes: Node<StepNodeData>[]; edges: Edge[] } => {
   const nodes: Node<StepNodeData>[] = def.steps.map((s, i) => {
     const task = latestTaskFor(taskRows, s.key);

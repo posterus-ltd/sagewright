@@ -2,20 +2,20 @@ import { mkdir, readFile } from 'node:fs/promises';
 
 import {
   EventType,
+  SessionStatus,
   runBranch,
   runDir,
   workflowDefinitionSchema,
   type RepoManifestEntry,
   type WorkflowDefinition,
   type WorkflowRun,
-  type WorkflowRunStatus,
   type WorkflowStep,
 } from '@sagewright/shared';
 import { eq } from 'drizzle-orm';
 
 import type { AppConfig } from '../config';
 import type { Db } from '../db/client';
-import { repos, workflowRuns, workflows } from '../db/schema';
+import { repos, sessions, workflows } from '../db/schema';
 import type { SessionService } from '../sessions/session-service';
 import type { AgentRunner } from '../tasks/agent-runner';
 import type { ContainerExec } from '../tasks/docker-client';
@@ -73,8 +73,9 @@ export const createWorkflowRunner = (deps: WorkflowRunnerDeps) => {
   const files = deps.files ?? defaultFiles;
   const logger = deps.logger ?? console;
 
-  const setRun = (runId: string, set: Partial<typeof workflowRuns.$inferInsert>): Promise<unknown> =>
-    deps.db.update(workflowRuns).set(set).where(eq(workflowRuns.id, runId));
+  // A run IS a kind='workflow' session; updates target that parent row by id.
+  const setRun = (runId: string, set: Partial<typeof sessions.$inferInsert>): Promise<unknown> =>
+    deps.db.update(sessions).set({ ...set, updatedAt: new Date() }).where(eq(sessions.id, runId));
 
   // Compose the step prompt: goal + the prior handoff + the output contract the
   // orchestrator relies on. The worker's start-agent prepends SOUL.md to this.
@@ -157,7 +158,9 @@ export const createWorkflowRunner = (deps: WorkflowRunnerDeps) => {
     const stepsByKey = new Map(def.steps.map((s) => [s.key, s]));
     const dir = runDir(runId);
     let opsContainerId: string | null = null;
-    let status: WorkflowRunStatus = 'failed';
+    // The run's terminal SessionStatus: a pass settles DONE, an exhausted loop
+    // MAX_ITERATIONS (both ship a PR), a hard error FAILED.
+    let status: SessionStatus = SessionStatus.FAILED;
     // Why a non-success run ended, and on which step — persisted so the run UI can
     // explain the failure instead of leaving it buried in the server log.
     let reason: string | null = null;
@@ -188,7 +191,7 @@ export const createWorkflowRunner = (deps: WorkflowRunnerDeps) => {
       for (;;) {
         const step = stepsByKey.get(currentKey);
         if (!step) {
-          status = 'failed';
+          status = SessionStatus.FAILED;
           reason = `unknown step "${currentKey}" referenced in the workflow`;
           failedStepKey = currentKey;
           break;
@@ -205,7 +208,7 @@ export const createWorkflowRunner = (deps: WorkflowRunnerDeps) => {
           githubIdentity: credential,
         });
         if (exitCode !== 0) {
-          status = 'failed';
+          status = SessionStatus.FAILED;
           reason = `step "${step.name}" (${currentKey}) exited with code ${exitCode}`;
           failedStepKey = currentKey;
           break;
@@ -227,13 +230,13 @@ export const createWorkflowRunner = (deps: WorkflowRunnerDeps) => {
           const commandsOk = await runValidateCommands(opsContainerId, step.validateCommands, opsCwd(manifest, dir));
           const verdict = await readVerdict(dir);
           if (verdict.passed && commandsOk) {
-            status = 'succeeded';
+            status = SessionStatus.DONE;
             break;
           }
           iteration += 1;
           await setRun(runId, { iteration });
           if (iteration >= def.maxIterations) {
-            status = 'max_iterations';
+            status = SessionStatus.MAX_ITERATIONS;
             reason = `validation "${step.name}" did not pass after ${def.maxIterations} iterations${
               verdict.summary ? `: ${verdict.summary}` : ''
             }${commandsOk ? '' : ' (objective commands failed)'}`;
@@ -248,14 +251,14 @@ export const createWorkflowRunner = (deps: WorkflowRunnerDeps) => {
         const idx = def.steps.findIndex((s) => s.key === currentKey);
         const next = def.steps[idx + 1];
         if (!next) {
-          status = 'succeeded';
+          status = SessionStatus.DONE;
           break;
         }
         currentKey = next.key;
       }
 
       // A pass or an exhausted loop both ship the work; a hard step failure does not.
-      if (status === 'succeeded' || status === 'max_iterations') {
+      if (status === SessionStatus.DONE || status === SessionStatus.MAX_ITERATIONS) {
         if (!opsContainerId) {
           ({ containerId: opsContainerId } = await deps.spawner.spawn({
             taskId: `${runId}-ops`,
@@ -283,7 +286,7 @@ export const createWorkflowRunner = (deps: WorkflowRunnerDeps) => {
         });
       }
     } catch (err) {
-      status = 'failed';
+      status = SessionStatus.FAILED;
       reason = err instanceof Error ? err.message : String(err);
       failedStepKey = inLoop ? currentKey : null;
       logger.error(err, `workflow run ${runId} failed`);
@@ -292,7 +295,7 @@ export const createWorkflowRunner = (deps: WorkflowRunnerDeps) => {
       await deps.volume.removeSessionWorktrees(runId).catch(() => undefined);
       // Keep the failed step on the run so the graph can highlight where it died;
       // clear it for runs that reached an end state (succeeded / max_iterations).
-      await setRun(runId, { status, error: reason, currentStepKey: status === 'failed' ? failedStepKey : null });
+      await setRun(runId, { status, error: reason, currentStepKey: status === SessionStatus.FAILED ? failedStepKey : null });
     }
   };
 
@@ -303,11 +306,14 @@ export const createWorkflowRunner = (deps: WorkflowRunnerDeps) => {
       if (!wf) return null;
       const def = workflowDefinitionSchema.parse(wf.definition);
 
+      // The run is a kind='workflow' parent session; its steps point back at it via
+      // parent_session_id. workflow_id ties it to the definition it executes.
       const [run] = await deps.db
-        .insert(workflowRuns)
+        .insert(sessions)
         .values({
+          kind: 'workflow',
           workflowId,
-          status: 'running',
+          status: SessionStatus.RUNNING,
           currentStepKey: def.steps[0]!.key,
           iteration: 0,
           triggerContext: input ? { input } : null,
@@ -319,13 +325,13 @@ export const createWorkflowRunner = (deps: WorkflowRunnerDeps) => {
       void drive(run!.id, def, createdBy, input).catch(async (err) => {
         logger.error(err, `workflow run ${run!.id} crashed`);
         const error = err instanceof Error ? err.message : String(err);
-        await setRun(run!.id, { status: 'failed', error, currentStepKey: null }).catch(() => undefined);
+        await setRun(run!.id, { status: SessionStatus.FAILED, error, currentStepKey: null }).catch(() => undefined);
       });
 
       return {
         id: run!.id,
         workflowId,
-        status: 'running',
+        status: SessionStatus.RUNNING,
         branch: runBranch(run!.id),
         prUrl: null,
         currentStepKey: def.steps[0]!.key,

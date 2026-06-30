@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
-import { taskSchema } from './task.schema';
+import { SessionStatus } from './enums';
+import { sessionSchema } from './session.schema';
 
 /**
  * A workflow is a JSON-configurable sequence of steps a non-interactive run goes
@@ -95,14 +96,15 @@ export const workflowSchema = z.object({
 });
 export type Workflow = z.infer<typeof workflowSchema>;
 
-/** Run lifecycle. `max_iterations` and `succeeded` both still open a PR. */
-export const workflowRunStatusSchema = z.enum(['queued', 'running', 'succeeded', 'failed', 'max_iterations']);
-export type WorkflowRunStatus = z.infer<typeof workflowRunStatusSchema>;
-
+/**
+ * A workflow run is a VIEW over a `kind='workflow'` parent session: its status is the
+ * parent's SessionStatus (a run that passed is `done`; one that shipped without passing
+ * is `max_iterations`), and its steps are the parent's `kind='workflow_step'` children.
+ */
 export const workflowRunSchema = z.object({
   id: z.string(),
   workflowId: z.string(),
-  status: workflowRunStatusSchema,
+  status: z.nativeEnum(SessionStatus),
   branch: z.string().nullable(),
   prUrl: z.string().nullable(),
   currentStepKey: z.string().nullable(),
@@ -114,9 +116,9 @@ export const workflowRunSchema = z.object({
 });
 export type WorkflowRun = z.infer<typeof workflowRunSchema>;
 
-/** A run plus its definition and the step task rows (one per step execution). */
+/** A run plus its definition and the step sessions (one per step execution). */
 export const workflowRunDetailSchema = workflowRunSchema.extend({
   definition: workflowDefinitionSchema,
-  steps: z.array(taskSchema),
+  steps: z.array(sessionSchema),
 });
 export type WorkflowRunDetail = z.infer<typeof workflowRunDetailSchema>;

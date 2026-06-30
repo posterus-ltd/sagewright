@@ -22,7 +22,7 @@ describe('useTasks', () => {
     const mockTasks = [
       {
         id: 'task-1',
-        mode: 'interactive',
+        kind: 'interactive',
         prompt: null,
         status: 'queued',
         branch: null,

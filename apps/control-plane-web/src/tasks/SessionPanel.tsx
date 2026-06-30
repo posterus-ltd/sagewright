@@ -99,7 +99,7 @@ export const SessionPanel: FC<{
 
   // Headless runs are driven by the control plane and stream their PTY as the
   // transcript; interactive sessions are driven by the human over Agent/Shell PTYs.
-  const headless = task?.mode === 'headless';
+  const headless = task?.kind === 'headless';
   const tabValues: TabValue[] = headless
     ? ['transcript', 'shell', 'log']
     : ['agent', 'shell', 'log'];

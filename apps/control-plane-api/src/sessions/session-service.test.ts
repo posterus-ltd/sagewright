@@ -1,11 +1,11 @@
 import { randomUUID } from 'node:crypto';
 
-import { EventType, TaskStatus } from '@sagewright/shared';
+import { EventType, SessionStatus } from '@sagewright/shared';
 import { eq } from 'drizzle-orm';
 import { describe, expect, it, vi } from 'vitest';
 
 import { loadConfig } from '../config';
-import { events, tasks } from '../db/schema';
+import { events, sessions } from '../db/schema';
 import type { SpawnInput } from '../tasks/worker-spawner';
 import { createEventBus } from '../events/event-bus';
 import { createEventStore } from '../events/event-store';
@@ -66,7 +66,7 @@ const eventsFor = async (db: unknown, id: string) => {
   const rows = await (db as never as { select: () => never })
     .select()
     .from(events)
-    .where(eq(events.taskId, id));
+    .where(eq(events.sessionId, id));
   return rows as (typeof events.$inferSelect)[];
 };
 
@@ -91,7 +91,7 @@ describe('session-service spawnSession', () => {
     const result = await service.spawnSession({ kind: 'interactive', createdBy: 'al' });
 
     expect(result.containerId).toBe('cid');
-    const [row] = await db.select().from(tasks).where(eq(tasks.id, result.id)).limit(1);
+    const [row] = await db.select().from(sessions).where(eq(sessions.id, result.id)).limit(1);
     expect(row!.containerId).toBe('cid');
     expect(row!.branch).toBe(`task/${result.id}`);
   });
@@ -105,14 +105,14 @@ describe('session-service spawnSession', () => {
 
     await expect(service.spawnSession({ kind: 'headless', createdBy: 'al' })).rejects.toThrow('boom');
 
-    const [row] = await db.select().from(tasks).orderBy(tasks.createdAt).limit(1);
-    expect(row!.status).toBe(TaskStatus.FAILED);
+    const [row] = await db.select().from(sessions).orderBy(sessions.createdAt).limit(1);
+    expect(row!.status).toBe(SessionStatus.FAILED);
     expect(removeSessionWorktrees).toHaveBeenCalledWith(row!.id);
 
     const evs = await eventsFor(db, row!.id);
     expect(evs.some((e) => e.type === EventType.ERROR)).toBe(true);
     expect(
-      evs.some((e) => e.type === EventType.STATUS && (e.payload as { status?: string }).status === TaskStatus.FAILED),
+      evs.some((e) => e.type === EventType.STATUS && (e.payload as { status?: string }).status === SessionStatus.FAILED),
     ).toBe(true);
   });
 
@@ -123,8 +123,8 @@ describe('session-service spawnSession', () => {
       service.spawnSession({ kind: 'headless', createdBy: 'al', workerImage: 'not-registered' }),
     ).rejects.toThrow(/unknown worker image/);
 
-    const [row] = await db.select().from(tasks).orderBy(tasks.createdAt).limit(1);
-    expect(row!.status).toBe(TaskStatus.FAILED);
+    const [row] = await db.select().from(sessions).orderBy(sessions.createdAt).limit(1);
+    expect(row!.status).toBe(SessionStatus.FAILED);
   });
 
   it('reuses provided worktrees instead of creating per-session ones (workflow step path)', async () => {

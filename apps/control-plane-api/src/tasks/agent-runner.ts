@@ -1,4 +1,4 @@
-import { EventType, TaskStatus, type RepoManifestEntry } from '@sagewright/shared';
+import { EventType, SessionStatus, type RepoManifestEntry } from '@sagewright/shared';
 
 import type { Db } from '../db/client';
 import type { EventStore } from '../events/event-store';
@@ -41,18 +41,18 @@ export const createAgentRunner = (deps: AgentRunnerDeps) => {
       if (exitCode !== null && exitCode !== 0) {
         await emit([
           { type: EventType.ERROR, payload: { message: `agent exited with code ${exitCode}` } },
-          { type: EventType.STATUS, payload: { status: TaskStatus.FAILED } },
+          { type: EventType.STATUS, payload: { status: SessionStatus.FAILED } },
         ]);
         return;
       }
 
-      await emit([{ type: EventType.STATUS, payload: { status: TaskStatus.PUSHING } }]);
+      await emit([{ type: EventType.STATUS, payload: { status: SessionStatus.PUSHING } }]);
       await pushAndOpenPrs({ exec: deps.exec, containerId, taskId, manifest, identity: input.githubIdentity, emit });
-      await emit([{ type: EventType.STATUS, payload: { status: TaskStatus.DONE } }]);
+      await emit([{ type: EventType.STATUS, payload: { status: SessionStatus.DONE } }]);
     } catch (err) {
       await emit([
         { type: EventType.ERROR, payload: { message: String(err) } },
-        { type: EventType.STATUS, payload: { status: TaskStatus.FAILED } },
+        { type: EventType.STATUS, payload: { status: SessionStatus.FAILED } },
       ]);
     } finally {
       await drain();
@@ -71,15 +71,15 @@ export const createAgentRunner = (deps: AgentRunnerDeps) => {
       if (exitCode !== null && exitCode !== 0) {
         await emit([
           { type: EventType.ERROR, payload: { message: `step exited with code ${exitCode}` } },
-          { type: EventType.STATUS, payload: { status: TaskStatus.FAILED } },
+          { type: EventType.STATUS, payload: { status: SessionStatus.FAILED } },
         ]);
       } else {
-        await emit([{ type: EventType.STATUS, payload: { status: TaskStatus.DONE } }]);
+        await emit([{ type: EventType.STATUS, payload: { status: SessionStatus.DONE } }]);
       }
     } catch (err) {
       await emit([
         { type: EventType.ERROR, payload: { message: String(err) } },
-        { type: EventType.STATUS, payload: { status: TaskStatus.FAILED } },
+        { type: EventType.STATUS, payload: { status: SessionStatus.FAILED } },
       ]);
     } finally {
       await drain();
@@ -96,11 +96,11 @@ export const createAgentRunner = (deps: AgentRunnerDeps) => {
     let exitCode: number | null = null;
     try {
       exitCode = await streamAgentSession(input, emit, drain, { cmd: opts.cmd ?? [START_SCRIPT], onSession: opts.onSession, onData: opts.onData });
-      await emit([{ type: EventType.STATUS, payload: { status: TaskStatus.DETACHED } }]);
+      await emit([{ type: EventType.STATUS, payload: { status: SessionStatus.DETACHED } }]);
     } catch (err) {
       await emit([
         { type: EventType.ERROR, payload: { message: String(err) } },
-        { type: EventType.STATUS, payload: { status: TaskStatus.FAILED } },
+        { type: EventType.STATUS, payload: { status: SessionStatus.FAILED } },
       ]);
     } finally {
       await drain();
@@ -114,7 +114,7 @@ export const createAgentRunner = (deps: AgentRunnerDeps) => {
   const complete = async (input: Pick<RunInput, 'taskId' | 'containerId' | 'manifest' | 'githubIdentity'>): Promise<void> => {
     const { emit, drain } = createEmitter(input.taskId);
     try {
-      await emit([{ type: EventType.STATUS, payload: { status: TaskStatus.PUSHING } }]);
+      await emit([{ type: EventType.STATUS, payload: { status: SessionStatus.PUSHING } }]);
       await pushAndOpenPrs({
         exec: deps.exec,
         containerId: input.containerId,
@@ -123,11 +123,11 @@ export const createAgentRunner = (deps: AgentRunnerDeps) => {
         identity: input.githubIdentity,
         emit,
       });
-      await emit([{ type: EventType.STATUS, payload: { status: TaskStatus.DONE } }]);
+      await emit([{ type: EventType.STATUS, payload: { status: SessionStatus.DONE } }]);
     } catch (err) {
       await emit([
         { type: EventType.ERROR, payload: { message: String(err) } },
-        { type: EventType.STATUS, payload: { status: TaskStatus.FAILED } },
+        { type: EventType.STATUS, payload: { status: SessionStatus.FAILED } },
       ]);
     } finally {
       await drain();

@@ -8,7 +8,7 @@ import { SessionPanel } from './SessionPanel';
 
 const task = {
   id: 't1',
-  mode: 'interactive',
+  kind: 'interactive',
   prompt: 'fix the bug',
   status: 'queued',
   branch: null,

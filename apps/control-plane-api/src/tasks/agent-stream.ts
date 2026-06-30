@@ -1,8 +1,8 @@
-import { EventType, TaskStatus, type RepoManifestEntry } from '@sagewright/shared';
+import { EventType, SessionStatus, type RepoManifestEntry } from '@sagewright/shared';
 import { and, eq, isNull } from 'drizzle-orm';
 
 import type { Db } from '../db/client';
-import { inboundMessages, tasks } from '../db/schema';
+import { inboundMessages, sessions } from '../db/schema';
 import type { EventStore } from '../events/event-store';
 import type { EventBus } from '../events/event-bus';
 import type { AgentExecSession, ContainerExec } from './docker-client';
@@ -16,7 +16,7 @@ const POLL_MS = 1000;
 const FLUSH_MS = 150;
 
 // Never resurrect a session that already reached a terminal state with a late STATUS event.
-const TERMINAL_GUARD = new Set<TaskStatus>([TaskStatus.STOPPED, TaskStatus.DONE, TaskStatus.FAILED]);
+const TERMINAL_GUARD = new Set<SessionStatus>([SessionStatus.STOPPED, SessionStatus.DONE, SessionStatus.FAILED]);
 
 export type Event = { type: EventType; payload: Record<string, unknown> };
 
@@ -55,18 +55,18 @@ const agentCwd = (sessionDir: string, manifest: RepoManifestEntry[]): string =>
  * build on this so output is persisted once and fanned everywhere.
  */
 export const createAgentStreaming = (deps: AgentStreamingDeps) => {
-  // Persist + publish events, mirroring STATUS → tasks.status and PR_OPENED → tasks.prUrl.
+  // Persist + publish events, mirroring STATUS → sessions.status and PR_OPENED → sessions.prUrl.
   const persist = async (taskId: string, events: Event[]): Promise<void> => {
     const stored = await deps.eventStore.append(taskId, events);
     for (const e of stored) {
       deps.eventBus.publish(taskId, e);
       if (e.type === EventType.STATUS && typeof e.payload['status'] === 'string') {
-        const [current] = await deps.db.select().from(tasks).where(eq(tasks.id, taskId)).limit(1);
-        if (current && TERMINAL_GUARD.has(current.status as TaskStatus)) continue;
-        await deps.db.update(tasks).set({ status: e.payload['status'] as TaskStatus }).where(eq(tasks.id, taskId));
+        const [current] = await deps.db.select().from(sessions).where(eq(sessions.id, taskId)).limit(1);
+        if (current && TERMINAL_GUARD.has(current.status as SessionStatus)) continue;
+        await deps.db.update(sessions).set({ status: e.payload['status'] as SessionStatus }).where(eq(sessions.id, taskId));
       }
       if (e.type === EventType.PR_OPENED && typeof e.payload['url'] === 'string') {
-        await deps.db.update(tasks).set({ prUrl: e.payload['url'] as string }).where(eq(tasks.id, taskId));
+        await deps.db.update(sessions).set({ prUrl: e.payload['url'] as string }).where(eq(sessions.id, taskId));
       }
     }
   };
@@ -92,7 +92,7 @@ export const createAgentStreaming = (deps: AgentStreamingDeps) => {
     opts: StreamOpts = {},
   ): Promise<number | null> => {
     const { taskId, containerId, manifest } = input;
-    await emit([{ type: EventType.STATUS, payload: { status: TaskStatus.RUNNING } }]);
+    await emit([{ type: EventType.STATUS, payload: { status: SessionStatus.RUNNING } }]);
 
     const session = await deps.exec.startAgent(containerId, {
       cmd: opts.cmd ?? [START_SCRIPT],
@@ -122,12 +122,12 @@ export const createAgentStreaming = (deps: AgentStreamingDeps) => {
         const pending = await deps.db
           .select()
           .from(inboundMessages)
-          .where(and(eq(inboundMessages.taskId, taskId), isNull(inboundMessages.consumedAt)));
+          .where(and(eq(inboundMessages.sessionId, taskId), isNull(inboundMessages.consumedAt)));
         if (!pending.length) return;
         await deps.db
           .update(inboundMessages)
           .set({ consumedAt: new Date() })
-          .where(and(eq(inboundMessages.taskId, taskId), isNull(inboundMessages.consumedAt)));
+          .where(and(eq(inboundMessages.sessionId, taskId), isNull(inboundMessages.consumedAt)));
         for (const m of pending) {
           session.write(`${m.body}\n`);
           await emit([{ type: EventType.USER_MESSAGE, payload: { text: m.body } }]);

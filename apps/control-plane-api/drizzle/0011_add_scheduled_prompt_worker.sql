@@ -1,1 +1,0 @@
-ALTER TABLE "scheduled_prompts" ADD COLUMN "worker_image" text;

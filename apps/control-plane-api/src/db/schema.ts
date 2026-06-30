@@ -1,4 +1,4 @@
-import { bigint, boolean, integer, jsonb, pgTable, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
+import { bigint, boolean, index, integer, jsonb, pgTable, text, timestamp, uniqueIndex, uuid, type AnyPgColumn } from 'drizzle-orm/pg-core';
 
 export const repos = pgTable('repos', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -23,27 +23,6 @@ export const scheduledPrompts = pgTable('scheduled_prompts', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
-export const tasks = pgTable('tasks', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  mode: text('mode').notNull().default('interactive'),
-  name: text('name'),
-  prompt: text('prompt'),
-  status: text('status').notNull().default('queued'),
-  branch: text('branch'),
-  prUrl: text('pr_url'),
-  createdBy: text('created_by').notNull(),
-  containerId: text('container_id'),
-  workerTokenHash: text('worker_token_hash'),
-  scheduledPromptId: uuid('scheduled_prompt_id').references(() => scheduledPrompts.id, { onDelete: 'set null' }),
-  // Set when this task is a step of a workflow run; null for standalone sessions.
-  workflowRunId: uuid('workflow_run_id').references(() => workflowRuns.id, { onDelete: 'set null' }),
-  workflowStepKey: text('workflow_step_key'),
-  iteration: integer('iteration'),
-  archivedAt: timestamp('archived_at', { withTimezone: true }),
-  workerImage: text('worker_image'),
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-});
-
 export const workflows = pgTable('workflows', {
   id: uuid('id').primaryKey().defaultRandom(),
   name: text('name').notNull(),
@@ -54,30 +33,54 @@ export const workflows = pgTable('workflows', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
-export const workflowRuns = pgTable('workflow_runs', {
+/**
+ * Every run path is one `sessions` row, discriminated by `kind`. A `workflow` parent
+ * (the old `workflow_runs` row, now folded in here) owns its `workflow_step` children
+ * via `parent_session_id`; standalone interactive/headless/scheduled sessions have no
+ * parent. `workflow_id` is set only on the `workflow` parent.
+ */
+export const sessions = pgTable('sessions', {
   id: uuid('id').primaryKey().defaultRandom(),
-  workflowId: uuid('workflow_id').notNull().references(() => workflows.id),
+  kind: text('kind').notNull(),
+  name: text('name'),
+  prompt: text('prompt'),
   status: text('status').notNull().default('queued'),
   branch: text('branch'),
   prUrl: text('pr_url'),
-  currentStepKey: text('current_step_key'),
-  iteration: integer('iteration').notNull().default(0),
-  // Human-readable failure reason when status is 'failed'/'max_iterations'; null
-  // otherwise. Surfaced in the run UI so failures aren't buried in server logs.
-  error: text('error'),
-  triggerContext: jsonb('trigger_context'),
   createdBy: text('created_by').notNull(),
+  containerId: text('container_id'),
+  scheduledPromptId: uuid('scheduled_prompt_id').references(() => scheduledPrompts.id, { onDelete: 'set null' }),
+  // A workflow_step points at its workflow parent (cascade so deleting the parent run
+  // drops its steps). Null for standalone sessions and the workflow parent itself.
+  parentSessionId: uuid('parent_session_id').references((): AnyPgColumn => sessions.id, { onDelete: 'cascade' }),
+  // Set only on the kind='workflow' parent (which workflow definition it runs).
+  workflowId: uuid('workflow_id').references(() => workflows.id, { onDelete: 'set null' }),
+  workflowStepKey: text('workflow_step_key'),
+  currentStepKey: text('current_step_key'),
+  iteration: integer('iteration'),
+  // Human-readable failure reason; surfaced in the UI instead of buried in logs.
+  error: text('error'),
+  // Trigger payload (e.g. a workflow run's seed input). JSON, nullable.
+  triggerContext: jsonb('trigger_context'),
+  archivedAt: timestamp('archived_at', { withTimezone: true }),
+  workerImage: text('worker_image'),
+  startedAt: timestamp('started_at', { withTimezone: true }),
+  endedAt: timestamp('ended_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
 export const events = pgTable('events', {
   id: uuid('id').primaryKey().defaultRandom(),
-  taskId: uuid('task_id').notNull().references(() => tasks.id),
+  sessionId: uuid('session_id').notNull().references(() => sessions.id, { onDelete: 'cascade' }),
   seq: bigint('seq', { mode: 'number' }).notNull(),
   type: text('type').notNull(),
   payload: jsonb('payload').notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-}, (t) => ({ taskSeqIdx: uniqueIndex('events_task_seq_idx').on(t.taskId, t.seq) }));
+}, (t) => ({
+  sessionSeqIdx: uniqueIndex('events_session_seq_idx').on(t.sessionId, t.seq),
+  sessionCreatedIdx: index('events_session_created_idx').on(t.sessionId, t.createdAt),
+}));
 
 export const userEnvs = pgTable('user_envs', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -117,7 +120,7 @@ export const userSettings = pgTable('user_settings', {
 
 export const inboundMessages = pgTable('inbound_messages', {
   id: uuid('id').primaryKey().defaultRandom(),
-  taskId: uuid('task_id').notNull().references(() => tasks.id),
+  sessionId: uuid('session_id').notNull().references(() => sessions.id, { onDelete: 'cascade' }),
   body: text('body').notNull(),
   consumedAt: timestamp('consumed_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),

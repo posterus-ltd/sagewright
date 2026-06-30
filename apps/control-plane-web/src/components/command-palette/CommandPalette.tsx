@@ -15,7 +15,7 @@ import {
   ListItemText,
   Typography,
 } from '@mui/material';
-import { taskLabel } from '@sagewright/shared';
+import { sessionLabel } from '@sagewright/shared';
 import {
   useMemo,
   useState,
@@ -77,7 +77,7 @@ export const CommandPalette: FC<CommandPaletteProps> = ({
     if (mode === 'sessions') {
       return tasks
         .filter((t) => t.archivedAt === null)
-        .map((t) => ({ task: t, label: taskLabel(t, 80) }))
+        .map((t) => ({ task: t, label: sessionLabel(t, 80) }))
         .filter(({ label }) => label.toLowerCase().includes(q))
         .map(({ task, label }) => ({
           id: task.id,

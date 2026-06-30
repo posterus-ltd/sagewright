@@ -1,6 +1,6 @@
 export * from './enums';
 export * from './dotenv-blob';
-export * from './task.schema';
+export * from './session.schema';
 export * from './workflow.schema';
 export * from './worker.schema';
 export * from './canvas-layout.schema';

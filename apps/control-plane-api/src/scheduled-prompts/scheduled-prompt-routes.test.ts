@@ -1,7 +1,7 @@
 import { eq } from 'drizzle-orm';
 import { describe, expect, it, vi } from 'vitest';
 
-import { tasks } from '../db/schema';
+import { sessions } from '../db/schema';
 import { fakeScheduler, fakeWorkerRegistry, makeTestApp } from '../test/make-test-app';
 
 const login = async (app: Awaited<ReturnType<typeof makeTestApp>>['app']) => {
@@ -70,7 +70,7 @@ describe('scheduled-prompt routes', () => {
     expect((created.json() as { workerImage: string | null }).workerImage).toBeNull();
   });
 
-  it('deletes a scheduled prompt that has already spawned tasks', async () => {
+  it('deletes a scheduled prompt that has already spawned sessions', async () => {
     const { app, db } = await makeTestApp({ scheduler: fakeScheduler() });
     const headers = await login(app);
 
@@ -84,15 +84,15 @@ describe('scheduled-prompt routes', () => {
 
     // Simulate a run: a task linked back to the scheduled prompt.
     const [task] = await db
-      .insert(tasks)
-      .values({ mode: 'headless', prompt: 'daily triage', createdBy: 'al', scheduledPromptId: id })
+      .insert(sessions)
+      .values({ kind: 'scheduled', prompt: 'daily triage', createdBy: 'al', scheduledPromptId: id })
       .returning();
 
     const del = await app.inject({ method: 'DELETE', url: `/api/scheduled-prompts/${id}`, headers });
     expect(del.statusCode).toBe(204);
 
     // The historical task survives, disassociated from the deleted prompt.
-    const [after] = await db.select().from(tasks).where(eq(tasks.id, task.id));
+    const [after] = await db.select().from(sessions).where(eq(sessions.id, task.id));
     expect(after.scheduledPromptId).toBeNull();
   });
 

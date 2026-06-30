@@ -1,7 +1,7 @@
-import { EventType, TaskStatus } from '@sagewright/shared';
+import { EventType, SessionStatus } from '@sagewright/shared';
 import { describe, expect, it, vi } from 'vitest';
 
-import { scheduledPrompts, tasks } from '../db/schema';
+import { scheduledPrompts, sessions } from '../db/schema';
 import { createSessionRuntime } from '../sessions/session-runtime';
 import { createSessionService } from '../sessions/session-service';
 import { fakeVolume, fakeWorkerRegistry, makeTestApp } from '../test/make-test-app';
@@ -76,8 +76,8 @@ describe('task routes', () => {
     });
 
     const task = await service.create({}, 'al');
-    expect(task.status).toBe(TaskStatus.RUNNING);
-    expect(task.mode).toBe('interactive');
+    expect(task.status).toBe(SessionStatus.RUNNING);
+    expect(task.kind).toBe('interactive');
     expect(task.prompt).toBeNull();
     expect(addSessionWorktrees).toHaveBeenCalledOnce();
     expect(spawn).toHaveBeenCalledOnce();
@@ -116,7 +116,8 @@ describe('task routes', () => {
     });
 
     const task = await service.create({ prompt: 'nightly' }, 'scheduler', { mode: 'headless', scheduledPromptId: sp.id });
-    expect(task.mode).toBe('headless');
+    // A scheduled fire records kind='scheduled' (its worker mode is still headless).
+    expect(task.kind).toBe('scheduled');
     expect(task.prompt).toBe('nightly');
     expect(task.scheduledPromptId).toBe(sp.id);
     expect(spawn.mock.calls[0][0]).toMatchObject({ mode: 'headless', prompt: 'nightly' });
@@ -142,12 +143,12 @@ describe('task routes', () => {
     expect(removeSessionWorktrees).toHaveBeenCalledOnce();
 
     const [taskRow] = await (db as never as import('drizzle-orm/node-postgres').NodePgDatabase<typeof import('../db/schema')>)
-      .select().from(tasks).orderBy(tasks.createdAt);
-    expect(taskRow.status).toBe(TaskStatus.FAILED);
+      .select().from(sessions).orderBy(sessions.createdAt);
+    expect(taskRow.status).toBe(SessionStatus.FAILED);
 
     const allEvents = await eventStore.readSince(taskRow.id, 0);
     const statusEvent = allEvents.find((e) => e.type === EventType.STATUS);
-    expect((statusEvent!.payload as { status: string }).status).toBe(TaskStatus.FAILED);
+    expect((statusEvent!.payload as { status: string }).status).toBe(SessionStatus.FAILED);
   });
 
   it('archives a session by stamping archivedAt without removing the row', async () => {
@@ -203,7 +204,7 @@ describe('task routes', () => {
     expect(res.statusCode).toBe(201);
     const task = res.json();
     expect(task.createdBy).toBe('alice');
-    expect(task.status).toBe(TaskStatus.RUNNING);
+    expect(task.status).toBe(SessionStatus.RUNNING);
   });
 
   it('explicit workerImage in request wins and is persisted on the task', async () => {
@@ -297,8 +298,8 @@ describe('task routes', () => {
     // The row is still persisted as FAILED so the failed attempt is visible in the
     // session list — the symptom that made scheduled runs vanish silently.
     const [taskRow] = await (db as never as import('drizzle-orm/node-postgres').NodePgDatabase<typeof import('../db/schema')>)
-      .select().from(tasks).orderBy(tasks.createdAt);
-    expect(taskRow.status).toBe(TaskStatus.FAILED);
+      .select().from(sessions).orderBy(sessions.createdAt);
+    expect(taskRow.status).toBe(SessionStatus.FAILED);
     expect(taskRow.workerImage).toBe('evil:latest');
   });
 });

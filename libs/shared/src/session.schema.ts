@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
-import { TaskStatus } from './enums';
-import { sessionModeSchema } from './terminal';
+import { SessionStatus } from './enums';
+import { sessionKindSchema } from './terminal';
 
 /** A configured repository. The UI edits these as a newline-separated URL list;
  *  `slug` and `defaultBranch` are derived server-side when the repo is cloned. */
@@ -40,44 +40,52 @@ export const repoManifestEntrySchema = z.object({
 export type RepoManifestEntry = z.infer<typeof repoManifestEntrySchema>;
 
 /** Starting a session takes no input; an optional prompt seeds the agent. */
-export const createTaskSchema = z.object({
+export const createSessionSchema = z.object({
   prompt: z.string().min(1).optional(),
   workerImage: z.string().optional(),
 });
-export type CreateTaskInput = z.infer<typeof createTaskSchema>;
+export type CreateSessionInput = z.infer<typeof createSessionSchema>;
 
-export const taskSchema = z.object({
+export const sessionSchema = z.object({
   id: z.string(),
-  mode: sessionModeSchema,
+  kind: sessionKindSchema,
   name: z.string().nullable(),
   prompt: z.string().nullable(),
   workerImage: z.string().nullable(),
-  status: z.nativeEnum(TaskStatus),
+  status: z.nativeEnum(SessionStatus),
   branch: z.string().nullable(),
   prUrl: z.string().nullable(),
   createdBy: z.string(),
   containerId: z.string().nullable(),
   scheduledPromptId: z.string().nullable(),
-  // Set when this task is a step of a workflow run; null for standalone sessions.
-  workflowRunId: z.string().nullable(),
+  // A workflow_step's parent run/session; replaces the old workflowRunId. Null for standalone.
+  parentSessionId: z.string().nullable(),
+  // Set only on the kind='workflow' parent: which workflow definition it runs.
+  workflowId: z.string().nullable(),
   workflowStepKey: z.string().nullable(),
+  // The workflow parent's currently-executing step key; null for non-workflow sessions.
+  currentStepKey: z.string().nullable(),
   iteration: z.number().int().nullable(),
+  error: z.string().nullable(),
   archivedAt: z.string().nullable(),
+  startedAt: z.string().nullable(),
+  endedAt: z.string().nullable(),
   createdAt: z.string(),
+  updatedAt: z.string(),
 });
-export type Task = z.infer<typeof taskSchema>;
+export type Session = z.infer<typeof sessionSchema>;
 
 /** Rename a session. A blank/whitespace name clears it back to the default label. */
-export const updateTaskSchema = z.object({
+export const updateSessionSchema = z.object({
   name: z.string().max(200).nullable(),
 });
-export type UpdateTaskInput = z.infer<typeof updateTaskSchema>;
+export type UpdateSessionInput = z.infer<typeof updateSessionSchema>;
 
 /** The human label for a session: its custom name, else a prompt preview, else a generic fallback. */
-export const taskLabel = (task: Pick<Task, 'name' | 'prompt'>, max = 60): string => {
-  const name = task.name?.trim();
+export const sessionLabel = (session: Pick<Session, 'name' | 'prompt'>, max = 60): string => {
+  const name = session.name?.trim();
   if (name) return name;
-  if (task.prompt) return task.prompt.slice(0, max);
+  if (session.prompt) return session.prompt.slice(0, max);
   return 'Interactive session';
 };
 
