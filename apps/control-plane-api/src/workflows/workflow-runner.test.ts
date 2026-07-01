@@ -1,3 +1,4 @@
+import { SessionStatus } from '@sagewright/shared';
 import { eq } from 'drizzle-orm';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -40,6 +41,8 @@ const setup = async (opts: {
   definitionOverride?: typeof definition;
   envBlob?: string;
   spawn?: (i: SpawnInput) => Promise<{ containerId: string }>;
+  addRunWorktrees?: () => Promise<{ slug: string; url: string; defaultBranch: string; path: string }[]>;
+  execStep?: (i: { taskId: string }) => Promise<{ exitCode: number | null }>;
 }) => {
   const { db } = await makeTestApp();
   const service = createWorkflowService({ db: db as never });
@@ -72,14 +75,17 @@ const setup = async (opts: {
     retire: async () => undefined,
   };
 
+  const removeSessionWorktrees = vi.fn(async () => undefined);
   const volume = {
     slugFromUrl: (u: string) => u,
     cloneOrPull: async (r: { slug: string; url: string }) => ({ slug: r.slug, url: r.url, defaultBranch: 'main' }),
     reconcile: () => undefined,
     describe: () => ({ status: 'present', error: null }),
     addSessionWorktrees: async () => [],
-    addRunWorktrees: async () => [{ slug: 'a-b', url: 'u', defaultBranch: 'main', path: '/v/a-b' }],
-    removeSessionWorktrees: vi.fn(async () => undefined),
+    addRunWorktrees:
+      opts.addRunWorktrees ?? (async () => [{ slug: 'a-b', url: 'u', defaultBranch: 'main', path: '/v/a-b' }]),
+    listSessionWorktrees: async () => [],
+    removeSessionWorktrees,
     removeRepo: async () => undefined,
   } as never;
 
@@ -104,7 +110,7 @@ const setup = async (opts: {
     db: db as never,
     spawner: spawner as never,
     sessionService,
-    agentRunner: { execStep: async () => ({ exitCode: opts.stepExit ?? 0 }) },
+    agentRunner: { execStep: opts.execStep ?? (async () => ({ exitCode: opts.stepExit ?? 0 })) },
     exec: {
       startAgent: async () => { throw new Error('unused'); },
       capture: async (_id, o) => {
@@ -119,13 +125,15 @@ const setup = async (opts: {
     logger: { error: () => undefined },
   });
 
-  return { db, runner, workflowId: wf.id, spawnInputs, captures };
+  return { db, runner, workflowId: wf.id, spawnInputs, captures, removeSessionWorktrees };
 };
 
+type TestDb = Awaited<ReturnType<typeof makeTestApp>>['db'];
+
 // start() is fire-and-forget; poll the run's parent session until it leaves 'running'.
-const waitForRun = async (db: unknown, runId: string): Promise<typeof sessions.$inferSelect> => {
+const waitForRun = async (db: TestDb, runId: string): Promise<typeof sessions.$inferSelect> => {
   for (let i = 0; i < 200; i += 1) {
-    const [row] = await (db as never as { select: () => never })
+    const [row] = await db
       .select()
       .from(sessions)
       .where(eq(sessions.id, runId))
@@ -137,8 +145,8 @@ const waitForRun = async (db: unknown, runId: string): Promise<typeof sessions.$
   throw new Error('run did not settle');
 };
 
-const stepKeys = async (db: unknown, runId: string): Promise<string[]> => {
-  const rows = await (db as never as { select: () => never })
+const stepKeys = async (db: TestDb, runId: string): Promise<string[]> => {
+  const rows = await db
     .select()
     .from(sessions)
     .where(eq(sessions.parentSessionId, runId));
@@ -155,6 +163,9 @@ describe('workflow-runner', () => {
     const keys = await stepKeys(db, run!.id);
     expect(keys).toEqual(['plan', 'implement', 'validate']);
     expect(settled.currentStepKey).toBeNull();
+    // A run records its own lifecycle: started when the drive began, ended on settle.
+    expect(settled.startedAt).not.toBeNull();
+    expect(settled.endedAt).not.toBeNull();
   });
 
   it('loops back to onFailureGoTo on failure, then succeeds', async () => {
@@ -254,7 +265,7 @@ describe('workflow-runner', () => {
     expect(settled.status).toBe('failed');
     // The seam stamps the step task FAILED before rethrowing — previously it stayed
     // stuck at 'provisioning' because the duplicated spawn path had no failure handler.
-    const rows = (await (db as never as { select: () => never })
+    const rows = (await db
       .select()
       .from(sessions)
       .where(eq(sessions.parentSessionId, run!.id))) as (typeof sessions.$inferSelect)[];
@@ -262,11 +273,70 @@ describe('workflow-runner', () => {
     expect(rows[0]!.status).toBe('failed');
   });
 
+  it('halts a stopped run at the next step boundary without shipping or overwriting STOPPED', async () => {
+    // The user stops the run (POST /stop) while its first step is executing.
+    let dbRef: unknown = null;
+    const { db, runner, workflowId, captures, removeSessionWorktrees } = await setup({
+      verdicts: [true],
+      execStep: async ({ taskId }) => {
+        const d = dbRef as TestDb;
+        const [step] = await d
+          .select()
+          .from(sessions)
+          .where(eq(sessions.id, taskId));
+        await d
+          .update(sessions)
+          .set({ status: SessionStatus.STOPPED })
+          .where(eq(sessions.id, step!.parentSessionId!));
+        return { exitCode: 0 };
+      },
+    });
+    dbRef = db;
+
+    const run = await runner.start(workflowId, 'al');
+    const settled = await waitForRun(db, run!.id);
+    // The drive loop owns cleanup after a stop — wait for its sweep before asserting.
+    const deadline = Date.now() + 2000;
+    while (removeSessionWorktrees.mock.calls.length === 0 && Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, 5));
+    }
+
+    expect(settled.status).toBe('stopped'); // the finally must not overwrite it
+    expect(await stepKeys(db, run!.id)).toEqual(['plan']); // no step after the stop
+    expect(captures.some((c) => c[0] === 'git')).toBe(false); // a cancelled run never ships
+    expect(removeSessionWorktrees).toHaveBeenCalledWith(run!.id);
+  });
+
+  it('does not sweep the run worktree when setup fails before any step ran', async () => {
+    // A transient failure while laying down worktrees (e.g. git fetch on a reconciled
+    // resume) must not destroy the run's preserved uncommitted work.
+    const { db, runner, workflowId, removeSessionWorktrees } = await setup({
+      verdicts: [true],
+      addRunWorktrees: async () => {
+        throw new Error('git fetch failed');
+      },
+    });
+    const run = await runner.start(workflowId, 'al');
+    const settled = await waitForRun(db, run!.id);
+
+    expect(settled.status).toBe('failed');
+    expect(settled.error).toContain('git fetch failed');
+    expect(removeSessionWorktrees).not.toHaveBeenCalled();
+  });
+
+  it('sweeps the run worktree once the run settles inside the loop', async () => {
+    const { db, runner, workflowId, removeSessionWorktrees } = await setup({ verdicts: [true] });
+    const run = await runner.start(workflowId, 'al');
+    await waitForRun(db, run!.id);
+
+    expect(removeSessionWorktrees).toHaveBeenCalledWith(run!.id);
+  });
+
   it('resume seeds the prior on-disk handoff and restores the persisted iteration', async () => {
     const { db, runner, workflowId, spawnInputs } = await setup({ verdicts: [false] });
     // Simulate a run reconciled mid-flight: persisted at the validate step on iteration 2
     // (one short of maxIterations=3), carrying its original seed input on the row.
-    const [parent] = await (db as never as { insert: (t: unknown) => never })
+    const [parent] = await db
       .insert(sessions)
       .values({
         kind: 'workflow',
@@ -278,7 +348,7 @@ describe('workflow-runner', () => {
         triggerContext: { input: 'ORIGINAL_SEED' },
       })
       .returning();
-    const parentId = (parent as { id: string }).id;
+    const parentId = parent!.id;
 
     await runner.resume(parentId);
     const settled = await waitForRun(db, parentId);

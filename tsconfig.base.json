@@ -15,9 +15,8 @@
     "skipDefaultLibCheck": true,
     "strict": true,
     "noUncheckedIndexedAccess": true,
-    "baseUrl": ".",
     "paths": {
-      "@sagewright/shared": ["libs/shared/src/index.ts"]
+      "@sagewright/shared": ["./libs/shared/src/index.ts"]
     }
   },
   "exclude": ["node_modules", "tmp"]

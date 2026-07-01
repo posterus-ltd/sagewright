@@ -5,7 +5,7 @@ import { createWorkerSpawner } from './worker-spawner';
 
 const spawnWith = async (mode: SessionMode, userEnv: Record<string, string> = {}, workerImage?: string) => {
   const start = vi.fn();
-  const createContainer = vi.fn(async () => ({ id: 'c123', start }));
+  const createContainer = vi.fn(async (_opts: unknown) => ({ id: 'c123', start }));
   const spawner = createWorkerSpawner(
     { workerImage: 'img', controlPlaneUrl: 'http://cp', workerNetwork: 'sagewright', workerVolume: 'sagewright-repos', linearApiKey: 'lin' } as never,
     () => ({ createContainer }) as never,
@@ -19,9 +19,9 @@ const spawnWith = async (mode: SessionMode, userEnv: Record<string, string> = {}
     userEnv,
     workerImage,
   });
-  const env = (createContainer.mock.calls[0][0] as { Env: string[] }).Env;
-  const hostConfig = (createContainer.mock.calls[0][0] as { HostConfig: { NetworkMode: string; Binds: string[] } }).HostConfig;
-  const image = (createContainer.mock.calls[0][0] as { Image: string }).Image;
+  const env = (createContainer.mock.calls[0]![0] as { Env: string[] }).Env;
+  const hostConfig = (createContainer.mock.calls[0]![0] as { HostConfig: { NetworkMode: string; Binds: string[] } }).HostConfig;
+  const image = (createContainer.mock.calls[0]![0] as { Image: string }).Image;
   return { out, start, createContainer, env, hostConfig, image };
 };
 
@@ -40,6 +40,12 @@ describe('worker-spawner', () => {
     // No callback creds: the control plane drives the agent over `docker exec`.
     expect(env.some((e) => e.startsWith('WORKER_TOKEN='))).toBe(false);
     expect(env.some((e) => e.startsWith('CONTROL_PLANE_URL='))).toBe(false);
+  });
+
+  it('labels the container with its session id so orphans stay discoverable', async () => {
+    const { createContainer } = await spawnWith('headless');
+    const labels = (createContainer.mock.calls[0]![0] as { Labels: Record<string, string> }).Labels;
+    expect(labels).toEqual({ 'sagewright.session': 't1' });
   });
 
   it('mounts the shared repo volume at the canonical path', async () => {

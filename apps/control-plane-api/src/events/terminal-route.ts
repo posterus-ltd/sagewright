@@ -24,6 +24,19 @@ import type { TerminalSession } from '../tasks/docker-client';
 export const cmdForKind = (kind: TerminalKind): string[] =>
   kind === 'agent' ? ['continue-agent'] : ['bash'];
 
+export const KEEPALIVE_MS = 30_000;
+
+/** Periodic protocol-level ping so idle proxies (traefik fronts this stack) don't
+ *  cut a quiet terminal socket; browsers answer pongs automatically. Cleared when
+ *  the socket closes. */
+export const keepAlive = (socket: WebSocket, intervalMs = KEEPALIVE_MS): void => {
+  const timer = setInterval(() => {
+    if (socket.readyState === socket.OPEN) socket.ping();
+    else clearInterval(timer);
+  }, intervalMs);
+  socket.on('close', () => clearInterval(timer));
+};
+
 /**
  * Wire a browser WebSocket to a container PTY session.
  *   - client → server: binary frames are keystrokes (written to the PTY);
@@ -126,9 +139,18 @@ export const registerTerminalRoute = (app: FastifyInstance, deps: AppDeps): void
       return;
     }
 
+    keepAlive(socket);
+
     // Agent terminal: attach to the persistent runtime exec — no per-attach continue-agent,
     // and the socket closing never tears the agent down.
     if (kind.data === 'agent') {
+      // The runtime registry is in-process only: a detached session that predates this
+      // process (control-plane restart) has no entry, and attaching to a missing entry
+      // silently no-ops. Rebuild it from persistent state before bridging.
+      if (!deps.sessionRuntime.has(task.id)) {
+        const hydrated = await deps.sessionService.hydrateSession(task.id);
+        if (hydrated) deps.sessionRuntime.ensure(hydrated);
+      }
       bridgeAgentTerminal(socket, deps.sessionRuntime, task.id, initialSize);
       return;
     }

@@ -11,6 +11,15 @@ const assertWorkerImages = async (deps: AppDeps, images: string[]): Promise<stri
   return missing ? `unknown worker image: ${missing}` : null;
 };
 
+/** Validate a cron trigger's expression — the scheduler silently skips a cron it
+ *  cannot parse, so a bad one saved here would just never fire. Mirrors the
+ *  scheduled-prompt routes. */
+const assertCronTrigger = (
+  deps: AppDeps,
+  trigger: { type: string; cron?: string | undefined },
+): string | null =>
+  trigger.type === 'cron' && trigger.cron && !deps.scheduler.isValidCron(trigger.cron) ? 'invalid cron' : null;
+
 export const registerWorkflowRoutes = (app: FastifyInstance, deps: AppDeps): void => {
   app.get('/api/workflows', { preHandler: app.requireUser }, async () => deps.workflowService.list());
 
@@ -24,7 +33,9 @@ export const registerWorkflowRoutes = (app: FastifyInstance, deps: AppDeps): voi
   app.post('/api/workflows', { preHandler: app.requireUser }, async (req, reply) => {
     const parsed = workflowInputSchema.safeParse(req.body);
     if (!parsed.success) return reply.code(400).send({ error: 'invalid workflow', details: parsed.error.issues });
-    const err = await assertWorkerImages(deps, parsed.data.definition.steps.map((s) => s.workerImage));
+    const err =
+      (await assertWorkerImages(deps, parsed.data.definition.steps.map((s) => s.workerImage))) ??
+      assertCronTrigger(deps, parsed.data.definition.trigger);
     if (err) return reply.code(400).send({ error: err });
     const wf = await deps.workflowService.create(parsed.data, req.displayName!);
     await deps.scheduler.sync(); // pick up a cron trigger immediately
@@ -36,7 +47,9 @@ export const registerWorkflowRoutes = (app: FastifyInstance, deps: AppDeps): voi
     const parsed = updateWorkflowSchema.safeParse(req.body);
     if (!parsed.success) return reply.code(400).send({ error: 'invalid workflow', details: parsed.error.issues });
     if (parsed.data.definition) {
-      const err = await assertWorkerImages(deps, parsed.data.definition.steps.map((s) => s.workerImage));
+      const err =
+        (await assertWorkerImages(deps, parsed.data.definition.steps.map((s) => s.workerImage))) ??
+        assertCronTrigger(deps, parsed.data.definition.trigger);
       if (err) return reply.code(400).send({ error: err });
     }
     const wf = await deps.workflowService.update(id, parsed.data);

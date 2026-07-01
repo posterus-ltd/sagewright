@@ -128,9 +128,6 @@ export const useDeleteTask = () => {
   });
 };
 
-export const useSendMessage = (id: string) =>
-  useMutation({ mutationFn: (body: string) => apiClient.post(`/api/tasks/${id}/messages`, { body }) });
-
 // The user's canvas arrangement (session placements + viewport). Served as an
 // empty layout when nothing is stored, so the query never 404s.
 export const useCanvasLayout = () =>

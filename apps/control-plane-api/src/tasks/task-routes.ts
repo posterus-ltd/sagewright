@@ -1,4 +1,4 @@
-import { createSessionSchema, postMessageSchema, updateSessionSchema, type Session } from '@sagewright/shared';
+import { createSessionSchema, isTerminalStatus, postMessageSchema, updateSessionSchema, type Session } from '@sagewright/shared';
 import type { FastifyInstance, FastifyReply } from 'fastify';
 
 import type { AppDeps } from '../app';
@@ -82,9 +82,28 @@ export const registerTaskRoutes = (app: FastifyInstance, deps: AppDeps): void =>
 
   app.post('/api/tasks/:id/messages', { preHandler: app.requireUser }, async (req, reply) => {
     const { id } = req.params as { id: string };
-    if (!(await ownedOr(deps, id, req.displayName!, reply))) return reply;
+    const session = await ownedOr(deps, id, req.displayName!, reply);
+    if (!session) return reply;
     const { body } = postMessageSchema.parse(req.body);
     await deps.db.insert(inboundMessages).values({ sessionId: id, body });
+
+    // The interjection poll only runs inside a live turn, so a message to a DETACHED
+    // interactive session would otherwise sit unconsumed until a human next opened
+    // the terminal. Resume a turn now (rehydrating post-restart state if needed) so
+    // the agent picks it up on its next poll tick.
+    if (session.kind === 'interactive' && session.containerId && !isTerminalStatus(session.status)) {
+      if (!deps.sessionRuntime.has(id)) {
+        const hydrated = await deps.sessionService.hydrateSession(id);
+        if (hydrated) deps.sessionRuntime.ensure(hydrated);
+      }
+      if (!deps.sessionRuntime.isLive(id)) {
+        try {
+          deps.sessionRuntime.resume(id);
+        } catch {
+          // Lost the race to another resumer — the live turn's poll delivers it.
+        }
+      }
+    }
     return reply.code(202).send({ ok: true });
   });
 };

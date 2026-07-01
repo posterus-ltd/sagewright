@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { PassThrough } from 'node:stream';
 
-import { bridgeAgentTerminal, bridgeTerminal, cmdForKind } from './terminal-route';
+import { bridgeAgentTerminal, bridgeTerminal, cmdForKind, keepAlive } from './terminal-route';
 import type { TerminalSession } from '../tasks/docker-client';
 
 // Minimal EventEmitter-ish fake WebSocket matching the bits bridgeTerminal uses.
@@ -10,6 +10,7 @@ class FakeSocket {
   OPEN = 1;
   sent: unknown[] = [];
   closed: { code?: number } | null = null;
+  ping = vi.fn();
   private handlers: Record<string, ((...a: unknown[]) => void)[]> = {};
   on(ev: string, cb: (...a: unknown[]) => void) {
     (this.handlers[ev] ??= []).push(cb);
@@ -36,6 +37,25 @@ describe('cmdForKind', () => {
   it('maps agent → continue-agent and shell → bash', () => {
     expect(cmdForKind('agent')).toEqual(['continue-agent']);
     expect(cmdForKind('shell')).toEqual(['bash']);
+  });
+});
+
+describe('keepAlive', () => {
+  it('pings on the interval and stops once the socket closes', () => {
+    vi.useFakeTimers();
+    try {
+      const socket = new FakeSocket();
+      keepAlive(socket as never, 1000);
+
+      vi.advanceTimersByTime(3000);
+      expect(socket.ping).toHaveBeenCalledTimes(3);
+
+      socket.emit('close');
+      vi.advanceTimersByTime(3000);
+      expect(socket.ping).toHaveBeenCalledTimes(3); // no pings after close
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

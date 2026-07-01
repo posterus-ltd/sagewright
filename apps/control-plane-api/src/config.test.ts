@@ -25,4 +25,13 @@ describe('loadConfig', () => {
   it('rejects a SECRETS_KEY that is not 32 chars', () => {
     expect(() => loadConfig({ ...base, SECRETS_KEY: 'short' })).toThrow();
   });
+  it('surfaces SCHEDULER_TIMEZONE as schedulerTimezone', () => {
+    expect(loadConfig({ ...base, SCHEDULER_TIMEZONE: 'Europe/Sofia' }).schedulerTimezone).toBe('Europe/Sofia');
+  });
+  it('leaves schedulerTimezone undefined when unset (crons run in server-local time)', () => {
+    expect(loadConfig(base).schedulerTimezone).toBeUndefined();
+  });
+  it('rejects an unknown SCHEDULER_TIMEZONE instead of silently falling back', () => {
+    expect(() => loadConfig({ ...base, SCHEDULER_TIMEZONE: 'Mars/Olympus_Mons' })).toThrow();
+  });
 });

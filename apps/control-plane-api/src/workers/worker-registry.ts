@@ -20,7 +20,7 @@ export const createWorkerRegistry = (deps: WorkerRegistryDeps) => ({
       let id: string;
       const prefixMatch = tag.match(/^sagewright-worker-([^:]+):/);
       if (prefixMatch) {
-        id = prefixMatch[1];
+        id = prefixMatch[1]!;
       } else {
         const labelName = labels['sagewright.worker.name'] ?? tag;
         id = labelName.toLowerCase().replace(/[^a-z0-9]+/g, '-');

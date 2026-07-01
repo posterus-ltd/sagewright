@@ -1,4 +1,4 @@
-import { EventType, SessionStatus, type CreateSessionInput, type Session, type SessionKind, type SessionMode, type UpdateSessionInput } from '@sagewright/shared';
+import { EventType, SessionStatus, isTerminalStatus, type CreateSessionInput, type Session, type SessionKind, type SessionMode, type UpdateSessionInput } from '@sagewright/shared';
 import { and, desc, eq, isNull } from 'drizzle-orm';
 
 import type { Db } from '../db/client';
@@ -88,7 +88,7 @@ export const createTaskService = (deps: TaskServiceDeps) => {
             { type: EventType.ERROR, payload: { message: String(err) } },
             { type: EventType.STATUS, payload: { status: SessionStatus.FAILED } },
           ]);
-          await deps.db.update(sessions).set({ status: SessionStatus.FAILED }).where(eq(sessions.id, id));
+          await deps.db.update(sessions).set({ status: SessionStatus.FAILED, endedAt: new Date() }).where(eq(sessions.id, id));
         });
       return { ...rowToSession(row!), status: SessionStatus.RUNNING };
     }
@@ -125,9 +125,15 @@ export const createTaskService = (deps: TaskServiceDeps) => {
     stop: async (id: string): Promise<void> => {
       const [row] = await deps.db.select().from(sessions).where(eq(sessions.id, id)).limit(1);
       if (!row) return;
+      // Already settled — nothing to tear down, and re-stamping STOPPED would
+      // overwrite the real outcome.
+      if (isTerminalStatus(row.status as SessionStatus)) return;
       if (row.containerId) await deps.spawner.retire(row.containerId);
-      await deps.volume.removeSessionWorktrees(id).catch(() => undefined);
-      await deps.db.update(sessions).set({ status: SessionStatus.STOPPED }).where(eq(sessions.id, id));
+      // A workflow parent's shared run worktree belongs to its drive loop, which
+      // notices the STOPPED row at the next step boundary and sweeps it itself —
+      // yanking it here would pull the tree out from under the executing step.
+      if (row.kind !== 'workflow') await deps.volume.removeSessionWorktrees(id).catch(() => undefined);
+      await deps.db.update(sessions).set({ status: SessionStatus.STOPPED, endedAt: new Date() }).where(eq(sessions.id, id));
       // Surface the stop in the transcript so a live viewer sees it.
       await emit(id, [{ type: EventType.STATUS, payload: { status: SessionStatus.STOPPED } }]);
     },

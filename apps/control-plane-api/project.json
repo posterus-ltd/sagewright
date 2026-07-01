@@ -12,6 +12,15 @@
         "cwd": "{workspaceRoot}"
       },
       "outputs": ["{workspaceRoot}/apps/control-plane-api/dist"]
+    },
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "cache": true,
+      "inputs": ["default", "^default"],
+      "options": {
+        "command": "tsc -p apps/control-plane-api/tsconfig.json",
+        "cwd": "{workspaceRoot}"
+      }
     }
   }
 }

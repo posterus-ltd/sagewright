@@ -139,16 +139,18 @@ export const fakeWorkerRegistry = (over: Partial<WorkerRegistry> = {}): WorkerRe
 });
 
 /** No-op volume for tests; suites needing specific behaviour override it. */
-export const fakeVolume = (over: Partial<Volume> = {}): Volume => ({
-  slugFromUrl: (u: string) => u,
-  cloneOrPull: async (r) => ({ slug: r.slug, url: r.url, defaultBranch: 'main' }),
-  reconcile: () => undefined,
-  describe: () => ({ status: 'present', error: null }),
-  addSessionWorktrees: async () => [],
-  removeSessionWorktrees: async () => undefined,
-  removeRepo: async () => undefined,
-  ...over,
-});
+export const fakeVolume = (over: Partial<Volume> = {}): Volume =>
+  ({
+    slugFromUrl: (u: string) => u,
+    cloneOrPull: async (r: { slug: string; url: string }) => ({ slug: r.slug, url: r.url, defaultBranch: 'main' }),
+    reconcile: () => undefined,
+    describe: () => ({ status: 'present' as const, error: null }),
+    addSessionWorktrees: async () => [],
+    listSessionWorktrees: async () => [],
+    removeSessionWorktrees: async () => undefined,
+    removeRepo: async () => undefined,
+    ...over,
+  }) as Volume;
 
 /** No-op scheduler for tests; cron validity defaults to true. */
 export const fakeScheduler = (over: Partial<Scheduler> = {}): Scheduler => ({
@@ -320,7 +322,7 @@ export const makeTestApp = async (
 
   const workflowService = overrides.workflowService ?? createWorkflowService({ db: db as never });
   // No-op runner by default — the orchestrator loop has its own unit tests.
-  const defaultWorkflowRunner = { start: async () => null };
+  const defaultWorkflowRunner = { start: async () => null, resume: async () => undefined };
 
   const app = buildApp({
     config,

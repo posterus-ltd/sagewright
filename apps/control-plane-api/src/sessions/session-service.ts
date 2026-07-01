@@ -2,14 +2,17 @@ import {
   EventType,
   RESERVED_ENV_KEYS,
   SessionStatus,
+  TERMINAL_STATUSES,
+  isTerminalStatus,
   modeForKind,
   parseEnvBlob,
   sessionDir,
+  worktreeDir,
   type RepoManifestEntry,
   type SessionKind,
   type SessionMode,
 } from '@sagewright/shared';
-import { eq } from 'drizzle-orm';
+import { and, eq, notInArray } from 'drizzle-orm';
 
 import type { AppConfig } from '../config';
 import type { Db } from '../db/client';
@@ -52,6 +55,17 @@ export interface SpawnSessionInput {
   /** Pre-created shared worktrees (workflow steps reuse the run's one worktree) —
    *  when present, the per-session worktree creation is skipped. */
   worktrees?: { sessionDir: string; manifest: RepoManifestEntry[] };
+}
+
+/** Runtime input rebuilt from persistent state for a session whose in-process
+ *  entry was lost (control-plane restart). Shape matches sessionRuntime's
+ *  StartSessionInput so the terminal route can `ensure` from it directly. */
+export interface HydratedSessionInput {
+  sessionId: string;
+  containerId: string;
+  manifest: RepoManifestEntry[];
+  sessionDir: string;
+  githubIdentity?: ResolvedGithubCredential;
 }
 
 export interface SpawnSessionResult {
@@ -116,6 +130,7 @@ export const createSessionService = (deps: SessionServiceDeps) => {
         iteration: input.iteration ?? null,
       })
       .returning();
+    if (!row) throw new Error('session insert returned no row');
 
     const branch = input.branch ?? `task/${row.id}`;
     await deps.db.update(sessions).set({ status: SessionStatus.PROVISIONING, branch }).where(eq(sessions.id, row.id));
@@ -164,21 +179,72 @@ export const createSessionService = (deps: SessionServiceDeps) => {
         userEnv,
         workerImage,
       });
-      await deps.db.update(sessions).set({ containerId }).where(eq(sessions.id, row.id));
+      // Adopt the container only if the session is still provisioning. A stop that
+      // landed mid-spawn already settled the row terminal — adopting the box then
+      // would leak it forever (the boot reconciler skips terminal rows), so retire
+      // it and abort the drive instead.
+      const adopted = await deps.db
+        .update(sessions)
+        .set({ containerId })
+        .where(and(eq(sessions.id, row.id), eq(sessions.status, SessionStatus.PROVISIONING)))
+        .returning();
+      if (!adopted.length) {
+        await deps.spawner.retire(containerId).catch(() => undefined);
+        throw new Error(`session ${row.id} settled during provisioning`);
+      }
 
       return { id: row.id, containerId, branch, sessionDir: dir, manifest, mode, githubCredential };
     } catch (err) {
       await deps.volume.removeSessionWorktrees(row.id).catch(() => undefined);
-      await emit(row.id, [
-        { type: EventType.ERROR, payload: { message: String(err) } },
-        { type: EventType.STATUS, payload: { status: SessionStatus.FAILED } },
-      ]);
-      await deps.db.update(sessions).set({ status: SessionStatus.FAILED }).where(eq(sessions.id, row.id));
+      // Flip to FAILED only from a non-terminal state so a user's STOPPED (or another
+      // settled outcome) is never overwritten; emit the failure events only when the
+      // flip actually happened, keeping the transcript consistent with the row.
+      const flipped = await deps.db
+        .update(sessions)
+        .set({ status: SessionStatus.FAILED })
+        .where(and(eq(sessions.id, row.id), notInArray(sessions.status, [...TERMINAL_STATUSES])))
+        .returning();
+      if (flipped.length) {
+        await emit(row.id, [
+          { type: EventType.ERROR, payload: { message: String(err) } },
+          { type: EventType.STATUS, payload: { status: SessionStatus.FAILED } },
+        ]);
+      }
       throw err;
     }
   };
 
-  return { spawnSession };
+  /** Rebuild an interactive session's runtime input from persistent state so a
+   *  DETACHED session survives a control-plane restart: the container id comes from
+   *  the row, the manifest from the worktrees still on disk joined with the creator's
+   *  configured repos, and the GitHub identity is re-resolved. Returns null when
+   *  there is nothing to rehydrate (missing, non-interactive, terminal, no box). */
+  const hydrateSession = async (sessionId: string): Promise<HydratedSessionInput | null> => {
+    const [row] = await deps.db.select().from(sessions).where(eq(sessions.id, sessionId)).limit(1);
+    if (!row || row.kind !== 'interactive' || !row.containerId) return null;
+    if (isTerminalStatus(row.status as SessionStatus)) return null;
+
+    const slugs = await deps.volume.listSessionWorktrees(sessionId);
+    const configured = await deps.db.select().from(repos).where(eq(repos.userKey, row.createdBy));
+    const bySlug = new Map(configured.map((r) => [r.slug, r]));
+    const manifest: RepoManifestEntry[] = slugs.map((slug) => ({
+      slug,
+      url: bySlug.get(slug)?.url ?? '',
+      defaultBranch: bySlug.get(slug)?.defaultBranch ?? null,
+      path: worktreeDir(sessionId, slug),
+    }));
+    const githubCredential = await deps.githubCredentialService.resolve(row.createdBy);
+
+    return {
+      sessionId,
+      containerId: row.containerId,
+      manifest,
+      sessionDir: sessionDir(sessionId),
+      githubIdentity: githubCredential ?? undefined,
+    };
+  };
+
+  return { spawnSession, hydrateSession };
 };
 
 export type SessionService = ReturnType<typeof createSessionService>;

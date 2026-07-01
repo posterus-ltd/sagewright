@@ -16,12 +16,12 @@ const waitListening = async (stream: PassThrough): Promise<void> => {
   for (let i = 0; i < 100 && stream.listenerCount('end') === 0; i += 1) await tick();
 };
 
-const insertTask = async (db: { insert: (t: unknown) => never }): Promise<string> => {
+const insertTask = async (db: Awaited<ReturnType<typeof makeTestApp>>['db']): Promise<string> => {
   const [row] = await db
     .insert(sessions)
     .values({ kind: 'headless', status: SessionStatus.PROVISIONING, createdBy: 'al' })
     .returning();
-  return (row as { id: string }).id;
+  return row!.id;
 };
 
 const fakeExec = (exitCode: number) => {
@@ -70,13 +70,16 @@ describe('agent-runner', () => {
     expect(statuses).toEqual([SessionStatus.RUNNING, SessionStatus.PUSHING, SessionStatus.DONE]);
     expect(evs.some((e) => e.type === EventType.OUTPUT && e.payload['chunk'] === 'working...\n')).toBe(true);
 
-    const [row] = await (db as never as { select: () => never })
+    const [row] = await db
       .select()
       .from(sessions)
       .where(eq(sessions.id, id))
       .limit(1);
-    expect((row as { status: string }).status).toBe(SessionStatus.DONE);
+    expect(row!.status).toBe(SessionStatus.DONE);
     expect(retire).toHaveBeenCalledWith('c1');
+    // Lifecycle timestamps: stamped on first RUNNING and on the terminal settle.
+    expect(row!.startedAt).not.toBeNull();
+    expect(row!.endedAt).not.toBeNull();
   });
 
   it('marks the task FAILED on a non-zero exit code', async () => {
@@ -93,12 +96,12 @@ describe('agent-runner', () => {
     stream.end();
     await done;
 
-    const [row] = await (db as never as { select: () => never })
+    const [row] = await db
       .select()
       .from(sessions)
       .where(eq(sessions.id, id))
       .limit(1);
-    expect((row as { status: string }).status).toBe(SessionStatus.FAILED);
+    expect(row!.status).toBe(SessionStatus.FAILED);
   });
 
   it('runInteractive settles DETACHED on turn exit, hands over the live exec, and does NOT retire', async () => {
@@ -132,12 +135,15 @@ describe('agent-runner', () => {
     expect(live).not.toBeNull();
     expect(retire).not.toHaveBeenCalled();
 
-    const [row] = await (db as never as { select: () => never })
+    const [row] = await db
       .select()
       .from(sessions)
       .where(eq(sessions.id, id))
       .limit(1);
-    expect((row as { status: string }).status).toBe(SessionStatus.DETACHED);
+    expect(row!.status).toBe(SessionStatus.DETACHED);
+    // Detached is a resting state, not an end state: the run has started, not ended.
+    expect(row!.startedAt).not.toBeNull();
+    expect(row!.endedAt).toBeNull();
   });
 
   it('complete pushes changed repos, opens a PR, settles DONE, and retires', async () => {

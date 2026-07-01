@@ -13,6 +13,7 @@ export const createSessionCookie = (secret: string) => {
     const parts = token.split('.');
     if (parts.length !== 3) return null;
     const [nameB64, expiry, mac] = parts;
+    if (nameB64 === undefined || expiry === undefined || mac === undefined) return null;
     // verify MAC before expiry so an expired-token check can't leak a timing oracle
     const macBuf = Buffer.from(mac, 'base64url');
     const expectedBuf = createHmac('sha256', secret).update(`${nameB64}.${expiry}`).digest();

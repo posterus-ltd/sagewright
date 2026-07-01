@@ -13,6 +13,7 @@ export const createSecretCipher = (key: string) => {
     },
     decrypt: (blob: string): string => {
       const [ivHex, tagHex, dataHex] = blob.split(':');
+      if (!ivHex || !tagHex || !dataHex) throw new Error('malformed encrypted blob');
       const decipher = createDecipheriv(ALGORITHM, keyBuf, Buffer.from(ivHex, 'hex'));
       decipher.setAuthTag(Buffer.from(tagHex, 'hex'));
       return Buffer.concat([decipher.update(Buffer.from(dataHex, 'hex')), decipher.final()]).toString('utf8');

@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { createWorkerRegistry } from './worker-registry';
 
-const makeRegistry = (images: Docker.ImageInfo[]) => {
+const makeRegistry = (images: Docker['ImageInfo'][]) => {
   const listImages = vi.fn(async () => images);
   const registry = createWorkerRegistry({ docker: { listImages } as never });
   return { registry, listImages };
@@ -41,8 +41,8 @@ describe('worker-registry', () => {
       image(['acme/custom-worker:v1'], { 'sagewright.worker.name': 'Custom Worker' }),
     ]);
     const result = await registry.list();
-    expect(result[0].id).toBe('custom-worker');
-    expect(result[0].name).toBe('Custom Worker');
+    expect(result[0]!.id).toBe('custom-worker');
+    expect(result[0]!.name).toBe('Custom Worker');
   });
 
   it('skips images with only <none>:<none> tags', async () => {
@@ -52,7 +52,7 @@ describe('worker-registry', () => {
     ]);
     const result = await registry.list();
     expect(result).toHaveLength(1);
-    expect(result[0].image).toBe('sagewright-worker-valid:latest');
+    expect(result[0]!.image).toBe('sagewright-worker-valid:latest');
   });
 
   it('deduplicates by id — first tag wins', async () => {
@@ -62,14 +62,14 @@ describe('worker-registry', () => {
     ]);
     const result = await registry.list();
     expect(result).toHaveLength(1);
-    expect(result[0].image).toBe('sagewright-worker-alpha:v1');
+    expect(result[0]!.image).toBe('sagewright-worker-alpha:v1');
   });
 
   it('uses tag as name fallback when label is absent', async () => {
     const { registry } = makeRegistry([image(['sagewright-worker-lite:latest'])]);
     const result = await registry.list();
-    expect(result[0].name).toBe('lite');
-    expect(result[0].description).toBe('');
+    expect(result[0]!.name).toBe('lite');
+    expect(result[0]!.description).toBe('');
   });
 
   it('returns empty array when no images are found', async () => {
@@ -83,7 +83,7 @@ describe('worker-registry', () => {
     ]);
     const result = await registry.list();
     expect(result).toHaveLength(1);
-    expect(result[0].id).toBe('opencode');
-    expect(result[0].image).toBe('sagewright-worker-opencode:latest');
+    expect(result[0]!.id).toBe('opencode');
+    expect(result[0]!.image).toBe('sagewright-worker-opencode:latest');
   });
 });

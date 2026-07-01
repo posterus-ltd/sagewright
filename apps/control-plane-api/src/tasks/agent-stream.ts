@@ -1,4 +1,4 @@
-import { EventType, SessionStatus, type RepoManifestEntry } from '@sagewright/shared';
+import { EventType, SessionStatus, isTerminalStatus, type RepoManifestEntry } from '@sagewright/shared';
 import { and, eq, isNull } from 'drizzle-orm';
 
 import type { Db } from '../db/client';
@@ -41,11 +41,13 @@ export interface AgentStreamingDeps {
   eventStore: EventStore;
   eventBus: EventBus;
   exec: ContainerExec;
+  /** Interjection poll interval override (tests); defaults to POLL_MS. */
+  pollMs?: number;
 }
 
 /** A lone repo gets its own worktree as the cwd; multiple repos share the session root. */
 const agentCwd = (sessionDir: string, manifest: RepoManifestEntry[]): string =>
-  manifest.length === 1 ? manifest[0].path : sessionDir;
+  manifest.length === 1 ? manifest[0]!.path : sessionDir;
 
 /**
  * The shared engine for driving an agent over `docker exec`: a serialized event
@@ -61,9 +63,19 @@ export const createAgentStreaming = (deps: AgentStreamingDeps) => {
     for (const e of stored) {
       deps.eventBus.publish(taskId, e);
       if (e.type === EventType.STATUS && typeof e.payload['status'] === 'string') {
+        const status = e.payload['status'] as SessionStatus;
         const [current] = await deps.db.select().from(sessions).where(eq(sessions.id, taskId)).limit(1);
         if (current && TERMINAL_GUARD.has(current.status as SessionStatus)) continue;
-        await deps.db.update(sessions).set({ status: e.payload['status'] as SessionStatus }).where(eq(sessions.id, taskId));
+        // Lifecycle stamps ride along with the status mirror: the FIRST running
+        // transition starts the clock (a resumed turn keeps the original), and any
+        // terminal transition stops it.
+        const stamps =
+          status === SessionStatus.RUNNING
+            ? { startedAt: current?.startedAt ?? new Date() }
+            : isTerminalStatus(status)
+              ? { endedAt: new Date() }
+              : {};
+        await deps.db.update(sessions).set({ status, ...stamps }).where(eq(sessions.id, taskId));
       }
       if (e.type === EventType.PR_OPENED && typeof e.payload['url'] === 'string') {
         await deps.db.update(sessions).set({ prUrl: e.payload['url'] as string }).where(eq(sessions.id, taskId));
@@ -117,23 +129,23 @@ export const createAgentStreaming = (deps: AgentStreamingDeps) => {
     });
 
     // Forward UI interjections (inbound messages) into the agent's stdin as keystrokes.
+    // Consume-and-read is ONE statement: the rows the UPDATE returns are exactly the
+    // rows delivered. A separate select-then-update would mark messages consumed that
+    // landed between the two statements without ever delivering them.
     const poll = setInterval(() => {
       void (async () => {
         const pending = await deps.db
-          .select()
-          .from(inboundMessages)
-          .where(and(eq(inboundMessages.sessionId, taskId), isNull(inboundMessages.consumedAt)));
-        if (!pending.length) return;
-        await deps.db
           .update(inboundMessages)
           .set({ consumedAt: new Date() })
-          .where(and(eq(inboundMessages.sessionId, taskId), isNull(inboundMessages.consumedAt)));
+          .where(and(eq(inboundMessages.sessionId, taskId), isNull(inboundMessages.consumedAt)))
+          .returning();
+        pending.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
         for (const m of pending) {
           session.write(`${m.body}\n`);
           await emit([{ type: EventType.USER_MESSAGE, payload: { text: m.body } }]);
         }
       })();
-    }, POLL_MS);
+    }, deps.pollMs ?? POLL_MS);
 
     // The start script runs in the foreground; its exit closes the exec stream.
     await new Promise<void>((resolve) => {

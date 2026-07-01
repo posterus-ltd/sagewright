@@ -5,7 +5,7 @@ import { eq } from 'drizzle-orm';
 import { describe, expect, it, vi } from 'vitest';
 
 import { loadConfig } from '../config';
-import { events, sessions } from '../db/schema';
+import { events, repos, sessions } from '../db/schema';
 import type { SpawnInput } from '../tasks/worker-spawner';
 import { createEventBus } from '../events/event-bus';
 import { createEventStore } from '../events/event-store';
@@ -62,8 +62,8 @@ const setup = async (opts: SetupOpts = {}) => {
   return { db, service, spawns, removeSessionWorktrees, retire: spawner.retire };
 };
 
-const eventsFor = async (db: unknown, id: string) => {
-  const rows = await (db as never as { select: () => never })
+const eventsFor = async (db: Awaited<ReturnType<typeof makeTestApp>>['db'], id: string) => {
+  const rows = await db
     .select()
     .from(events)
     .where(eq(events.sessionId, id));
@@ -116,6 +116,33 @@ describe('session-service spawnSession', () => {
     ).toBe(true);
   });
 
+  it('retires the late container and preserves STOPPED when stop lands mid-provisioning', async () => {
+    let dbRef: Awaited<ReturnType<typeof setup>>['db'] | null = null;
+    const { db, service, retire } = await setup({
+      spawn: async (i) => {
+        // The user stops the session while docker create is still in flight.
+        await dbRef!.update(sessions).set({ status: SessionStatus.STOPPED }).where(eq(sessions.id, i.taskId));
+        return { containerId: 'late-cid' };
+      },
+    });
+    dbRef = db;
+
+    await expect(service.spawnSession({ kind: 'interactive', createdBy: 'al' })).rejects.toThrow(
+      /settled during provisioning/,
+    );
+
+    // The just-spawned box must be retired, not adopted — a terminal row is skipped
+    // by the boot reconciler, so an adopted container would leak forever.
+    expect(retire).toHaveBeenCalledWith('late-cid');
+    const [row] = await db.select().from(sessions).orderBy(sessions.createdAt).limit(1);
+    expect(row!.status).toBe(SessionStatus.STOPPED); // the user's stop wins — never FAILED
+    expect(row!.containerId).toBeNull();
+    const evs = await eventsFor(db, row!.id);
+    expect(
+      evs.some((e) => e.type === EventType.STATUS && (e.payload as { status?: string }).status === SessionStatus.FAILED),
+    ).toBe(false);
+  });
+
   it('rejects an unknown worker image with a FAILED session', async () => {
     const { db, service } = await setup();
 
@@ -125,6 +152,51 @@ describe('session-service spawnSession', () => {
 
     const [row] = await db.select().from(sessions).orderBy(sessions.createdAt).limit(1);
     expect(row!.status).toBe(SessionStatus.FAILED);
+  });
+
+  it('hydrateSession rebuilds runtime input for a detached interactive session', async () => {
+    const listSessionWorktrees = vi.fn(async () => ['a-b']);
+    const { db, service } = await setup({
+      credential: { token: 'ght', login: 'u', name: null, email: 'e' },
+      volume: { listSessionWorktrees },
+    });
+    const [row] = await db
+      .insert(sessions)
+      .values({ kind: 'interactive', status: SessionStatus.DETACHED, createdBy: 'al', containerId: 'c9' })
+      .returning();
+    await db.insert(repos).values({ userKey: 'al', url: 'https://github.com/a/b', slug: 'a-b', defaultBranch: 'main' });
+
+    const input = await service.hydrateSession(row!.id);
+
+    expect(input).not.toBeNull();
+    expect(input!.sessionId).toBe(row!.id);
+    expect(input!.containerId).toBe('c9');
+    expect(input!.sessionDir).toContain(row!.id);
+    expect(input!.manifest).toEqual([
+      {
+        slug: 'a-b',
+        url: 'https://github.com/a/b',
+        defaultBranch: 'main',
+        path: expect.stringContaining(`${row!.id}/a-b`),
+      },
+    ]);
+    expect(input!.githubIdentity).toMatchObject({ login: 'u' });
+  });
+
+  it('hydrateSession returns null for terminal, non-interactive, or container-less sessions', async () => {
+    const { db, service } = await setup();
+    const mk = async (v: Partial<typeof sessions.$inferInsert>): Promise<string> => {
+      const [r] = await db
+        .insert(sessions)
+        .values({ kind: 'interactive', status: SessionStatus.DETACHED, createdBy: 'al', containerId: 'c', ...v })
+        .returning();
+      return r!.id;
+    };
+
+    expect(await service.hydrateSession(await mk({ status: SessionStatus.STOPPED }))).toBeNull();
+    expect(await service.hydrateSession(await mk({ kind: 'headless' }))).toBeNull();
+    expect(await service.hydrateSession(await mk({ containerId: null }))).toBeNull();
+    expect(await service.hydrateSession(randomUUID())).toBeNull();
   });
 
   it('reuses provided worktrees instead of creating per-session ones (workflow step path)', async () => {

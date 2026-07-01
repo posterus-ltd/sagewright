@@ -19,6 +19,11 @@ export interface SpawnInput {
 type DockerLike = Pick<Docker, 'createContainer' | 'getContainer'>;
 type DockerFactory = () => DockerLike;
 
+/** Docker label tying every spawned container to its session/run id — the only
+ *  handle for a box whose containerId never reached the DB (crash mid-spawn) or
+ *  that has no session row at all (a workflow run's ops container). */
+export const SESSION_LABEL = 'sagewright.session';
+
 const toEnvArray = (record: Record<string, string>): string[] =>
   Object.entries(record).map(([k, v]) => `${k}=${v}`);
 
@@ -43,6 +48,7 @@ export const createWorkerSpawner = (config: AppConfig, dockerFactory: DockerFact
       const container = await docker.createContainer({
         Image: input.workerImage ?? config.workerImage,
         Env: toEnvArray(env),
+        Labels: { [SESSION_LABEL]: input.taskId },
         Tty: false,
         HostConfig: {
           NetworkMode: config.workerNetwork,

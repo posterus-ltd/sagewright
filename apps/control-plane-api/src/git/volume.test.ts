@@ -84,7 +84,7 @@ describe('createVolume.cloneOrPull', () => {
     const git = vi.fn(async (args: string[]) => {
       active += 1;
       expect(active).toBe(1); // never two at once for the same slug
-      order.push(args[0]);
+      order.push(args[0]!);
       await new Promise((r) => setTimeout(r, 1));
       active -= 1;
       return args[0] === 'rev-parse' ? 'origin/main' : '';
@@ -98,11 +98,27 @@ describe('createVolume.cloneOrPull', () => {
   });
 });
 
+// Like makeGitSpy, but branch lookups (`show-ref`) fail — a fresh repo with no
+// session branch yet, the common first-run case.
+const makeFreshGitSpy = () => {
+  const calls: { args: string[]; cwd?: string }[] = [];
+  const git = vi.fn(async (args: string[], cwd?: string) => {
+    calls.push({ args, cwd });
+    if (args[0] === 'rev-parse') return 'origin/main';
+    if (args[0] === 'show-ref') throw new Error('no such ref');
+    return '';
+  });
+  return { git, calls };
+};
+
+// pathExists that reports main clones present but session worktree paths absent.
+const noWorktreesYet = (p: string): boolean => !p.includes('/sessions/');
+
 describe('createVolume.addSessionWorktrees', () => {
   it('ensures each repo then adds a task/<id> worktree', async () => {
-    const { git, calls } = makeGitSpy();
+    const { git, calls } = makeFreshGitSpy();
     const made: string[] = [];
-    const vol = createVolume({ git, pathExists: () => true, makeDir: async (p) => void made.push(p) });
+    const vol = createVolume({ git, pathExists: noWorktreesYet, makeDir: async (p) => void made.push(p) });
     const manifest = await vol.addSessionWorktrees('t1', [{ url: 'https://github.com/a/b', slug: 'a-b' }]);
     expect(manifest).toEqual([
       { slug: 'a-b', url: 'https://github.com/a/b', defaultBranch: 'main', path: '/sagewright-volume/sessions/t1/a-b' },
@@ -111,6 +127,25 @@ describe('createVolume.addSessionWorktrees', () => {
     const wt = calls.find((c) => c.args[0] === 'worktree' && c.args[1] === 'add');
     expect(wt?.args).toEqual(['worktree', 'add', '-b', 'task/t1', '/sagewright-volume/sessions/t1/a-b']);
     expect(wt?.cwd).toBe('/sagewright-volume/repos/a-b');
+  });
+
+  it('reuses an existing worktree instead of re-adding it (post-restart resume)', async () => {
+    const { git, calls } = makeGitSpy(); // everything exists, every git call succeeds
+    const vol = createVolume({ git, pathExists: () => true, makeDir: async () => undefined });
+    const manifest = await vol.addSessionWorktrees('t1', [{ url: 'https://github.com/a/b', slug: 'a-b' }]);
+    expect(manifest).toEqual([
+      { slug: 'a-b', url: 'https://github.com/a/b', defaultBranch: 'main', path: '/sagewright-volume/sessions/t1/a-b' },
+    ]);
+    expect(calls.some((c) => c.args[0] === 'worktree' && c.args[1] === 'add')).toBe(false);
+  });
+
+  it('re-adds on the surviving branch when the worktree dir is gone but the branch exists', async () => {
+    const { git, calls } = makeGitSpy(); // show-ref succeeds → branch exists
+    const vol = createVolume({ git, pathExists: noWorktreesYet, makeDir: async () => undefined });
+    await vol.addSessionWorktrees('t1', [{ url: 'https://github.com/a/b', slug: 'a-b' }]);
+    const wt = calls.find((c) => c.args[0] === 'worktree' && c.args[1] === 'add');
+    // No `-b`: creating the branch again would fail — attach the existing one.
+    expect(wt?.args).toEqual(['worktree', 'add', '/sagewright-volume/sessions/t1/a-b', 'task/t1']);
   });
 
   it('authenticates the clone with the requester\'s token', async () => {
@@ -131,6 +166,20 @@ describe('createVolume.addSessionWorktrees', () => {
     expect(manifest).toEqual([]);
     expect(made).toContain('/sagewright-volume/sessions/t1');
     expect(calls.some((c) => c.args[0] === 'worktree')).toBe(false);
+  });
+});
+
+describe('createVolume.listSessionWorktrees', () => {
+  it('lists the slugs of a session dir (post-restart hydration)', async () => {
+    const { git } = makeGitSpy();
+    const vol = createVolume({ git, pathExists: () => true, listDir: async () => ['a-b', 'c-d'] });
+    expect(await vol.listSessionWorktrees('t1')).toEqual(['a-b', 'c-d']);
+  });
+
+  it('returns [] when the session dir is absent', async () => {
+    const { git } = makeGitSpy();
+    const vol = createVolume({ git, pathExists: () => false });
+    expect(await vol.listSessionWorktrees('missing')).toEqual([]);
   });
 });
 
@@ -155,5 +204,20 @@ describe('createVolume.removeSessionWorktrees', () => {
     const vol = createVolume({ git, pathExists: () => false });
     await vol.removeSessionWorktrees('missing');
     expect(calls).toHaveLength(0);
+  });
+
+  it('deletes the session branches from the main clone (no branch accumulation)', async () => {
+    const { git, calls } = makeGitSpy();
+    const vol = createVolume({
+      git,
+      pathExists: () => true,
+      listDir: async () => ['a-b'],
+      removePath: async () => undefined,
+    });
+    await vol.removeSessionWorktrees('t1');
+    const deleted = calls.filter((c) => c.args[0] === 'branch' && c.args[1] === '-D');
+    // The dir is keyed by a task OR run id; try both branch shapes, best-effort.
+    expect(deleted.map((c) => c.args[2])).toEqual(['task/t1', 'workflow/t1']);
+    expect(deleted.every((c) => c.cwd === '/sagewright-volume/repos/a-b')).toBe(true);
   });
 });

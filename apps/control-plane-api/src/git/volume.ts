@@ -26,7 +26,7 @@ export interface VolumeDeps {
 export const slugFromUrl = (url: string): string => {
   const cleaned = url.trim().replace(/\/+$/, '').replace(/\.git$/, '');
   const ssh = /^git@[^:]+:(.+)$/.exec(cleaned);
-  const path = ssh ? ssh[1] : cleaned.replace(/^[a-z][a-z0-9+.-]*:\/\/[^/]+\//i, '');
+  const path = ssh ? ssh[1]! : cleaned.replace(/^[a-z][a-z0-9+.-]*:\/\/[^/]+\//i, '');
   const tail = path.split('/').filter(Boolean).slice(-2).join('-');
   return (tail || cleaned).replace(/[^a-zA-Z0-9._-]+/g, '-').toLowerCase();
 };
@@ -142,7 +142,25 @@ export const createVolume = (deps: VolumeDeps = {}) => {
     for (const repo of repos) {
       const { defaultBranch } = await cloneOrPull(repo, token);
       const path = worktreeDir(id, repo.slug);
-      await runExclusive(repo.slug, () => git(['worktree', 'add', '-b', branch, path], repoDir(repo.slug)));
+      await runExclusive(repo.slug, async () => {
+        // Resume-safe: a reconciled restart re-runs this with the worktree (and/or its
+        // branch) already in place — reuse what survived instead of failing the add
+        // (which would cascade into sweeping the run's uncommitted work).
+        if (pathExists(join(path, '.git'))) return;
+        // Clear stale registrations left by a worktree dir that vanished out-of-band.
+        await git(['worktree', 'prune'], repoDir(repo.slug)).catch(() => undefined);
+        const branchExists = await git(
+          ['show-ref', '--verify', '--quiet', `refs/heads/${branch}`],
+          repoDir(repo.slug),
+        ).then(
+          () => true,
+          () => false,
+        );
+        await git(
+          branchExists ? ['worktree', 'add', path, branch] : ['worktree', 'add', '-b', branch, path],
+          repoDir(repo.slug),
+        );
+      });
       manifest.push({ slug: repo.slug, url: repo.url, defaultBranch, path });
     }
     return manifest;
@@ -154,7 +172,18 @@ export const createVolume = (deps: VolumeDeps = {}) => {
   const addRunWorktrees = (runId: string, repos: VolumeRepo[], token?: string): Promise<RepoManifestEntry[]> =>
     addSessionWorktrees(runId, repos, token, runBranch(runId));
 
-  /** Remove every worktree for a session and delete its session dir. Idempotent. */
+  /** List the worktree slugs present under a session dir — the on-disk source of
+   *  truth for rebuilding a session's manifest after a control-plane restart. */
+  const listSessionWorktrees = async (taskId: string): Promise<string[]> => {
+    const root = sessionDir(taskId);
+    if (!pathExists(root)) return [];
+    return listDir(root).catch(() => [] as string[]);
+  };
+
+  /** Remove every worktree for a session and delete its session dir. Idempotent.
+   *  Also deletes the session's branch from the main clone — worktrees come and go
+   *  per session, and without this the clone accumulates one dead branch per
+   *  session forever (any pushed work lives on the remote by now). */
   const removeSessionWorktrees = async (taskId: string): Promise<void> => {
     const root = sessionDir(taskId);
     if (!pathExists(root)) return;
@@ -164,6 +193,10 @@ export const createVolume = (deps: VolumeDeps = {}) => {
       await runExclusive(slug, async () => {
         await git(['worktree', 'remove', '--force', wt], repoDir(slug)).catch(() => undefined);
         await git(['worktree', 'prune'], repoDir(slug)).catch(() => undefined);
+        // The dir is keyed by a task OR run id — try both branch shapes, best-effort.
+        for (const branch of [`task/${taskId}`, runBranch(taskId)]) {
+          await git(['branch', '-D', branch], repoDir(slug)).catch(() => undefined);
+        }
       });
     }
     await removePath(root).catch(() => undefined);
@@ -175,7 +208,7 @@ export const createVolume = (deps: VolumeDeps = {}) => {
     status.delete(slug);
   };
 
-  return { slugFromUrl, cloneOrPull, reconcile, describe, addSessionWorktrees, addRunWorktrees, removeSessionWorktrees, removeRepo };
+  return { slugFromUrl, cloneOrPull, reconcile, describe, addSessionWorktrees, addRunWorktrees, listSessionWorktrees, removeSessionWorktrees, removeRepo };
 };
 
 export type Volume = ReturnType<typeof createVolume>;

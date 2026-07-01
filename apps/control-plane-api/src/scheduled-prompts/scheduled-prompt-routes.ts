@@ -40,7 +40,7 @@ export const registerScheduledPromptRoutes = (app: FastifyInstance, deps: AppDep
       .values({ cron: body.cron, prompt: body.prompt, enabled: body.enabled, workerImage: body.workerImage ?? null, createdBy: req.displayName! })
       .returning();
     await deps.scheduler.sync();
-    return reply.code(201).send(rowToScheduled(row));
+    return reply.code(201).send(rowToScheduled(row!));
   });
 
   app.put('/api/scheduled-prompts/:id', { preHandler: app.requireUser }, async (req, reply) => {
@@ -52,7 +52,16 @@ export const registerScheduledPromptRoutes = (app: FastifyInstance, deps: AppDep
     if (body.workerImage !== undefined && !(await validWorkerImage(body.workerImage))) {
       return reply.code(400).send({ error: 'unknown worker image' });
     }
-    const [row] = await deps.db.update(scheduledPrompts).set(body).where(eq(scheduledPrompts.id, id)).returning();
+    // Re-enabling resets the catch-up basis: a stale lastRunAt from before the pause
+    // would read as a missed tick and fire the prompt the moment it's re-enabled.
+    const [current] = await deps.db.select().from(scheduledPrompts).where(eq(scheduledPrompts.id, id)).limit(1);
+    if (!current) return reply.code(404).send({ error: 'not found' });
+    const reEnabled = body.enabled === true && !current.enabled;
+    const [row] = await deps.db
+      .update(scheduledPrompts)
+      .set(reEnabled ? { ...body, lastRunAt: new Date() } : body)
+      .where(eq(scheduledPrompts.id, id))
+      .returning();
     if (!row) return reply.code(404).send({ error: 'not found' });
     await deps.scheduler.sync();
     return rowToScheduled(row);

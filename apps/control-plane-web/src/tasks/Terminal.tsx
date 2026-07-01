@@ -6,6 +6,8 @@ import '@xterm/xterm/css/xterm.css';
 
 import type { TerminalKind } from '@sagewright/shared';
 
+import { nextReconnectDelay } from './reconnect';
+
 const wsUrl = (taskId: string, kind: TerminalKind, cols: number, rows: number): string => {
   const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
   // cols/rows let the server create the PTY already sized, so the opencode TUI's
@@ -31,28 +33,47 @@ export const Terminal: FC<{ taskId: string; kind: TerminalKind }> = ({ taskId, k
     term.open(host);
     fit.fit();
 
-    const ws = new WebSocket(wsUrl(taskId, kind, term.cols, term.rows));
-    ws.binaryType = 'arraybuffer';
+    let ws: WebSocket | null = null;
+    let disposed = false;
+    let attempt = 0;
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
 
     const sendResize = (): void => {
-      if (ws.readyState === WebSocket.OPEN) {
+      if (ws && ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({ type: 'resize', cols: term.cols, rows: term.rows }));
       }
     };
 
-    ws.onopen = () => {
-      sendResize();
-      term.focus();
+    // The socket may drop (proxy idle timeout, mobile radio) while the agent keeps
+    // running server-side — re-attach with backoff instead of leaving a dead pane.
+    const connect = (): void => {
+      const socket = new WebSocket(wsUrl(taskId, kind, term.cols, term.rows));
+      socket.binaryType = 'arraybuffer';
+      ws = socket;
+
+      socket.onopen = () => {
+        attempt = 0;
+        sendResize();
+        term.focus();
+      };
+      socket.onmessage = (e: MessageEvent) => {
+        if (typeof e.data === 'string') term.write(e.data);
+        else term.write(new Uint8Array(e.data as ArrayBuffer));
+      };
+      socket.onclose = () => {
+        if (disposed) return;
+        const delay = nextReconnectDelay(attempt);
+        attempt += 1;
+        const wait = delay < 1000 ? `${delay}ms` : `${delay / 1000}s`;
+        term.write(`\r\n\x1b[2m[disconnected — reconnecting in ${wait}]\x1b[0m\r\n`);
+        retryTimer = setTimeout(connect, delay);
+      };
     };
-    ws.onmessage = (e: MessageEvent) => {
-      if (typeof e.data === 'string') term.write(e.data);
-      else term.write(new Uint8Array(e.data as ArrayBuffer));
-    };
-    ws.onclose = () => term.write('\r\n\x1b[2m[disconnected]\x1b[0m\r\n');
+    connect();
 
     const encoder = new TextEncoder();
     const dataSub = term.onData((d) => {
-      if (ws.readyState === WebSocket.OPEN) ws.send(encoder.encode(d));
+      if (ws && ws.readyState === WebSocket.OPEN) ws.send(encoder.encode(d));
     });
     const resizeSub = term.onResize(() => sendResize());
 
@@ -66,10 +87,12 @@ export const Terminal: FC<{ taskId: string; kind: TerminalKind }> = ({ taskId, k
     ro.observe(host);
 
     return () => {
+      disposed = true;
+      if (retryTimer) clearTimeout(retryTimer);
       ro.disconnect();
       dataSub.dispose();
       resizeSub.dispose();
-      ws.close();
+      ws?.close();
       term.dispose();
     };
   }, [taskId, kind]);

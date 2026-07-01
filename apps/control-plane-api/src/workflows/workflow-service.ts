@@ -62,7 +62,7 @@ export const createWorkflowService = (deps: WorkflowServiceDeps) => ({
       .insert(workflows)
       .values({ name: definition.name, definition, enabled: input.enabled, createdBy })
       .returning();
-    return rowToWorkflow(row);
+    return rowToWorkflow(row!);
   },
 
   update: async (id: string, input: UpdateWorkflowInput): Promise<Workflow | null> => {

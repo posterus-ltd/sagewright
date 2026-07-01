@@ -70,7 +70,9 @@ describe('streamTaskEvents', () => {
       iterator: emptyIterator,
       readSince: () => Promise.resolve(stored),
       lastEventId: 0,
-      write: (f) => writes.push(f),
+      write: (f) => {
+        writes.push(f);
+      },
     });
 
     expect(writes.some((f) => f.includes('event: output') && f.includes('hello from the agent'))).toBe(true);

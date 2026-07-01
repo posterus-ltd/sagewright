@@ -1,13 +1,13 @@
 import { eq } from 'drizzle-orm';
 import { describe, expect, it, vi } from 'vitest';
 
-import { sessions } from '../db/schema';
+import { scheduledPrompts, sessions } from '../db/schema';
 import { fakeScheduler, fakeWorkerRegistry, makeTestApp } from '../test/make-test-app';
 
 const login = async (app: Awaited<ReturnType<typeof makeTestApp>>['app']) => {
   const res = await app.inject({ method: 'POST', url: '/api/login', payload: { displayName: 'al', password: 'pw' } });
   const cookie = res.cookies[0];
-  return { cookie: `${cookie.name}=${cookie.value}` };
+  return { cookie: `${cookie!.name}=${cookie!.value}` };
 };
 
 describe('scheduled-prompt routes', () => {
@@ -54,7 +54,7 @@ describe('scheduled-prompt routes', () => {
     expect((created.json() as { workerImage: string }).workerImage).toBe('sagewright-worker-codex:latest');
 
     const list = await app.inject({ method: 'GET', url: '/api/scheduled-prompts', headers });
-    expect((list.json() as { workerImage: string }[])[0].workerImage).toBe('sagewright-worker-codex:latest');
+    expect((list.json() as { workerImage: string }[])[0]!.workerImage).toBe('sagewright-worker-codex:latest');
   });
 
   it('defaults workerImage to null when none is chosen', async () => {
@@ -92,8 +92,8 @@ describe('scheduled-prompt routes', () => {
     expect(del.statusCode).toBe(204);
 
     // The historical task survives, disassociated from the deleted prompt.
-    const [after] = await db.select().from(sessions).where(eq(sessions.id, task.id));
-    expect(after.scheduledPromptId).toBeNull();
+    const [after] = await db.select().from(sessions).where(eq(sessions.id, task!.id));
+    expect(after!.scheduledPromptId).toBeNull();
   });
 
   it('rejects an unknown workerImage on create', async () => {
@@ -127,6 +127,30 @@ describe('scheduled-prompt routes', () => {
       payload: { workerImage: 'gone:latest' },
     });
     expect(res.statusCode).toBe(400);
+  });
+
+  it('re-enabling a prompt resets lastRunAt so it waits for its next real tick', async () => {
+    const { app, db } = await makeTestApp({ scheduler: fakeScheduler() });
+    const headers = await login(app);
+    // Disabled for a week — its stale lastRunAt would otherwise look like a missed
+    // tick and fire the prompt the moment it is re-enabled.
+    const stale = new Date('2000-01-01T00:00:00Z');
+    const [row] = await db
+      .insert(scheduledPrompts)
+      .values({ cron: '0 3 * * *', prompt: 'nightly', createdBy: 'al', enabled: false, lastRunAt: stale })
+      .returning();
+
+    const res = await app.inject({
+      method: 'PUT',
+      url: `/api/scheduled-prompts/${row!.id}`,
+      headers,
+      payload: { enabled: true },
+    });
+    expect(res.statusCode).toBe(200);
+
+    const [after] = await db.select().from(scheduledPrompts).where(eq(scheduledPrompts.id, row!.id));
+    expect(after!.enabled).toBe(true);
+    expect(after!.lastRunAt!.getTime()).toBeGreaterThan(stale.getTime());
   });
 
   it('rejects an invalid cron expression', async () => {

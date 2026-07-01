@@ -8,7 +8,7 @@ const appWithVolume = () => makeTestApp({ volume: fakeVolume({ slugFromUrl }) })
 const login = async (app: Awaited<ReturnType<typeof makeTestApp>>['app'], displayName = 'al') => {
   const res = await app.inject({ method: 'POST', url: '/api/login', payload: { displayName, password: 'pw' } });
   const cookie = res.cookies[0];
-  return { cookie: `${cookie.name}=${cookie.value}` };
+  return { cookie: `${cookie!.name}=${cookie!.value}` };
 };
 
 const put = (app: Awaited<ReturnType<typeof makeTestApp>>['app'], headers: { cookie: string }, urls: string[]) =>

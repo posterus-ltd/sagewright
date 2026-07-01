@@ -1,8 +1,9 @@
+import { TERMINAL_STATUSES } from '@sagewright/shared';
 import { Cron } from 'croner';
-import { eq } from 'drizzle-orm';
+import { and, eq, notInArray } from 'drizzle-orm';
 
 import type { Db } from '../db/client';
-import { scheduledPrompts } from '../db/schema';
+import { scheduledPrompts, sessions } from '../db/schema';
 import type { TaskService } from '../tasks/task-service';
 import type { WorkflowService } from '../workflows/workflow-service';
 import type { WorkflowRunner } from '../workflows/workflow-runner';
@@ -65,10 +66,28 @@ export const createScheduler = (deps: SchedulerDeps) => {
   // scheduler must be constructed before buildApp, which depends on it).
   let logger: SchedulerLogger = deps.logger ?? console;
 
+  // DB-backed overlap guard. `inFlight` only spans provisioning — taskService.create
+  // resolves once the agent has STARTED, not finished — and croner's `protect` sees a
+  // fire-and-forget callback complete instantly, so neither covers a run that outlives
+  // its cron interval. The sessions table does, and it survives restarts too.
+  const hasActiveRun = async (where: ReturnType<typeof and>): Promise<boolean> => {
+    const active = await deps.db.select({ id: sessions.id }).from(sessions).where(where).limit(1);
+    return active.length > 0;
+  };
+
   const fire = async (row: SchedulableRow): Promise<void> => {
-    if (inFlight.has(row.id)) return; // a prior run is still going — skip this tick
+    if (inFlight.has(row.id)) return; // a prior fire is still provisioning — skip this tick
     inFlight.add(row.id);
+    let skipped = false;
     try {
+      if (
+        await hasActiveRun(
+          and(eq(sessions.scheduledPromptId, row.id), notInArray(sessions.status, [...TERMINAL_STATUSES])),
+        )
+      ) {
+        skipped = true; // the previous run is still working — don't pile a second onto it
+        return;
+      }
       // create() now persists a FAILED session even on bad input, but it still
       // re-throws — catch here so a failed run is logged, not silently dropped.
       await deps.taskService.create({ prompt: row.prompt, workerImage: row.workerImage ?? undefined }, row.createdBy, {
@@ -78,8 +97,11 @@ export const createScheduler = (deps: SchedulerDeps) => {
     } catch (err) {
       logger.error(err, `scheduled prompt ${row.id} failed to start`);
     } finally {
-      // Stamp the attempt regardless of outcome so "last run" reflects reality.
-      await deps.db.update(scheduledPrompts).set({ lastRunAt: new Date() }).where(eq(scheduledPrompts.id, row.id));
+      // Stamp the attempt regardless of outcome so "last run" reflects reality —
+      // but a skipped tick is not an attempt and must not shift the catch-up basis.
+      if (!skipped) {
+        await deps.db.update(scheduledPrompts).set({ lastRunAt: new Date() }).where(eq(scheduledPrompts.id, row.id));
+      }
       inFlight.delete(row.id);
     }
   };
@@ -112,7 +134,22 @@ export const createScheduler = (deps: SchedulerDeps) => {
         jobs.set(
           `wf:${wf.id}`,
           new Cron(wf.definition.trigger.cron, cronOpts(), () => {
-            void runner.start(wf.id, wf.createdBy).catch((err) => logger.error(err, `workflow ${wf.id} cron failed`));
+            void (async () => {
+              // Same overlap rule as prompts: one active run per workflow. Each run
+              // is expensive (containers + worktree + PR), so ticks never stack.
+              if (
+                await hasActiveRun(
+                  and(
+                    eq(sessions.workflowId, wf.id),
+                    eq(sessions.kind, 'workflow'),
+                    notInArray(sessions.status, [...TERMINAL_STATUSES]),
+                  ),
+                )
+              ) {
+                return;
+              }
+              await runner.start(wf.id, wf.createdBy);
+            })().catch((err) => logger.error(err, `workflow ${wf.id} cron failed`));
           }),
         );
       } catch {
@@ -140,21 +177,25 @@ export const createScheduler = (deps: SchedulerDeps) => {
     }
   };
 
-  const syncAll = async (): Promise<void> => {
+  const syncAll = async (catchUp: boolean): Promise<void> => {
     for (const id of [...jobs.keys()]) unregister(id);
     // Only the leader runs crons; a non-leader replica stays idle (jobs cleared above).
     if (!(await leadership.acquire())) return;
     const rows = await deps.db.select().from(scheduledPrompts);
     for (const r of rows) {
       register(r);
-      if (r.enabled) catchUpIfMissed(r);
+      // Catch-up is a BOOT behaviour (we were down and missed a tick). A CRUD-driven
+      // sync must not run it: this instance was up the whole time, and measuring from
+      // a stale lastRunAt would e.g. fire a re-enabled nightly job the moment it's
+      // re-enabled at noon.
+      if (catchUp && r.enabled) catchUpIfMissed(r);
     }
     await registerWorkflowCrons();
   };
 
   return {
-    start: syncAll,
-    sync: syncAll,
+    start: () => syncAll(true),
+    sync: () => syncAll(false),
     register,
     unregister,
     setLogger: (next: SchedulerLogger): void => {

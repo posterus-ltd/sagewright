@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { makeTestApp } from '../test/make-test-app';
+import { fakeScheduler, makeTestApp } from '../test/make-test-app';
 
 type App = Awaited<ReturnType<typeof makeTestApp>>['app'];
 
@@ -70,6 +70,32 @@ describe('workflow routes', () => {
     const bad = { ...definition, steps: [{ ...definition.steps[2], onFailureGoTo: 'nope' }] };
     const res = await app.inject({ method: 'POST', url: '/api/workflows', headers, payload: { definition: bad } });
     expect(res.statusCode).toBe(400);
+  });
+
+  it('rejects an invalid cron trigger on create (it would otherwise silently never fire)', async () => {
+    const { app } = await makeTestApp({ scheduler: fakeScheduler({ isValidCron: (expr) => expr !== 'nonsense' }) });
+    const headers = await login(app);
+    const bad = { ...definition, trigger: { type: 'cron' as const, cron: 'nonsense' } };
+    const res = await app.inject({ method: 'POST', url: '/api/workflows', headers, payload: { definition: bad } });
+    expect(res.statusCode).toBe(400);
+  });
+
+  it('rejects an invalid cron trigger on update', async () => {
+    const { app } = await makeTestApp({ scheduler: fakeScheduler({ isValidCron: (expr) => expr !== 'nonsense' }) });
+    const headers = await login(app);
+    const wf = (await app.inject({ method: 'POST', url: '/api/workflows', headers, payload: { definition } })).json();
+
+    const bad = { ...definition, trigger: { type: 'cron' as const, cron: 'nonsense' } };
+    const res = await app.inject({ method: 'PUT', url: `/api/workflows/${wf.id}`, headers, payload: { definition: bad } });
+    expect(res.statusCode).toBe(400);
+  });
+
+  it('accepts a valid cron trigger', async () => {
+    const { app } = await makeTestApp();
+    const headers = await login(app);
+    const ok = { ...definition, trigger: { type: 'cron' as const, cron: '0 9 * * *' } };
+    const res = await app.inject({ method: 'POST', url: '/api/workflows', headers, payload: { definition: ok } });
+    expect(res.statusCode).toBe(201);
   });
 
   it('updates and deletes a workflow', async () => {

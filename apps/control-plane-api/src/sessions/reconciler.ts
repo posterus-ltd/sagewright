@@ -12,6 +12,8 @@ interface ReconcilerDeps {
   eventBus: EventBus;
   /** Whether a container still exists/runs. Injected so tests need no docker. */
   containerAlive: (containerId: string) => Promise<boolean>;
+  /** Every container carrying the sagewright session label, live or exited. */
+  listLabeledContainers: () => Promise<{ containerId: string; sessionId: string }[]>;
   retire: (containerId: string) => Promise<void>;
   removeSessionWorktrees: (id: string) => Promise<void>;
   /** Re-drive a workflow run from its persisted step (workflowRunner.resume). */
@@ -82,6 +84,22 @@ export const createReconciler = (deps: ReconcilerDeps) => {
     else await deps.removeSessionWorktrees(row.id).catch(() => undefined);
   };
 
+  // Orphan sweep: retire any labeled container with no LIVE session row behind it.
+  // The row walk above only reaches containers whose id made it into a row — this
+  // catches the rest: a workflow run's ops box (no row at all) and a box whose
+  // session settled terminal before adopting it (stop-during-provisioning).
+  const sweepOrphans = async (): Promise<void> => {
+    const labeled = await deps.listLabeledContainers().catch(() => [] as { containerId: string; sessionId: string }[]);
+    if (!labeled.length) return;
+    // Re-read: reconcileRow above may have just settled rows terminal.
+    const rows = await deps.db.select().from(sessions);
+    const live = new Set(rows.filter((r) => !isTerminalStatus(r.status as SessionStatus)).map((r) => r.id));
+    for (const c of labeled) {
+      if (live.has(c.sessionId)) continue;
+      await deps.retire(c.containerId).catch(() => undefined);
+    }
+  };
+
   return {
     reconcile: async (): Promise<void> => {
       const rows = await deps.db.select().from(sessions);
@@ -93,6 +111,7 @@ export const createReconciler = (deps: ReconcilerDeps) => {
           logger.error(err, `reconcile failed for session ${row.id}`);
         }
       }
+      await sweepOrphans();
     },
   };
 };

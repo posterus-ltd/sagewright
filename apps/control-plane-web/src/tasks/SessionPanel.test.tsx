@@ -6,6 +6,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ConfirmDialogProvider } from '../components/ConfirmDialogProvider';
 import { SessionPanel } from './SessionPanel';
 
+// xterm needs a real renderer; stub the terminal components so live sessions
+// (which mount them) can render under jsdom.
+vi.mock('./Terminal', () => ({ Terminal: () => <div data-testid="terminal" /> }));
+vi.mock('./TranscriptTerminal', () => ({ TranscriptTerminal: () => <div data-testid="transcript" /> }));
+
 const task = {
   id: 't1',
   kind: 'interactive',

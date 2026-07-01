@@ -16,14 +16,14 @@ describe('assignSeqs', () => {
 
   it('assigns seq === 1 for the first event (maxSeq 0)', () => {
     const out = assignSeqs(0, [{ type: EventType.LOG, payload: {} }], 'now');
-    expect(out[0].seq).toBe(1);
+    expect(out[0]!.seq).toBe(1);
   });
 });
 
 describe('createEventStore append serialization', () => {
   it('gives concurrent appends to one session contiguous, collision-free seqs', async () => {
     const { db } = await makeTestApp();
-    const [s] = await (db as never as { insert: (t: unknown) => never })
+    const [s] = await db
       .insert(sessions)
       .values({ kind: 'headless', createdBy: 'al' })
       .returning();
@@ -32,10 +32,10 @@ describe('createEventStore append serialization', () => {
     // Fire 20 appends concurrently for the SAME session. Without the per-session
     // mutex these race the read-max-then-insert and collide on (session_id, seq).
     await Promise.all(
-      Array.from({ length: 20 }, (_, i) => store.append((s as { id: string }).id, [{ type: EventType.LOG, payload: { i } }])),
+      Array.from({ length: 20 }, (_, i) => store.append(s!.id, [{ type: EventType.LOG, payload: { i } }])),
     );
 
-    const seqs = (await store.readSince((s as { id: string }).id, 0)).map((e) => e.seq).sort((a, b) => a - b);
+    const seqs = (await store.readSince(s!.id, 0)).map((e) => e.seq).sort((a, b) => a - b);
     expect(seqs).toEqual(Array.from({ length: 20 }, (_, i) => i + 1));
   });
 });

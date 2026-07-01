@@ -1,11 +1,13 @@
 import { EventType, SessionStatus } from '@sagewright/shared';
+import { eq } from 'drizzle-orm';
 import { describe, expect, it, vi } from 'vitest';
 
-import { scheduledPrompts, sessions } from '../db/schema';
+import { inboundMessages, scheduledPrompts, sessions } from '../db/schema';
 import { createSessionRuntime } from '../sessions/session-runtime';
 import { createSessionService } from '../sessions/session-service';
 import { fakeVolume, fakeWorkerRegistry, makeTestApp } from '../test/make-test-app';
 import { createTaskService } from './task-service';
+import type { SpawnInput } from './worker-spawner';
 
 const fakeUserSettingsService = () => ({
   getDefaultWorker: async () => null as string | null,
@@ -64,6 +66,109 @@ const buildService = (deps: BuildServiceDeps) => {
 };
 
 describe('task routes', () => {
+  it('resumes a detached interactive session when a message arrives for it', async () => {
+    const runInteractive = vi.fn(async () => 0);
+    const sessionRuntime = createSessionRuntime({
+      agentRunner: { runInteractive, complete: async () => {} } as never,
+    });
+    const { app, db } = await makeTestApp({ sessionRuntime });
+    const login = await app.inject({ method: 'POST', url: '/api/login', payload: { displayName: 'al', password: 'pw' } });
+    const c = login.cookies[0]!;
+    const headers = { cookie: `${c.name}=${c.value}` };
+    // A detached session (control-plane restarted since, so no runtime entry either).
+    const [row] = await db
+      .insert(sessions)
+      .values({ kind: 'interactive', status: SessionStatus.DETACHED, createdBy: 'al', containerId: 'c-d' })
+      .returning();
+
+    const res = await app.inject({
+      method: 'POST',
+      url: `/api/tasks/${row!.id}/messages`,
+      headers,
+      payload: { body: 'also update the docs' },
+    });
+
+    expect(res.statusCode).toBe(202);
+    // The message is queued AND a turn is resumed so its poll loop delivers it now —
+    // not whenever a human next opens the terminal.
+    const queued = await db.select().from(inboundMessages).where(eq(inboundMessages.sessionId, row!.id));
+    expect(queued).toHaveLength(1);
+    expect(runInteractive).toHaveBeenCalledWith(
+      expect.objectContaining({ taskId: row!.id, containerId: 'c-d' }),
+      expect.objectContaining({ cmd: ['continue-agent'] }),
+    );
+  });
+
+  it('does not resume for a message when a turn is already live', async () => {
+    const runInteractive = vi.fn(() => new Promise<number>(() => undefined)); // never settles → stays live
+    const sessionRuntime = createSessionRuntime({
+      agentRunner: { runInteractive, complete: async () => {} } as never,
+    });
+    const { app, db } = await makeTestApp({ sessionRuntime });
+    const login = await app.inject({ method: 'POST', url: '/api/login', payload: { displayName: 'al', password: 'pw' } });
+    const c = login.cookies[0]!;
+    const headers = { cookie: `${c.name}=${c.value}` };
+    const [row] = await db
+      .insert(sessions)
+      .values({ kind: 'interactive', status: SessionStatus.RUNNING, createdBy: 'al', containerId: 'c-l' })
+      .returning();
+    sessionRuntime.start({ sessionId: row!.id, containerId: 'c-l', manifest: [], sessionDir: '/v' });
+    expect(runInteractive).toHaveBeenCalledTimes(1);
+
+    const res = await app.inject({
+      method: 'POST',
+      url: `/api/tasks/${row!.id}/messages`,
+      headers,
+      payload: { body: 'more' },
+    });
+
+    expect(res.statusCode).toBe(202);
+    expect(runInteractive).toHaveBeenCalledTimes(1); // the live turn's poll delivers it
+  });
+
+  it('stop is a no-op on an already-terminal session (no retire, no status overwrite)', async () => {
+    const retire = vi.fn(async () => {});
+    const { db } = await makeTestApp();
+    const service = buildService({ db, spawner: { spawn: vi.fn(), retire }, volume: fakeVolume() });
+    const [row] = await db
+      .insert(sessions)
+      .values({ kind: 'headless', status: SessionStatus.DONE, createdBy: 'al', containerId: 'c-done' })
+      .returning();
+    const id = row!.id;
+
+    await service.stop(id);
+
+    expect(retire).not.toHaveBeenCalled();
+    const [after] = await db.select().from(sessions).where(eq(sessions.id, id));
+    expect(after!.status).toBe(SessionStatus.DONE);
+  });
+
+  it('stop on a workflow parent leaves the shared run worktree to the drive loop', async () => {
+    const retire = vi.fn(async () => {});
+    const removeSessionWorktrees = vi.fn(async () => undefined);
+    const { db } = await makeTestApp();
+    const service = buildService({
+      db,
+      spawner: { spawn: vi.fn(), retire },
+      volume: fakeVolume({ removeSessionWorktrees }),
+    });
+    const [row] = await db
+      .insert(sessions)
+      .values({ kind: 'workflow', status: SessionStatus.RUNNING, createdBy: 'al' })
+      .returning();
+    const id = row!.id;
+
+    await service.stop(id);
+
+    // Yanking the worktree here would pull it out from under the executing step;
+    // the drive loop notices STOPPED at the next boundary and sweeps it itself.
+    expect(removeSessionWorktrees).not.toHaveBeenCalled();
+    const [after] = await db.select().from(sessions).where(eq(sessions.id, id));
+    expect(after!.status).toBe(SessionStatus.STOPPED);
+    // Stopping ends the session — the row records when.
+    expect(after!.endedAt).not.toBeNull();
+  });
+
   it('creates an interactive session and spawns a worker', async () => {
     const spawn = vi.fn(async () => ({ containerId: 'c1' }));
     const addSessionWorktrees = vi.fn(async () => []);
@@ -84,7 +189,7 @@ describe('task routes', () => {
   });
 
   it('uses the resolved GitHub credential for worktrees and worker env', async () => {
-    const spawn = vi.fn(async () => ({ containerId: 'c1' }));
+    const spawn = vi.fn(async (_i: SpawnInput) => ({ containerId: 'c1' }));
     const addSessionWorktrees = vi.fn(async () => []);
     const { db } = await makeTestApp();
 
@@ -99,13 +204,13 @@ describe('task routes', () => {
     await service.create({}, 'al');
 
     expect(addSessionWorktrees).toHaveBeenCalledWith(expect.any(String), [], 'resolved-token');
-    expect(spawn.mock.calls[0][0].userEnv).toMatchObject({ GITHUB_TOKEN: 'resolved-token', OTHER: 'ok' });
+    expect(spawn.mock.calls[0]![0].userEnv).toMatchObject({ GITHUB_TOKEN: 'resolved-token', OTHER: 'ok' });
   });
 
   it('creates a headless task from the scheduler with a prompt', async () => {
-    const spawn = vi.fn(async () => ({ containerId: 'c1' }));
+    const spawn = vi.fn(async (_i: SpawnInput) => ({ containerId: 'c1' }));
     const { db } = await makeTestApp();
-    const [sp] = await (db as never as { insert: (t: unknown) => never })
+    const [sp] = await db
       .insert(scheduledPrompts)
       .values({ cron: '0 9 * * *', prompt: 'nightly', createdBy: 'scheduler' })
       .returning();
@@ -115,12 +220,12 @@ describe('task routes', () => {
       volume: fakeVolume(),
     });
 
-    const task = await service.create({ prompt: 'nightly' }, 'scheduler', { mode: 'headless', scheduledPromptId: sp.id });
+    const task = await service.create({ prompt: 'nightly' }, 'scheduler', { mode: 'headless', scheduledPromptId: sp!.id });
     // A scheduled fire records kind='scheduled' (its worker mode is still headless).
     expect(task.kind).toBe('scheduled');
     expect(task.prompt).toBe('nightly');
-    expect(task.scheduledPromptId).toBe(sp.id);
-    expect(spawn.mock.calls[0][0]).toMatchObject({ mode: 'headless', prompt: 'nightly' });
+    expect(task.scheduledPromptId).toBe(sp!.id);
+    expect(spawn.mock.calls[0]![0]).toMatchObject({ mode: 'headless', prompt: 'nightly' });
   });
 
   it('tears down worktrees and fails the task on spawn error', async () => {
@@ -144,9 +249,9 @@ describe('task routes', () => {
 
     const [taskRow] = await (db as never as import('drizzle-orm/node-postgres').NodePgDatabase<typeof import('../db/schema')>)
       .select().from(sessions).orderBy(sessions.createdAt);
-    expect(taskRow.status).toBe(SessionStatus.FAILED);
+    expect(taskRow!.status).toBe(SessionStatus.FAILED);
 
-    const allEvents = await eventStore.readSince(taskRow.id, 0);
+    const allEvents = await eventStore.readSince(taskRow!.id, 0);
     const statusEvent = allEvents.find((e) => e.type === EventType.STATUS);
     expect((statusEvent!.payload as { status: string }).status).toBe(SessionStatus.FAILED);
   });
@@ -197,7 +302,7 @@ describe('task routes', () => {
     const cookie = (
       await app.inject({ method: 'POST', url: '/api/login', payload: { displayName: 'alice', password: 'pw' } })
     ).cookies[0];
-    const headers = { cookie: `${cookie.name}=${cookie.value}` };
+    const headers = { cookie: `${cookie!.name}=${cookie!.value}` };
 
     const res = await app.inject({ method: 'POST', url: '/api/tasks', headers, payload: {} });
 
@@ -217,7 +322,7 @@ describe('task routes', () => {
     const cookie = (
       await app.inject({ method: 'POST', url: '/api/login', payload: { displayName: 'alice', password: 'pw' } })
     ).cookies[0];
-    const headers = { cookie: `${cookie.name}=${cookie.value}` };
+    const headers = { cookie: `${cookie!.name}=${cookie!.value}` };
 
     const res = await app.inject({ method: 'POST', url: '/api/tasks', headers, payload: { workerImage: 'w' } });
 
@@ -245,7 +350,7 @@ describe('task routes', () => {
     const cookie = (
       await app.inject({ method: 'POST', url: '/api/login', payload: { displayName: 'alice', password: 'pw' } })
     ).cookies[0];
-    const headers = { cookie: `${cookie.name}=${cookie.value}` };
+    const headers = { cookie: `${cookie!.name}=${cookie!.value}` };
 
     // Seed the stored default to 'w2' — distinct from config WORKER_IMAGE='w'
     await app.inject({ method: 'PUT', url: '/api/settings/default-worker', headers, payload: { image: 'w2' } });
@@ -267,7 +372,7 @@ describe('task routes', () => {
     const cookie = (
       await app.inject({ method: 'POST', url: '/api/login', payload: { displayName: 'alice', password: 'pw' } })
     ).cookies[0];
-    const headers = { cookie: `${cookie.name}=${cookie.value}` };
+    const headers = { cookie: `${cookie!.name}=${cookie!.value}` };
 
     const res = await app.inject({ method: 'POST', url: '/api/tasks', headers, payload: {} });
 
@@ -287,7 +392,7 @@ describe('task routes', () => {
     const cookie = (
       await app.inject({ method: 'POST', url: '/api/login', payload: { displayName: 'alice', password: 'pw' } })
     ).cookies[0];
-    const headers = { cookie: `${cookie.name}=${cookie.value}` };
+    const headers = { cookie: `${cookie!.name}=${cookie!.value}` };
 
     const res = await app.inject({ method: 'POST', url: '/api/tasks', headers, payload: { workerImage: 'evil:latest' } });
 
@@ -299,15 +404,15 @@ describe('task routes', () => {
     // session list — the symptom that made scheduled runs vanish silently.
     const [taskRow] = await (db as never as import('drizzle-orm/node-postgres').NodePgDatabase<typeof import('../db/schema')>)
       .select().from(sessions).orderBy(sessions.createdAt);
-    expect(taskRow.status).toBe(SessionStatus.FAILED);
-    expect(taskRow.workerImage).toBe('evil:latest');
+    expect(taskRow!.status).toBe(SessionStatus.FAILED);
+    expect(taskRow!.workerImage).toBe('evil:latest');
   });
 
   it('forbids a non-owner from reading or mutating another user’s session (403)', async () => {
     const { app } = await makeTestApp();
     const login = async (displayName: string) => {
       const c = (await app.inject({ method: 'POST', url: '/api/login', payload: { displayName, password: 'pw' } })).cookies[0];
-      return { cookie: `${c.name}=${c.value}` };
+      return { cookie: `${c!.name}=${c!.value}` };
     };
     const alice = await login('alice');
     const created = (await app.inject({ method: 'POST', url: '/api/tasks', headers: alice, payload: {} })).json();

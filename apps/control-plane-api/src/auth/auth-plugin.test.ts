@@ -20,7 +20,7 @@ describe('auth-plugin', () => {
     const login = await app.inject({ method: 'POST', url: '/api/login', payload: { displayName: 'al', password: 'pw' } });
     expect(login.statusCode).toBe(200);
     const cookie = login.cookies[0];
-    const ping = await app.inject({ method: 'GET', url: '/api/ping', cookies: { [cookie.name]: cookie.value } });
+    const ping = await app.inject({ method: 'GET', url: '/api/ping', cookies: { [cookie!.name]: cookie!.value } });
     expect(ping.json()).toEqual({ user: 'al' });
   });
 });

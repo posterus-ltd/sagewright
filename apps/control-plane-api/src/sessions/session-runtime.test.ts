@@ -72,7 +72,7 @@ describe('session-runtime', () => {
     rt.start(startInput('s1'));
     expect(rt.isLive('s1')).toBe(true); // live the instant the turn is claimed, before exec resolves
     await tick();
-    endFirst?.(0); // first turn ends → DETACHED
+    (endFirst as ((v: number | null) => void) | null)?.(0); // first turn ends → DETACHED
     await tick();
     expect(rt.isLive('s1')).toBe(false);
 
@@ -123,6 +123,35 @@ describe('session-runtime', () => {
 
     expect(f.sessions[0]!.write).toHaveBeenCalledWith('ls\n');
     expect(f.sessions[0]!.resize).toHaveBeenCalledWith({ cols: 80, rows: 24 });
+  });
+
+  it('ensure rebuilds a resting entry (post-restart) that attach and resume can use', () => {
+    const f = fakeRunner();
+    const rt = createSessionRuntime({ agentRunner: f.runner });
+
+    expect(rt.has('s1')).toBe(false);
+    rt.ensure(startInput('s1'));
+    expect(rt.has('s1')).toBe(true);
+    expect(rt.isLive('s1')).toBe(false); // resting — ensure never drives a turn
+
+    const got: Buffer[] = [];
+    rt.attach('s1', (b) => got.push(b));
+    rt.resume('s1'); // resumes like any detached session
+    expect(f.cmds[0]).toEqual(['continue-agent']);
+    f.feed(Buffer.from('back'));
+    expect(Buffer.concat(got).toString()).toBe('back');
+  });
+
+  it('ensure never clobbers an existing entry (idempotent under racing attaches)', () => {
+    const f = fakeRunner();
+    const rt = createSessionRuntime({ agentRunner: f.runner });
+
+    rt.start(startInput('s1'));
+    rt.ensure({ ...startInput('s1'), containerId: 'other' });
+
+    expect(rt.isLive('s1')).toBe(true); // the live turn is untouched
+    rt.write('s1', 'x');
+    expect(f.sessions[0]!.write).toHaveBeenCalledWith('x');
   });
 
   it('complete delegates to the agent runner with the session context and drops the entry', async () => {

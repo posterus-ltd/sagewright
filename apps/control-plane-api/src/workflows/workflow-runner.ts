@@ -3,6 +3,7 @@ import { mkdir, readFile } from 'node:fs/promises';
 import {
   EventType,
   SessionStatus,
+  TERMINAL_STATUSES,
   isTerminalStatus,
   runBranch,
   runDir,
@@ -12,7 +13,7 @@ import {
   type WorkflowRun,
   type WorkflowStep,
 } from '@sagewright/shared';
-import { eq } from 'drizzle-orm';
+import { and, eq, notInArray } from 'drizzle-orm';
 
 import type { AppConfig } from '../config';
 import type { Db } from '../db/client';
@@ -77,6 +78,15 @@ export const createWorkflowRunner = (deps: WorkflowRunnerDeps) => {
   // A run IS a kind='workflow' session; updates target that parent row by id.
   const setRun = (runId: string, set: Partial<typeof sessions.$inferInsert>): Promise<unknown> =>
     deps.db.update(sessions).set({ ...set, updatedAt: new Date() }).where(eq(sessions.id, runId));
+
+  // Terminal writes go through this guard so the drive can never overwrite an
+  // externally settled outcome (a user's STOPPED must survive the finally).
+  // Settling is what ends a run, so the endedAt stamp lives here.
+  const settleRun = (runId: string, set: Partial<typeof sessions.$inferInsert>): Promise<unknown> =>
+    deps.db
+      .update(sessions)
+      .set({ ...set, endedAt: new Date(), updatedAt: new Date() })
+      .where(and(eq(sessions.id, runId), notInArray(sessions.status, [...TERMINAL_STATUSES])));
 
   // Compose the step prompt: goal + the prior handoff + the output contract the
   // orchestrator relies on. The worker's start-agent prepends SOUL.md to this.
@@ -199,6 +209,11 @@ export const createWorkflowRunner = (deps: WorkflowRunnerDeps) => {
 
       // Sequential step loop — never parallel: all steps share one worktree.
       for (;;) {
+        // Cancellation point: a user stop (or any external settle) lands as a terminal
+        // status on the parent row — honour it at the step boundary instead of driving on.
+        const [live] = await deps.db.select().from(sessions).where(eq(sessions.id, runId)).limit(1);
+        if (!live || isTerminalStatus(live.status as SessionStatus)) break;
+
         const step = stepsByKey.get(currentKey);
         if (!step) {
           status = SessionStatus.FAILED;
@@ -302,10 +317,16 @@ export const createWorkflowRunner = (deps: WorkflowRunnerDeps) => {
       logger.error(err, `workflow run ${runId} failed`);
     } finally {
       if (opsContainerId) await deps.spawner.retire(opsContainerId).catch(() => undefined);
-      await deps.volume.removeSessionWorktrees(runId).catch(() => undefined);
+      // Sweep the run worktree only when the run settled inside the step loop. A
+      // setup-phase crash (e.g. a transient git failure on a reconciled resume) must
+      // not destroy the preserved uncommitted work — a later resume gets another shot.
+      if (status !== SessionStatus.FAILED || inLoop) {
+        await deps.volume.removeSessionWorktrees(runId).catch(() => undefined);
+      }
       // Keep the failed step on the run so the graph can highlight where it died;
       // clear it for runs that reached an end state (succeeded / max_iterations).
-      await setRun(runId, { status, error: reason, currentStepKey: status === SessionStatus.FAILED ? failedStepKey : null });
+      // Guarded: an externally settled run (user stop) keeps its own outcome.
+      await settleRun(runId, { status, error: reason, currentStepKey: status === SessionStatus.FAILED ? failedStepKey : null });
     }
   };
 
@@ -328,6 +349,7 @@ export const createWorkflowRunner = (deps: WorkflowRunnerDeps) => {
           iteration: 0,
           triggerContext: input ? { input } : null,
           createdBy,
+          startedAt: new Date(),
         })
         .returning();
       await setRun(run!.id, { branch: runBranch(run!.id) });
@@ -335,7 +357,7 @@ export const createWorkflowRunner = (deps: WorkflowRunnerDeps) => {
       void drive(run!.id, def, createdBy, input).catch(async (err) => {
         logger.error(err, `workflow run ${run!.id} crashed`);
         const error = err instanceof Error ? err.message : String(err);
-        await setRun(run!.id, { status: SessionStatus.FAILED, error, currentStepKey: null }).catch(() => undefined);
+        await settleRun(run!.id, { status: SessionStatus.FAILED, error, currentStepKey: null }).catch(() => undefined);
       });
 
       return {
@@ -364,7 +386,7 @@ export const createWorkflowRunner = (deps: WorkflowRunnerDeps) => {
       const input = (run.triggerContext as { input?: string } | null)?.input;
       void drive(parentId, def, run.createdBy, input, run.currentStepKey ?? undefined, run.iteration ?? 0).catch(async (err) => {
         logger.error(err, `workflow run ${parentId} crashed on resume`);
-        await setRun(parentId, { status: SessionStatus.FAILED, error: String(err), currentStepKey: null }).catch(() => undefined);
+        await settleRun(parentId, { status: SessionStatus.FAILED, error: String(err), currentStepKey: null }).catch(() => undefined);
       });
     },
   };

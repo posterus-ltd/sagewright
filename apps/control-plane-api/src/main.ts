@@ -15,7 +15,7 @@ import { createGithubCredentialService } from './github/github-credential-servic
 import { createCanvasLayoutService } from './canvas-layout/canvas-layout-service';
 import { createWorkflowService } from './workflows/workflow-service';
 import { createWorkflowRunner } from './workflows/workflow-runner';
-import { createWorkerSpawner } from './tasks/worker-spawner';
+import { SESSION_LABEL, createWorkerSpawner } from './tasks/worker-spawner';
 import { createDockerClient, createContainerTerminal, createContainerExec } from './tasks/docker-client';
 import { createAgentRunner } from './tasks/agent-runner';
 import { createUserSettingsService } from './user-settings/user-settings-service';
@@ -58,21 +58,42 @@ const workflowRunner = createWorkflowRunner({ db, spawner, sessionService, agent
 const SCHEDULER_LOCK_KEY = 0x5a6e_7c01; // arbitrary fixed key for the scheduler lock
 let leaderClient: import('pg').PoolClient | null = null;
 let isLeader = false;
+// Assigned once the scheduler exists (it is constructed below, after this closure).
+let onLeaderLoss: () => void = () => {};
 const scheduler = createScheduler({
   db,
   taskService,
   workflowService,
   workflowRunner,
+  timezone: config.schedulerTimezone,
   leadership: {
     acquire: async () => {
       if (isLeader) return true; // already hold the lock — don't re-take it (avoids stacking the count)
-      if (!leaderClient) leaderClient = await pool.connect(); // pinned for the lock's lifetime
+      if (!leaderClient) {
+        leaderClient = await pool.connect(); // pinned for the lock's lifetime
+        // A dropped connection releases the advisory lock server-side, and an
+        // unhandled 'error' event on a checked-out pg client would crash the whole
+        // process. Demote ourselves instead: stop our crons (another instance may
+        // now win the lock) and re-compete on a fresh client at the next sync.
+        leaderClient.on('error', (err) => {
+          console.error('scheduler leader connection lost; demoting', err);
+          try {
+            leaderClient?.release(true);
+          } catch {
+            // already destroyed
+          }
+          leaderClient = null;
+          isLeader = false;
+          onLeaderLoss();
+        });
+      }
       const res = await leaderClient.query<{ ok: boolean }>('SELECT pg_try_advisory_lock($1) AS ok', [SCHEDULER_LOCK_KEY]);
       isLeader = res.rows[0]?.ok ?? false;
       return isLeader;
     },
   },
 });
+onLeaderLoss = () => scheduler.stopAll();
 // Boot-time DB↔container reconciliation. A container is "alive" if dockerode can inspect it.
 const reconciler = createReconciler({
   db,
@@ -85,6 +106,12 @@ const reconciler = createReconciler({
     } catch {
       return false;
     }
+  },
+  // Every worker/ops box is labeled with its session id at spawn — the sweep's
+  // only handle for containers whose id never reached a session row.
+  listLabeledContainers: async () => {
+    const list = await docker.listContainers({ all: true, filters: { label: [SESSION_LABEL] } });
+    return list.map((c) => ({ containerId: c.Id, sessionId: c.Labels?.[SESSION_LABEL] ?? '' }));
   },
   retire: spawner.retire,
   removeSessionWorktrees: volume.removeSessionWorktrees,

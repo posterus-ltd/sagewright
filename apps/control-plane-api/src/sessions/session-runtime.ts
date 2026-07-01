@@ -43,8 +43,9 @@ interface SessionRuntimeDeps {
  * In-process registry of interactive sessions, decoupled from any browser socket.
  * Owns at most one live agent exec per session (the attach lock), tees that exec's
  * PTY output to every attached viewer, and keeps the session alive (DETACHED) between
- * turns so closing the tab never tears the agent down. State is in-process only — the
- * boot reconciler (Phase 3) re-establishes it after a restart.
+ * turns so closing the tab never tears the agent down. State is in-process only —
+ * after a restart a DETACHED session's entry is rebuilt on demand via `ensure`
+ * (the terminal route hydrates it from persistent state before attaching).
  */
 export const createSessionRuntime = (deps: SessionRuntimeDeps) => {
   const registry = new Map<string, RuntimeEntry>();
@@ -75,20 +76,33 @@ export const createSessionRuntime = (deps: SessionRuntimeDeps) => {
     void turn.catch(() => undefined);
   };
 
+  const makeEntry = (input: StartSessionInput): RuntimeEntry => ({
+    exec: null,
+    live: false,
+    viewers: new Set(),
+    containerId: input.containerId,
+    manifest: input.manifest,
+    sessionDir: input.sessionDir,
+    githubIdentity: input.githubIdentity,
+  });
+
   return {
     /** Begin the first turn of a freshly-spawned interactive session (start-agent). */
     start: (input: StartSessionInput): void => {
-      const entry: RuntimeEntry = {
-        exec: null,
-        live: false,
-        viewers: new Set(),
-        containerId: input.containerId,
-        manifest: input.manifest,
-        sessionDir: input.sessionDir,
-        githubIdentity: input.githubIdentity,
-      };
+      const entry = makeEntry(input);
       registry.set(input.sessionId, entry);
       driveTurn(input.sessionId, entry); // default cmd = start-agent
+    },
+
+    /** Whether the session has a runtime entry (live or resting). */
+    has: (sessionId: string): boolean => registry.has(sessionId),
+
+    /** Rebuild a RESTING entry from persistent state (post-restart hydration) without
+     *  driving a turn — the next keystroke resumes it like any detached session.
+     *  A no-op when an entry already exists, so it can never clobber a live turn. */
+    ensure: (input: StartSessionInput): void => {
+      if (registry.has(input.sessionId)) return;
+      registry.set(input.sessionId, makeEntry(input));
     },
 
     /** Resume a detached session for another turn (continue-agent). Refused if a turn
