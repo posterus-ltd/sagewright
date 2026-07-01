@@ -80,6 +80,20 @@ describe('reconciler', () => {
     expect(await statusOf(db, id)).toBe(SessionStatus.RUNNING);
   });
 
+  it('fails a workflow_step and retires its box but does NOT remove the run-shared worktree', async () => {
+    const { db, reconciler, retire, removeSessionWorktrees } = await setup({ alive: true });
+    const parent = await insert(db, { kind: 'workflow', status: SessionStatus.RUNNING });
+    const step = await insert(db, { kind: 'workflow_step', status: SessionStatus.RUNNING, containerId: 'c1', parentSessionId: parent });
+
+    await reconciler.reconcile();
+
+    expect(await statusOf(db, step)).toBe(SessionStatus.FAILED);
+    expect(retire).toHaveBeenCalledWith('c1');
+    // A step shares the RUN's worktree (keyed by the run id); the reconciler must not
+    // sweep it — the parent's resume re-drives against it and owns its cleanup.
+    expect(removeSessionWorktrees).not.toHaveBeenCalledWith(step);
+  });
+
   it('leaves terminal sessions untouched', async () => {
     const { db, reconciler, retire, resumeWorkflow } = await setup({ alive: true });
     const id = await insert(db, { kind: 'headless', status: SessionStatus.DONE, containerId: 'c1' });

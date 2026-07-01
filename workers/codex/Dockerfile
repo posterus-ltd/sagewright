@@ -35,7 +35,11 @@ RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
 RUN npm install -g @openai/codex@0.142.2
 
 # 2. Auth: Codex picks up OPENAI_API_KEY (baked in at the bottom of this file)
-#    and talks to the OpenAI API directly.
+#    and talks to the OpenAI API directly. config.toml pins a provider that uses
+#    the HTTP Responses transport (supports_websockets = false) so the API key is
+#    accepted — the default WebSocket transport only takes a browser session key.
+RUN mkdir -p /root/.codex
+COPY workers/codex/config.toml /root/.codex/config.toml
 
 # 3. Alignment / system prompt: start-agent prepends this to every task's prompt.
 RUN mkdir -p /etc/sagewright

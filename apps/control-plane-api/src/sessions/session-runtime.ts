@@ -12,8 +12,14 @@ const CONTINUE_AGENT = ['continue-agent'];
 
 interface RuntimeEntry {
   // The live agent exec, or null when the session is DETACHED (resting between turns).
-  // A non-null exec IS the attach lock: only one turn runs per session at a time.
+  // Used for write/resize; it lands asynchronously once `docker exec` resolves, so it
+  // is NOT the lock — `live` is.
   exec: AgentExecSession | null;
+  // The attach lock. Flipped true SYNCHRONOUSLY at the start of a turn (before any
+  // await) and cleared when the turn settles, so two resumes racing through the exec
+  // spawn window can't both start a turn. `exec` alone can't do this: it stays null
+  // during the spawn, leaving the guard open.
+  live: boolean;
   viewers: Set<Sink>;
   containerId: string;
   manifest: RepoManifestEntry[];
@@ -50,6 +56,7 @@ export const createSessionRuntime = (deps: SessionRuntimeDeps) => {
   // Drive one turn: hand the live exec to the entry, tee output to viewers, and clear
   // the live exec once the turn ends (runInteractive has already stamped DETACHED).
   const driveTurn = (sessionId: string, entry: RuntimeEntry, cmd?: string[]): void => {
+    entry.live = true; // claim the lock before any await so a racing resume is refused
     const turn = deps.agentRunner
       .runInteractive(
         {
@@ -63,6 +70,7 @@ export const createSessionRuntime = (deps: SessionRuntimeDeps) => {
       )
       .finally(() => {
         entry.exec = null;
+        entry.live = false;
       });
     void turn.catch(() => undefined);
   };
@@ -72,6 +80,7 @@ export const createSessionRuntime = (deps: SessionRuntimeDeps) => {
     start: (input: StartSessionInput): void => {
       const entry: RuntimeEntry = {
         exec: null,
+        live: false,
         viewers: new Set(),
         containerId: input.containerId,
         manifest: input.manifest,
@@ -87,11 +96,11 @@ export const createSessionRuntime = (deps: SessionRuntimeDeps) => {
     resume: (sessionId: string): void => {
       const entry = registry.get(sessionId);
       if (!entry) throw new Error(`no session runtime for ${sessionId}`);
-      if (entry.exec) throw new Error(`session ${sessionId} already has a live agent`);
+      if (entry.live) throw new Error(`session ${sessionId} already has a live agent`);
       driveTurn(sessionId, entry, CONTINUE_AGENT);
     },
 
-    isLive: (sessionId: string): boolean => registry.get(sessionId)?.exec != null,
+    isLive: (sessionId: string): boolean => registry.get(sessionId)?.live === true,
 
     write: (sessionId: string, data: string): void => {
       registry.get(sessionId)?.exec?.write(data);

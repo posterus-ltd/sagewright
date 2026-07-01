@@ -30,6 +30,10 @@ services:
       SESSION_SECRET: ${SESSION_SECRET}
       # Encrypts each user's custom per-session .env blob at rest (aes-256-gcm).
       SECRETS_KEY: ${SECRETS_KEY}
+      # DESTRUCTIVE one-time switch: when truthy, the migrate step drops the whole
+      # public schema before applying migrations. Use it once to clear a database
+      # that still holds pre-squash data, then leave it unset. Defaults to off.
+      DB_RESET: ${DB_RESET:-}
       # Used to authenticate clones/pulls of the configured repos onto the volume.
       GITHUB_TOKEN: ${GITHUB_TOKEN:-}
       # Used by the control-plane's Linear integration (task source=linear).

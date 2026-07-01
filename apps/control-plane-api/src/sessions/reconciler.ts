@@ -64,8 +64,19 @@ export const createReconciler = (deps: ReconcilerDeps) => {
       return;
     }
 
-    // headless / scheduled / workflow_step: a control-plane-driven run whose driver
-    // died on restart. There's no way to re-attach the exit, so settle it FAILED.
+    // A workflow_step's box is orphaned by the restart: settle the row FAILED and retire
+    // its container, but DON'T touch worktrees. A step shares the RUN's single worktree
+    // (keyed by the run id, not the step id) — the parent's resumeWorkflow re-drives the
+    // current step against it and owns its cleanup. Removing it here (or keying removal by
+    // the step id) would either no-op wrongly or yank the worktree out from under the resume.
+    if (row.kind === 'workflow_step') {
+      await fail(row.id, 'reconciler: workflow step interrupted by a control-plane restart');
+      if (alive && row.containerId) await deps.retire(row.containerId).catch(() => undefined);
+      return;
+    }
+
+    // headless / scheduled: a control-plane-driven run whose driver died on restart.
+    // There's no way to re-attach the exit, so settle it FAILED.
     await fail(row.id, 'reconciler: run interrupted by a control-plane restart');
     if (alive && row.containerId) await deps.retire(row.containerId).catch(() => undefined);
     else await deps.removeSessionWorktrees(row.id).catch(() => undefined);

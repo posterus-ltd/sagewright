@@ -156,6 +156,7 @@ export const createWorkflowRunner = (deps: WorkflowRunnerDeps) => {
     createdBy: string,
     input: string | undefined,
     startKey?: string,
+    startIteration = 0,
   ): Promise<void> => {
     const stepsByKey = new Map(def.steps.map((s) => [s.key, s]));
     const dir = runDir(runId);
@@ -186,8 +187,14 @@ export const createWorkflowRunner = (deps: WorkflowRunnerDeps) => {
       );
       await files.ensureDir(`${dir}/.sagewright`);
 
-      let iteration = 0;
-      let carried: string | null = input ?? null;
+      // On a reconciled resume (startKey set) restore the loop position: the prior
+      // step's handoff lives on the shared worktree, so read it rather than feeding the
+      // resumed step the original seed input; and restore the iteration counter so a
+      // validation loop's maxIterations budget isn't silently reset to zero.
+      let iteration = startIteration;
+      let carried: string | null = startKey
+        ? ((await files.readText(`${dir}/${HANDOFF_REL}`)) ?? input ?? null)
+        : (input ?? null);
       inLoop = true;
 
       // Sequential step loop — never parallel: all steps share one worktree.
@@ -355,7 +362,7 @@ export const createWorkflowRunner = (deps: WorkflowRunnerDeps) => {
       if (!wf) return;
       const def = workflowDefinitionSchema.parse(wf.definition);
       const input = (run.triggerContext as { input?: string } | null)?.input;
-      void drive(parentId, def, run.createdBy, input, run.currentStepKey ?? undefined).catch(async (err) => {
+      void drive(parentId, def, run.createdBy, input, run.currentStepKey ?? undefined, run.iteration ?? 0).catch(async (err) => {
         logger.error(err, `workflow run ${parentId} crashed on resume`);
         await setRun(parentId, { status: SessionStatus.FAILED, error: String(err), currentStepKey: null }).catch(() => undefined);
       });

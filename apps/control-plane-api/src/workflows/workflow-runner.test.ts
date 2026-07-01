@@ -261,4 +261,36 @@ describe('workflow-runner', () => {
     expect(rows).toHaveLength(1);
     expect(rows[0]!.status).toBe('failed');
   });
+
+  it('resume seeds the prior on-disk handoff and restores the persisted iteration', async () => {
+    const { db, runner, workflowId, spawnInputs } = await setup({ verdicts: [false] });
+    // Simulate a run reconciled mid-flight: persisted at the validate step on iteration 2
+    // (one short of maxIterations=3), carrying its original seed input on the row.
+    const [parent] = await (db as never as { insert: (t: unknown) => never })
+      .insert(sessions)
+      .values({
+        kind: 'workflow',
+        createdBy: 'al',
+        status: 'running',
+        workflowId,
+        currentStepKey: 'validate',
+        iteration: 2,
+        triggerContext: { input: 'ORIGINAL_SEED' },
+      })
+      .returning();
+    const parentId = (parent as { id: string }).id;
+
+    await runner.resume(parentId);
+    const settled = await waitForRun(db, parentId);
+
+    // Iteration was restored to 2, so a single failing validate hits maxIterations(3)
+    // at once — NOT three fresh visits as a silent reset-to-0 would produce.
+    expect(settled.status).toBe('max_iterations');
+    const validateVisits = (await stepKeys(db, parentId)).filter((k) => k === 'validate');
+    expect(validateVisits).toHaveLength(1);
+    // The resumed step's prompt carries the previous step's on-disk handoff, not the
+    // original seed input (which buildPrompt would otherwise mislabel as the handoff).
+    expect(spawnInputs[0]!.prompt).toContain('handoff');
+    expect(spawnInputs[0]!.prompt).not.toContain('ORIGINAL_SEED');
+  });
 });

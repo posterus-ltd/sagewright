@@ -71,6 +71,9 @@ Re-run this whenever you change those tokens.
 docker compose --profile build build
 ```
 
+> **Tip:** `scripts/build-workers.sh` is a convenience wrapper for this — see
+> [Rebuilding the worker images](#rebuilding-the-worker-images).
+
 ### 3. Start everything
 
 ```bash
@@ -118,6 +121,27 @@ Each active session runs in its own `sagewright-worker` container spawned by the
 alongside the long-lived `control-plane` and `postgres` services — `docker ps` shows them all:
 
 ![docker ps — control plane, spawned workers, and postgres](./screenshots/docker-ps.png)
+
+### Rebuilding the worker images
+
+Worker images bake the host `.env` auth tokens in as build args, so you must rebuild after
+**any** of: rotating a token in `.env`, editing a worker `Dockerfile`, or changing a harness
+config (e.g. `opencode.config.json`, `SOUL.md`). The images sit behind the `build` compose
+profile because the control plane spawns them on demand — so `docker compose up --build` alone
+**skips** them, and you must build them explicitly.
+
+```bash
+scripts/build-workers.sh                 # rebuild every worker image
+scripts/build-workers.sh --no-cache      # force-rebuild (re-bake stale/rotated tokens)
+scripts/build-workers.sh worker-opencode # rebuild a single worker image
+```
+
+The script is a thin wrapper around `docker compose --profile build build` that runs from the
+repo root and passes its arguments straight through. Use `--no-cache` when you've only changed a
+token: Docker caches the `ARG`/`ENV` layers, so a plain rebuild can keep an old key baked in.
+
+> Rebuilding only affects **new** sessions. Already-running worker containers keep the image they
+> were spawned from until they're replaced.
 
 ### Override the opencode config (models & MCP servers)
 
@@ -284,6 +308,37 @@ Run DB migrations manually:
 
 ```bash
 DATABASE_URL=postgres://postgres:postgres@localhost:5432/sage \
+  node apps/control-plane-api/dist/db/migrate.js
+```
+
+#### `DB_RESET` — destructive clean slate
+
+`DB_RESET` is an opt-in switch on the migrate step. When truthy (`1`, `true`, or
+`yes`, case-insensitive) it **drops and re-creates the entire `public` schema** before
+applying migrations, so **all data is lost**. It is **off by default** and must be set
+explicitly.
+
+It exists for one situation: the migration history was squashed into a single `0000`
+baseline, so a database that already ran the old numbered migrations conflicts (its
+tables still exist and its `__drizzle_migrations` log no longer matches the journal,
+making the fresh `CREATE TABLE`s fail). Set `DB_RESET` once to wipe such a database so
+the squashed baseline applies cleanly, then leave it unset. It's also handy for
+resetting a throwaway dev database.
+
+> **Never** set `DB_RESET` against a database whose contents you need.
+
+The compose stack forwards it from the host into the control-plane container
+(`DB_RESET: ${DB_RESET:-}`), so you can run the migrate step with it for a one-time wipe:
+
+```bash
+# One-time wipe before bringing the stack up (clears pre-squash data).
+DB_RESET=1 docker compose up --build -d
+```
+
+Or pass it directly to a manual migration run:
+
+```bash
+DB_RESET=1 DATABASE_URL=postgres://postgres:postgres@localhost:5432/sage \
   node apps/control-plane-api/dist/db/migrate.js
 ```
 

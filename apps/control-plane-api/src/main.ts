@@ -49,9 +49,15 @@ const sessionRuntime = createSessionRuntime({ agentRunner });
 const taskService = createTaskService({ db, eventStore, eventBus, spawner, agentRunner, volume, sessionService, sessionRuntime });
 const workflowService = createWorkflowService({ db });
 const workflowRunner = createWorkflowRunner({ db, spawner, sessionService, agentRunner, exec: containerExec, volume, config, githubCredentialService });
-// Single-leader scheduling across replicas: only the instance that wins this session
-// advisory lock runs the crons. The lock is held for the life of the pool connection.
+// Single-leader scheduling across replicas: only the instance that wins this advisory
+// lock runs the crons. `pg_try_advisory_lock` is CONNECTION-scoped, so the lock must be
+// taken — and held — on one stable connection. Using `pool.query` would check out a
+// different pooled connection on each call, and the lock (still held by the first,
+// now-idle connection) would make every later acquire() observe it as taken — the
+// leader would disable its own crons on the next sync. So we pin one dedicated client.
 const SCHEDULER_LOCK_KEY = 0x5a6e_7c01; // arbitrary fixed key for the scheduler lock
+let leaderClient: import('pg').PoolClient | null = null;
+let isLeader = false;
 const scheduler = createScheduler({
   db,
   taskService,
@@ -59,8 +65,11 @@ const scheduler = createScheduler({
   workflowRunner,
   leadership: {
     acquire: async () => {
-      const res = await pool.query<{ ok: boolean }>('SELECT pg_try_advisory_lock($1) AS ok', [SCHEDULER_LOCK_KEY]);
-      return res.rows[0]?.ok ?? false;
+      if (isLeader) return true; // already hold the lock — don't re-take it (avoids stacking the count)
+      if (!leaderClient) leaderClient = await pool.connect(); // pinned for the lock's lifetime
+      const res = await leaderClient.query<{ ok: boolean }>('SELECT pg_try_advisory_lock($1) AS ok', [SCHEDULER_LOCK_KEY]);
+      isLeader = res.rows[0]?.ok ?? false;
+      return isLeader;
     },
   },
 });

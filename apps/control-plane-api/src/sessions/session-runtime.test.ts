@@ -52,6 +52,36 @@ describe('session-runtime', () => {
     expect(f.cmds[0]).toBeUndefined(); // first turn → default cmd (start-agent)
   });
 
+  it('refuses a racing resume during the exec spawn window and starts only one turn', async () => {
+    // A runner whose exec lands LATE (next tick), mirroring docker exec taking time to
+    // resolve. The lock must be the synchronous `live` flag, not the async `exec` handle:
+    // if it were exec-bound, two resumes firing inside the spawn window would both pass
+    // the guard and start two concurrent turns on the same container.
+    let turnCount = 0;
+    let endFirst: ((v: number | null) => void) | null = null;
+    const runInteractive = (_i: unknown, opts: { onSession?: (s: unknown) => void } = {}): Promise<number | null> => {
+      turnCount += 1;
+      const isFirst = turnCount === 1;
+      setTimeout(() => opts.onSession?.({ write: vi.fn(), resize: vi.fn(async () => {}) }), 0); // exec lands async
+      return new Promise<number | null>((res) => {
+        if (isFirst) endFirst = res;
+      });
+    };
+    const rt = createSessionRuntime({ agentRunner: { runInteractive, complete: vi.fn() } as never });
+
+    rt.start(startInput('s1'));
+    expect(rt.isLive('s1')).toBe(true); // live the instant the turn is claimed, before exec resolves
+    await tick();
+    endFirst?.(0); // first turn ends → DETACHED
+    await tick();
+    expect(rt.isLive('s1')).toBe(false);
+
+    rt.resume('s1'); // claims the lock synchronously
+    expect(() => rt.resume('s1')).toThrow(); // refused even though the resumed exec hasn't landed yet
+    await tick();
+    expect(turnCount).toBe(2); // start + one resume — NOT three
+  });
+
   it('goes not-live after the turn ends; resume re-establishes with continue-agent', async () => {
     const f = fakeRunner();
     const rt = createSessionRuntime({ agentRunner: f.runner });

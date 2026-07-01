@@ -21,7 +21,13 @@ export const createEventStore = (db: Db) => {
   const runExclusive = <T>(sessionId: string, fn: () => Promise<T>): Promise<T> => {
     const prev = locks.get(sessionId) ?? Promise.resolve();
     const run = prev.then(fn, fn);
-    locks.set(sessionId, run.then(() => undefined, () => undefined));
+    const tail = run.then(() => undefined, () => undefined);
+    locks.set(sessionId, tail);
+    // Evict the entry once it settles, but only if nothing newer chained on after it —
+    // otherwise the map grows one never-removed entry per session id for the process life.
+    void tail.then(() => {
+      if (locks.get(sessionId) === tail) locks.delete(sessionId);
+    });
     return run;
   };
 

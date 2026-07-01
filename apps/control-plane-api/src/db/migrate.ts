@@ -16,9 +16,27 @@ import { createDb } from './client';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const migrationsFolder = path.resolve(__dirname, '../../drizzle');
 
+// Truthy env flag parser — accepts 1/true/yes (case-insensitive).
+const isEnabled = (v: string | undefined): boolean => /^(1|true|yes)$/i.test(v ?? '');
+
 const run = async (): Promise<void> => {
   const config = loadConfig(process.env);
   const { db, pool } = createDb(config.databaseUrl);
+
+  // One-time clean slate. The migration history was squashed into a single 0000
+  // baseline, so a database that already ran the old numbered migrations conflicts:
+  // its tables still exist and its __drizzle_migrations log no longer matches the
+  // journal, so the fresh CREATE TABLEs fail. Setting DB_RESET drops the whole public
+  // schema first, letting the squashed baseline apply to an empty database.
+  //
+  // DESTRUCTIVE: this wipes ALL data. It is OFF by default and must be opted into
+  // explicitly (the schema-squash transition, or a throwaway dev DB) — never set it
+  // against a database whose contents you need.
+  if (isEnabled(process.env.DB_RESET)) {
+    console.warn('DB_RESET set — dropping and re-creating the "public" schema (ALL data will be lost)');
+    await pool.query('DROP SCHEMA public CASCADE; CREATE SCHEMA public;');
+  }
+
   await migrate(db, { migrationsFolder });
   await pool.end();
 };

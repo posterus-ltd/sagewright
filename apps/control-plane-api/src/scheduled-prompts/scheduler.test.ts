@@ -109,4 +109,22 @@ describe('createScheduler', () => {
 
     expect(create).toHaveBeenCalledWith({ prompt: 'daily' }, 'al', { mode: 'headless', scheduledPromptId: 'sp' });
   });
+
+  it('does NOT catch-up-fire a never-run prompt on start (waits for its first real tick)', async () => {
+    const create = vi.fn(async () => ({}) as never);
+    const set = vi.fn(() => ({ where: vi.fn(async () => undefined) }));
+    // Never run (lastRunAt: null) and not due for hours — adding it must not fire it now,
+    // even though measuring a "missed" tick from epoch would make it look overdue.
+    const rows = [
+      { id: 'sp', cron: '0 9 * * *', prompt: 'daily', enabled: true, createdBy: 'al', workerImage: null, lastRunAt: null },
+    ];
+    const db = { select: () => ({ from: async () => rows }), update: () => ({ set }) } as never;
+
+    const scheduler = createScheduler({ db, taskService: { create } as never });
+    await scheduler.start();
+    await new Promise((r) => setTimeout(r, 50)); // give any erroneous catch-up a chance to fire
+    scheduler.stopAll();
+
+    expect(create).not.toHaveBeenCalled();
+  });
 });

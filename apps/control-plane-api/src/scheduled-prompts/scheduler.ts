@@ -124,11 +124,15 @@ export const createScheduler = (deps: SchedulerDeps) => {
   // If the most recent scheduled time has already passed with no run since (we were
   // down), fire once now so a missed nightly job still happens after a restart.
   const catchUpIfMissed = (r: typeof scheduledPrompts.$inferSelect): void => {
+    // A never-run prompt has no missed tick to catch up: measuring from epoch would
+    // make every freshly-created prompt look overdue and fire it on the spot (e.g. a
+    // "daily at 3am" added at noon would run at noon). Wait for its first real tick.
+    if (!r.lastRunAt) return;
     try {
-      // The first scheduled occurrence strictly after the last run (epoch if never
-      // run). If that moment is already in the past, a tick was missed while down.
+      // The first scheduled occurrence strictly after the last run. If that moment is
+      // already in the past, a tick was missed while we were down — fire once now.
       const probe = new Cron(r.cron, cronOpts({ paused: true }));
-      const nextAfterLast = probe.nextRun(r.lastRunAt ?? new Date(0));
+      const nextAfterLast = probe.nextRun(r.lastRunAt);
       probe.stop();
       if (nextAfterLast && nextAfterLast.getTime() <= Date.now()) void fire(r);
     } catch {
