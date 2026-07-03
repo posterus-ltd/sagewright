@@ -3,6 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "description": "Sagewright — control plane for running coding agents in Docker containers",
+  "license": "Elastic-2.0",
   "packageManager": "npm",
   "scripts": {
     "nx": "nx",

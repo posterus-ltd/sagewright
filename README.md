@@ -22,11 +22,11 @@ OpenAI, Anthropic, Google, local models via Ollama, or anything else opencode re
 
 You need these installed and working before you start. Each line has a quick command to check it.
 
-| Requirement             | Why                                                             | Check                                                              |
-| ----------------------- | --------------------------------------------------------------- | ------------------------------------------------------------------ |
-| **Docker** + Compose v2 | Runs the whole stack and spawns agent workers                   | `docker compose version`                                           |
-| **Node.js 22+**         | Local builds, tests, and helper scripts                         | `node --version`                                                   |
-| **A GitHub token**      | Lets workers clone repos, push branches, and open PRs           | [Create one →](https://github.com/settings/tokens) (scope: `repo`) |
+| Requirement             | Why                                                                  | Check                                                                                           |
+| ----------------------- | -------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| **Docker** + Compose v2 | Runs the whole stack and spawns agent workers                        | `docker compose version`                                                                        |
+| **Node.js 22+**         | Local builds, tests, and helper scripts                              | `node --version`                                                                                |
+| **A GitHub token**      | Lets workers clone repos, push branches, and open PRs                | [Create one →](https://github.com/settings/tokens) (scope: `repo`)                              |
 | **A model API key**     | The agent's inference provider — without one the worker does nothing | OpenAI is the default ([get a key →](https://platform.openai.com/api-keys)); any provider works |
 
 > No Docker experience? You only need to run the handful of `docker compose` commands below —
@@ -251,10 +251,10 @@ into the image so every session, for every user, gets them); let each user add *
 in the control plane** (**Settings → Environment**), which apply only to their own sessions and take
 effect at runtime with no rebuild.
 
-| Layer                    | Where it's set                                                       | Scope                     | When it applies                                  |
-| ------------------------ | ------------------------------------------------------------------- | ------------------------- | ------------------------------------------------ |
-| **Global / org default** | Host `.env`, baked into the worker image as a build arg             | Every session, every user | Build time — rebuild the image to change it      |
-| **Per-user override**    | **Settings → Environment** in the web UI                            | Only that user's sessions | Runtime — takes effect next session, no rebuild  |
+| Layer                    | Where it's set                                          | Scope                     | When it applies                                 |
+| ------------------------ | ------------------------------------------------------- | ------------------------- | ----------------------------------------------- |
+| **Global / org default** | Host `.env`, baked into the worker image as a build arg | Every session, every user | Build time — rebuild the image to change it     |
+| **Per-user override**    | **Settings → Environment** in the web UI                | Only that user's sessions | Runtime — takes effect next session, no rebuild |
 
 To add a **global** variable, put it in `.env` and wire it into the worker image as an `ARG`/`ENV`
 in the Dockerfile (see how `OPENAI_API_KEY` is forwarded in
@@ -375,5 +375,11 @@ forwards interjections to stdin, and runs `git-pr.ts` on a clean exit.
   while a run is in flight orphans it (the container is later reclaimable via cancel/remove).
 - Mid-run interjections are written to the agent's stdin, so they only take effect if the configured
   harness reads stdin while running.
-  </content>
-  </invoke>
+
+---
+
+## License
+
+Sagewright is source-available under the [Elastic License 2.0](./LICENSE) (ELv2). You're free to
+self-host, modify, and use it internally — you just can't offer it to third parties as a hosted or
+managed service.
