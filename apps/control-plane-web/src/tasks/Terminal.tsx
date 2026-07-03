@@ -20,20 +20,28 @@ const wsUrl = (taskId: string, kind: TerminalKind, cols: number, rows: number): 
  * WebSocket. Keystrokes are sent as binary frames; resize as a JSON text frame;
  * server PTY output arrives as binary and is written straight to xterm.
  *
- * The server only fans out bytes emitted *after* a viewer attaches — reattaching
- * (e.g. reopening a session that kept running in the background) gets a brand new
- * socket with no history of its own. `initialEvents` is the same persisted OUTPUT
- * transcript TranscriptTerminal replays for headless runs; replaying it here once
- * on mount, before the live socket connects, avoids a blank pane on reattach.
+ * The server only fans out bytes emitted *after* a viewer attaches — it never
+ * replays history — so a fresh mount (or a reconnect after a drop) would
+ * otherwise show a blank pane until the next byte arrives, and a detached
+ * session (no turn running) may never get a next byte at all. `events` is the
+ * same persisted OUTPUT transcript TranscriptTerminal replays for headless
+ * runs: until the live socket has actually shown a byte of its own, this keeps
+ * writing whatever output chunks arrive, then gets out of the way (just
+ * advancing its cursor, not writing) so nothing is shown twice.
  */
-export const Terminal: FC<{ taskId: string; kind: TerminalKind; initialEvents?: StreamEvent[] }> = ({
+export const Terminal: FC<{ taskId: string; kind: TerminalKind; events?: StreamEvent[] }> = ({
   taskId,
   kind,
-  initialEvents,
+  events = [],
 }) => {
   const hostRef = useRef<HTMLDivElement>(null);
-  const initialEventsRef = useRef(initialEvents);
-  initialEventsRef.current = initialEvents;
+  const termRef = useRef<Xterm | null>(null);
+  const wsRef = useRef<WebSocket | null>(null);
+  const replayedRef = useRef(0);
+  // True once the current socket has actually shown a byte — a detached session's
+  // socket opens immediately but may deliver nothing for a long time (no turn is
+  // running), so "open" alone doesn't mean the live channel has replaced replay.
+  const liveActiveRef = useRef(false);
 
   useEffect(() => {
     const host = hostRef.current;
@@ -44,17 +52,15 @@ export const Terminal: FC<{ taskId: string; kind: TerminalKind; initialEvents?: 
     term.loadAddon(fit);
     term.open(host);
     fit.fit();
+    termRef.current = term;
+    replayedRef.current = 0;
 
-    for (const e of initialEventsRef.current ?? []) {
-      if (e.type === EventType.OUTPUT && typeof e.payload['chunk'] === 'string') term.write(e.payload['chunk']);
-    }
-
-    let ws: WebSocket | null = null;
     let disposed = false;
     let attempt = 0;
     let retryTimer: ReturnType<typeof setTimeout> | null = null;
 
     const sendResize = (): void => {
+      const ws = wsRef.current;
       if (ws && ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({ type: 'resize', cols: term.cols, rows: term.rows }));
       }
@@ -65,7 +71,7 @@ export const Terminal: FC<{ taskId: string; kind: TerminalKind; initialEvents?: 
     const connect = (): void => {
       const socket = new WebSocket(wsUrl(taskId, kind, term.cols, term.rows));
       socket.binaryType = 'arraybuffer';
-      ws = socket;
+      wsRef.current = socket;
 
       socket.onopen = () => {
         attempt = 0;
@@ -73,10 +79,14 @@ export const Terminal: FC<{ taskId: string; kind: TerminalKind; initialEvents?: 
         term.focus();
       };
       socket.onmessage = (e: MessageEvent) => {
+        liveActiveRef.current = true;
         if (typeof e.data === 'string') term.write(e.data);
         else term.write(new Uint8Array(e.data as ArrayBuffer));
       };
       socket.onclose = () => {
+        // Reopen the gap-filling window — anything that happened while we were
+        // down should come from the transcript once we reconnect.
+        liveActiveRef.current = false;
         if (disposed) return;
         const delay = nextReconnectDelay(attempt);
         attempt += 1;
@@ -89,6 +99,7 @@ export const Terminal: FC<{ taskId: string; kind: TerminalKind; initialEvents?: 
 
     const encoder = new TextEncoder();
     const dataSub = term.onData((d) => {
+      const ws = wsRef.current;
       if (ws && ws.readyState === WebSocket.OPEN) ws.send(encoder.encode(d));
     });
     const resizeSub = term.onResize(() => sendResize());
@@ -108,10 +119,29 @@ export const Terminal: FC<{ taskId: string; kind: TerminalKind; initialEvents?: 
       ro.disconnect();
       dataSub.dispose();
       resizeSub.dispose();
-      ws?.close();
+      wsRef.current?.close();
+      termRef.current = null;
       term.dispose();
     };
   }, [taskId, kind]);
+
+  useEffect(() => {
+    const term = termRef.current;
+    if (!term) return;
+
+    // The live socket already shows this in real time — just advance the cursor
+    // so a later disconnect doesn't try to replay what was already shown.
+    if (liveActiveRef.current) {
+      replayedRef.current = events.length;
+      return;
+    }
+
+    for (let i = replayedRef.current; i < events.length; i += 1) {
+      const e = events[i];
+      if (e && e.type === EventType.OUTPUT && typeof e.payload['chunk'] === 'string') term.write(e.payload['chunk']);
+    }
+    replayedRef.current = events.length;
+  }, [events]);
 
   return <Box ref={hostRef} sx={{ flex: 1, minHeight: 0, width: '100%', bgcolor: '#000', p: 1, borderRadius: 1 }} />;
 };

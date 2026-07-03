@@ -248,7 +248,7 @@ export const SessionPanel: FC<{
             key={`${taskId}-agent`}
             taskId={taskId}
             kind={TerminalKind.AGENT}
-            initialEvents={events}
+            events={events}
           />
         ) : (
           <Typography color="text.secondary">
