@@ -1,4 +1,4 @@
-import { EventType, SessionKind, SessionMode, SessionStatus, isTerminalStatus, type CreateSessionInput, type Session, type UpdateSessionInput } from '@sagewright/shared';
+import { EventType, SessionKind, SessionMode, SessionStatus, isTerminalStatus, modeForKind, type CreateSessionInput, type Session, type UpdateSessionInput } from '@sagewright/shared';
 import { and, desc, eq, isNull } from 'drizzle-orm';
 
 import type { Db } from '../db/client';
@@ -23,7 +23,6 @@ interface TaskServiceDeps {
 }
 
 interface CreateOpts {
-  mode?: SessionMode;
   scheduledPromptId?: string;
 }
 
@@ -59,13 +58,11 @@ export const createTaskService = (deps: TaskServiceDeps) => {
   };
 
   const create = async (input: CreateSessionInput, createdBy: string, opts: CreateOpts = {}): Promise<Session> => {
-    const mode: SessionMode = opts.mode ?? SessionMode.INTERACTIVE;
-    // A scheduled fire is a headless run with a distinct kind; everything else maps 1:1.
-    const kind: SessionKind = opts.scheduledPromptId
-      ? SessionKind.SCHEDULED
-      : mode === SessionMode.INTERACTIVE
-        ? SessionKind.INTERACTIVE
-        : SessionKind.HEADLESS;
+    // The only signal this seam gets about origin is `scheduledPromptId` — the canvas and
+    // sessions-page routes never set it, so they always land on INTERACTIVE; a scheduled
+    // fire always sets it, so it always lands on SCHEDULED (headless, via `modeForKind`).
+    const kind: SessionKind = opts.scheduledPromptId ? SessionKind.SCHEDULED : SessionKind.INTERACTIVE;
+    const mode: SessionMode = modeForKind(kind);
 
     // Provisioning (insert, image validation, env, worktrees, spawn, FAILED-on-throw)
     // is owned by the single session seam; here we only attach the drive policy.

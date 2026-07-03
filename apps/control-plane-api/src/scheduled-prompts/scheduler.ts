@@ -1,4 +1,4 @@
-import { SessionKind, SessionMode, TERMINAL_STATUSES, TriggerType } from '@sagewright/shared';
+import { SessionKind, TERMINAL_STATUSES, TriggerType } from '@sagewright/shared';
 import { Cron } from 'croner';
 import { and, eq, notInArray } from 'drizzle-orm';
 
@@ -91,7 +91,6 @@ export const createScheduler = (deps: SchedulerDeps) => {
       // create() now persists a FAILED session even on bad input, but it still
       // re-throws — catch here so a failed run is logged, not silently dropped.
       await deps.taskService.create({ prompt: row.prompt, workerImage: row.workerImage ?? undefined }, row.createdBy, {
-        mode: SessionMode.HEADLESS,
         scheduledPromptId: row.id,
       });
     } catch (err) {

@@ -4,7 +4,7 @@ import { FitAddon } from '@xterm/addon-fit';
 import { useEffect, useRef, type FC } from 'react';
 import '@xterm/xterm/css/xterm.css';
 
-import type { TerminalKind } from '@sagewright/shared';
+import { EventType, type StreamEvent, type TerminalKind } from '@sagewright/shared';
 
 import { nextReconnectDelay } from './reconnect';
 
@@ -19,9 +19,21 @@ const wsUrl = (taskId: string, kind: TerminalKind, cols: number, rows: number): 
  * Renders an interactive terminal attached to a remote container PTY over a
  * WebSocket. Keystrokes are sent as binary frames; resize as a JSON text frame;
  * server PTY output arrives as binary and is written straight to xterm.
+ *
+ * The server only fans out bytes emitted *after* a viewer attaches — reattaching
+ * (e.g. reopening a session that kept running in the background) gets a brand new
+ * socket with no history of its own. `initialEvents` is the same persisted OUTPUT
+ * transcript TranscriptTerminal replays for headless runs; replaying it here once
+ * on mount, before the live socket connects, avoids a blank pane on reattach.
  */
-export const Terminal: FC<{ taskId: string; kind: TerminalKind }> = ({ taskId, kind }) => {
+export const Terminal: FC<{ taskId: string; kind: TerminalKind; initialEvents?: StreamEvent[] }> = ({
+  taskId,
+  kind,
+  initialEvents,
+}) => {
   const hostRef = useRef<HTMLDivElement>(null);
+  const initialEventsRef = useRef(initialEvents);
+  initialEventsRef.current = initialEvents;
 
   useEffect(() => {
     const host = hostRef.current;
@@ -32,6 +44,10 @@ export const Terminal: FC<{ taskId: string; kind: TerminalKind }> = ({ taskId, k
     term.loadAddon(fit);
     term.open(host);
     fit.fit();
+
+    for (const e of initialEventsRef.current ?? []) {
+      if (e.type === EventType.OUTPUT && typeof e.payload['chunk'] === 'string') term.write(e.payload['chunk']);
+    }
 
     let ws: WebSocket | null = null;
     let disposed = false;

@@ -80,6 +80,27 @@ describe('LandingPage', () => {
     expect(getByText(/broader enterprise — a strong multiplier/i)).toBeTruthy();
   });
 
+  it('links the hero bounce line to the is-it-for-you checklist', () => {
+    const { getByText, container } = renderPage();
+    const link = getByText('check here') as HTMLAnchorElement;
+    expect(link.tagName).toBe('A');
+    expect(link.getAttribute('href')).toBe('#is-it-for-you');
+    expect(container.querySelector('#is-it-for-you')).toBeTruthy();
+  });
+
+  it('offers a self-qualifying checklist for whether Sagewright is for you', () => {
+    const { getByText } = renderPage();
+    expect(getByText(/is it for you\?/i)).toBeTruthy();
+    expect(
+      getByText(/run agents in the background, 24\/7, on remote infra/i),
+    ).toBeTruthy();
+    expect(getByText(/run multiple agents in isolated sandboxes/i)).toBeTruthy();
+    expect(getByText(/run a docker-compose stack/i)).toBeTruthy();
+    expect(
+      getByText(/you definitely need to try sagewright/i),
+    ).toBeTruthy();
+  });
+
   it('describes scheduled, recurring tasks that run on a cron', () => {
     const { getByText } = renderPage();
     expect(getByText(/scheduled, recurring agents/i)).toBeTruthy();

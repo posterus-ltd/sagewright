@@ -46,7 +46,7 @@ describe('createScheduler', () => {
 
     // Runs as the prompt's creator — not a synthetic 'scheduler' user — so the
     // task gets that user's repos, default worker, and env.
-    expect(create).toHaveBeenCalledWith({ prompt: 'do it' }, 'alice', { mode: 'headless', scheduledPromptId: row.id });
+    expect(create).toHaveBeenCalledWith({ prompt: 'do it' }, 'alice', { scheduledPromptId: row.id });
     await vi.waitFor(async () => {
       const [after] = await db.select().from(scheduledPrompts).where(eq(scheduledPrompts.id, row.id));
       expect(after!.lastRunAt).not.toBeNull();
@@ -66,7 +66,7 @@ describe('createScheduler', () => {
     expect(create).toHaveBeenCalledWith(
       { prompt: 'do it', workerImage: 'sagewright-worker-codex:latest' },
       'alice',
-      { mode: 'headless', scheduledPromptId: row.id },
+      { scheduledPromptId: row.id },
     );
   });
 
@@ -166,7 +166,7 @@ describe('createScheduler', () => {
     await vi.waitFor(() => expect(create).toHaveBeenCalled(), { timeout: 2000 });
     scheduler.stopAll();
 
-    expect(create).toHaveBeenCalledWith({ prompt: 'daily' }, 'al', { mode: 'headless', scheduledPromptId: row.id });
+    expect(create).toHaveBeenCalledWith({ prompt: 'daily' }, 'al', { scheduledPromptId: row.id });
   });
 
   it('does NOT catch-up-fire a never-run prompt on start (waits for its first real tick)', async () => {

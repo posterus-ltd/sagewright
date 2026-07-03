@@ -24,7 +24,7 @@ import { Terminal } from './Terminal';
 import { TranscriptTerminal } from './TranscriptTerminal';
 import { useTaskStream } from './useTaskStream';
 import { Stop } from '@mui/icons-material';
-import { SessionKind, TerminalKind } from '@sagewright/shared';
+import { SessionMode, TerminalKind, modeForKind } from '@sagewright/shared';
 
 type TabValue = 'transcript' | 'agent' | 'shell' | 'log';
 
@@ -102,9 +102,10 @@ export const SessionPanel: FC<{
   const live =
     !!task?.containerId && !TERMINAL_DEAD_STATUSES.includes(task.status);
 
-  // Headless runs are driven by the control plane and stream their PTY as the
-  // transcript; interactive sessions are driven by the human over Agent/Shell PTYs.
-  const headless = task?.kind === SessionKind.HEADLESS;
+  // Headless runs (scheduled tasks, workflow steps — anything but a canvas/sessions-page
+  // session) are driven by the control plane and stream their PTY as the transcript;
+  // only an interactive session is driven by the human over Agent/Shell PTYs.
+  const headless = task != null && modeForKind(task.kind) === SessionMode.HEADLESS;
   const tabValues: TabValue[] = headless
     ? ['transcript', 'shell', 'log']
     : ['agent', 'shell', 'log'];
@@ -247,6 +248,7 @@ export const SessionPanel: FC<{
             key={`${taskId}-agent`}
             taskId={taskId}
             kind={TerminalKind.AGENT}
+            initialEvents={events}
           />
         ) : (
           <Typography color="text.secondary">

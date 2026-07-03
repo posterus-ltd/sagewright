@@ -154,6 +154,27 @@ describe('SessionPanel', () => {
     expect(screen.queryByText('queued')).toBeNull();
   });
 
+  it.each(['scheduled', 'workflow_step'])(
+    'shows the transcript tab (not agent) for a headless %s session',
+    async (kind) => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(
+          async () =>
+            new Response(JSON.stringify({ ...task, kind }), {
+              status: 200,
+              headers: { 'content-type': 'application/json' },
+            }),
+        ),
+      );
+
+      render(<SessionPanel taskId="t1" />, { wrapper });
+
+      expect(await screen.findByRole('tab', { name: 'Transcript' })).toBeTruthy();
+      expect(screen.queryByRole('tab', { name: 'Agent' })).toBeNull();
+    },
+  );
+
   it('toggles fullscreen on the detail route via the fullscreen control', async () => {
     vi.stubGlobal(
       'fetch',

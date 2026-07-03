@@ -11,8 +11,9 @@ interface MainContainerProps {
   children: ReactNode;
   // Override the shared content width (defaults to DEFAULT_MAX_WIDTH).
   maxWidth?: number;
-  // Fill the available height for pages whose content manages its own scroll
-  // (e.g. a graph or terminal that should not push the page taller).
+  // Fill the available height *and* drop the shared width cap for pages whose
+  // content manages its own scroll (e.g. a graph or terminal that should not
+  // push the page taller, and benefits from all available width too).
   fill?: boolean;
   // Full-bleed: negate the shell padding so the child reaches the edges (canvas).
   flush?: boolean;
@@ -45,7 +46,7 @@ export const MainContainer: FC<MainContainerProps> = ({
       sx={{
         width: '100%',
         mx: 'auto',
-        maxWidth: fullWidthContent ? 'none' : maxWidth,
+        maxWidth: fullWidthContent || fill ? 'none' : maxWidth,
         ...(fill && { height: '100%', minHeight: 0 }),
       }}
     >

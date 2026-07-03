@@ -108,12 +108,46 @@ const AUDIENCES: readonly Feature[] = [
   },
 ];
 
+interface ChecklistItem {
+  readonly id: string;
+  readonly text: string;
+}
+
+/** The self-qualifying checklist in the "is it for you?" section, in order. */
+const CHECKLIST: readonly ChecklistItem[] = [
+  {
+    id: 'remote',
+    text: 'Run agents in the background, 24/7, on remote infra?',
+  },
+  {
+    id: 'laptop-closed',
+    text: 'Close your laptop whenever — be sure your agents keep working?',
+  },
+  { id: 'sandboxes', text: 'Run multiple agents in isolated sandboxes?' },
+  { id: 'parallel', text: 'Work on multiple projects in parallel?' },
+  { id: 'schedule', text: 'Schedule repetitive tasks?' },
+  {
+    id: 'workflows',
+    text: 'Define reusable custom workflows/loops?',
+  },
+  {
+    id: 'org-alignment',
+    text: 'Share agentic alignment throughout your org?',
+  },
+  { id: 'mobile', text: 'Access your agents while on the go?' },
+  { id: 'ownership', text: 'Own the capability and context?' },
+  { id: 'no-lock-in', text: 'Avoid vendor lock-in?' },
+  { id: 'mini-pc', text: 'You can spin up a mini-PC or run a VM?' },
+  { id: 'docker-compose', text: 'You can run a docker-compose stack?' },
+];
+
 /** A "terminal window" chrome with a traffic-light title bar. */
-const Window: FC<{ title: string; children: React.ReactNode }> = ({
+const Window: FC<{ id?: string; title: string; children: React.ReactNode }> = ({
+  id,
   title,
   children,
 }) => (
-  <section className="window">
+  <section id={id} className="window">
     <div className="window__bar">
       <span className="window__dots" aria-hidden="true">
         ● ● ●
@@ -483,7 +517,11 @@ export const LandingPage: FC = () => (
 
         <p className="tagline tagline--opinion">
           Purposely <span className="hl">opinionated</span>. You'll love it or
-          bounce within ten seconds.
+          bounce within ten seconds —{' '}
+          <a className="anchor-link" href="#is-it-for-you">
+            check here
+          </a>
+          .
         </p>
 
         <Link className="cta" to="/access">
@@ -613,6 +651,28 @@ export const LandingPage: FC = () => (
           That&rsquo;s it — you&rsquo;re one{' '}
           <span className="hl">docker-compose up -d</span> away from a running
           control plane. Self-hosted on your own remote infrastructure.
+        </p>
+      </Window>
+
+      <Window id="is-it-for-you" title="is_it_for_you.sh">
+        <p className="section-lead">
+          <span className="hl">Is it for you?</span> Run through the checklist.
+        </p>
+
+        <ul className="checklist">
+          {CHECKLIST.map((item) => (
+            <li className="checklist__item" key={item.id}>
+              <span className="checklist__box" aria-hidden="true">
+                ☐
+              </span>
+              {item.text}
+            </li>
+          ))}
+        </ul>
+
+        <p className="section-lead">
+          Answering yes to 50+% of these?{' '}
+          <span className="hl">You definitely need to try Sagewright.</span>
         </p>
       </Window>
 

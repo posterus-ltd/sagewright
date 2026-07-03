@@ -2,17 +2,25 @@
 # ─────────────────────────────────────────────────────────────────────────────
 # Predefined agent start script.
 #
-# The control plane runs THIS over `docker exec` to launch the agent for a
-# headless task. Its one job: start the harness you installed in worker/Dockerfile
-# against "$PROMPT" in the current working directory, in the foreground, and exit
-# when the agent is done. The exit code decides the task outcome (0 → DONE).
+# The control plane runs THIS over `docker exec` to launch the agent for the
+# session's first turn. SESSION_MODE picks the mode:
+#   - interactive: no prompt — drop straight into the harness, live, in the
+#     `sagewright-agent` tmux session so a later browser attach (continue-agent)
+#     reattaches to this same running conversation instead of starting a new one.
+#   - headless (default): start the harness you installed in worker/Dockerfile
+#     against "$PROMPT" in the current working directory, in the foreground, and
+#     exit when the agent is done. The exit code decides the task outcome (0 → DONE).
 # Everything the agent prints is streamed back as the live transcript.
 #
-# Swapping harness? Change the launch line at the bottom to start your harness,
-# and update the install steps in worker/Dockerfile. Nothing in the control plane
+# Swapping harness? Change the launch lines below to start your harness, and
+# update the install steps in worker/Dockerfile. Nothing in the control plane
 # changes — it only knows "run this script".
 # ─────────────────────────────────────────────────────────────────────────────
 set -euo pipefail
+
+if [ "${SESSION_MODE:-headless}" = "interactive" ]; then
+  exec tmux new-session -A -s sagewright-agent "exec pi -a"
+fi
 
 PROMPT_TEXT="${PROMPT:-}"
 
