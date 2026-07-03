@@ -9,6 +9,7 @@ import { CanvasPage } from './canvas/CanvasPage';
 import { Layout } from './components/Layout';
 import { RouteErrorBoundary } from './components/RouteErrorBoundary';
 import { SettingsPage } from './config/SettingsPage';
+import { OverviewPage } from './overview/OverviewPage';
 import { ScheduledPromptsPage } from './scheduled/ScheduledPromptsPage';
 import { SessionsListPage } from './sessions/SessionsListPage';
 import { TaskDetailPage } from './tasks/TaskDetailPage';
@@ -29,6 +30,7 @@ const router = createBrowserRouter([
       { path: '/login', element: <LoginPage /> },
       { path: '/', element: <AuthGate />, children: [
         { index: true, element: <SessionsListPage /> },
+        { path: 'overview', element: <OverviewPage /> },
         { path: 'canvas', element: <CanvasPage /> },
         { path: 'scheduled', element: <ScheduledPromptsPage /> },
         { path: 'workflows', element: <WorkflowsListPage /> },

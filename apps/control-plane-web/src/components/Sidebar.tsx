@@ -4,6 +4,7 @@ import {
   ChevronRightRounded,
   DarkModeRounded,
   AccountTreeRounded,
+  DashboardRounded,
   GridViewRounded,
   InfoOutlined,
   LightModeRounded,
@@ -45,6 +46,12 @@ const EXPANDED = 240;
 const COLLAPSED = 56;
 
 const NAV = [
+  {
+    to: '/overview',
+    label: 'Overview',
+    icon: <DashboardRounded fontSize="small" />,
+    match: (p: string) => p.startsWith('/overview'),
+  },
   {
     to: '/',
     label: 'Sessions',
