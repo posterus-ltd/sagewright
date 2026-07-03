@@ -2,6 +2,7 @@ import { Box, Chip, Typography } from '@mui/material';
 import { Handle, Position, type NodeProps, type Node } from '@xyflow/react';
 import type { FC } from 'react';
 import { useNavigate } from 'react-router';
+import { WorkflowStepKind } from '@sagewright/shared';
 
 import { WorkerChip } from '../components/WorkerChip';
 import { NODE_H, NODE_W, type StepNodeData, type StepNodeStatus } from './workflow-graph';
@@ -56,7 +57,7 @@ export const WorkflowStepNode: FC<NodeProps<Node<StepNodeData>>> = ({ data }) =>
           label={data.kind}
           size="small"
           variant="outlined"
-          color={data.kind === 'validation' ? 'warning' : 'default'}
+          color={data.kind === WorkflowStepKind.VALIDATION ? 'warning' : 'default'}
         />
         <WorkerChip image={data.workerImage} />
         {data.iteration != null && data.iteration > 0 && (

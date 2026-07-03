@@ -1,4 +1,4 @@
-import { SessionStatus } from '@sagewright/shared';
+import { SessionKind, SessionStatus, TriggerType, WorkflowStepKind } from '@sagewright/shared';
 import { eq } from 'drizzle-orm';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -206,11 +206,11 @@ describe('createScheduler', () => {
       {
         definition: {
           name: 'W',
-          trigger: { type: 'cron' as const, cron: '* * * * * *' },
+          trigger: { type: TriggerType.CRON, cron: '* * * * * *' },
           maxIterations: 1,
           steps: [
-            { key: 'work', name: 'Work', kind: 'work' as const, workerImage: 'w', goal: 'g' },
-            { key: 'check', name: 'Check', kind: 'validation' as const, workerImage: 'w', goal: 'v' },
+            { key: 'work', name: 'Work', kind: WorkflowStepKind.WORK, workerImage: 'w', goal: 'g' },
+            { key: 'check', name: 'Check', kind: WorkflowStepKind.VALIDATION, workerImage: 'w', goal: 'v' },
           ],
         },
         enabled: true,
@@ -240,11 +240,11 @@ describe('createScheduler', () => {
       {
         definition: {
           name: 'W',
-          trigger: { type: 'cron' as const, cron: '* * * * * *' },
+          trigger: { type: TriggerType.CRON, cron: '* * * * * *' },
           maxIterations: 1,
           steps: [
-            { key: 'work', name: 'Work', kind: 'work' as const, workerImage: 'w', goal: 'g' },
-            { key: 'check', name: 'Check', kind: 'validation' as const, workerImage: 'w', goal: 'v' },
+            { key: 'work', name: 'Work', kind: WorkflowStepKind.WORK, workerImage: 'w', goal: 'g' },
+            { key: 'check', name: 'Check', kind: WorkflowStepKind.VALIDATION, workerImage: 'w', goal: 'v' },
           ],
         },
         enabled: true,

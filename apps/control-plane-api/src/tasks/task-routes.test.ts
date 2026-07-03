@@ -1,4 +1,4 @@
-import { EventType, SessionStatus } from '@sagewright/shared';
+import { EventType, SessionMode, SessionStatus } from '@sagewright/shared';
 import { eq } from 'drizzle-orm';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -220,7 +220,7 @@ describe('task routes', () => {
       volume: fakeVolume(),
     });
 
-    const task = await service.create({ prompt: 'nightly' }, 'scheduler', { mode: 'headless', scheduledPromptId: sp!.id });
+    const task = await service.create({ prompt: 'nightly' }, 'scheduler', { mode: SessionMode.HEADLESS, scheduledPromptId: sp!.id });
     // A scheduled fire records kind='scheduled' (its worker mode is still headless).
     expect(task.kind).toBe('scheduled');
     expect(task.prompt).toBe('nightly');

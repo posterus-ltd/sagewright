@@ -2,8 +2,11 @@ import { mkdir, readFile } from 'node:fs/promises';
 
 import {
   EventType,
+  SessionKind,
+  SessionMode,
   SessionStatus,
   TERMINAL_STATUSES,
+  WorkflowStepKind,
   isTerminalStatus,
   runBranch,
   runDir,
@@ -97,7 +100,7 @@ export const createWorkflowRunner = (deps: WorkflowRunnerDeps) => {
       ? `## Handoff from previous step\n${carried}`
       : '## Handoff from previous step\nnone — you are the first step.';
     const verdictLine =
-      step.kind === 'validation'
+      step.kind === WorkflowStepKind.VALIDATION
         ? `\nAlso write ${verdictAbs} as JSON: {"passed": boolean, "summary": string}. Set passed=false if anything is wrong.`
         : '';
     return [
@@ -124,7 +127,7 @@ export const createWorkflowRunner = (deps: WorkflowRunnerDeps) => {
     manifest: RepoManifestEntry[],
   ): Promise<{ taskId: string; containerId: string }> => {
     const { id, containerId } = await deps.sessionService.spawnSession({
-      kind: 'workflow_step',
+      kind: SessionKind.WORKFLOW_STEP,
       createdBy,
       prompt,
       workerImage: step.workerImage,
@@ -241,11 +244,11 @@ export const createWorkflowRunner = (deps: WorkflowRunnerDeps) => {
 
         carried = (await files.readText(`${dir}/${HANDOFF_REL}`)) ?? carried;
 
-        if (step.kind === 'validation') {
+        if (step.kind === WorkflowStepKind.VALIDATION) {
           if (!opsContainerId) {
             ({ containerId: opsContainerId } = await deps.spawner.spawn({
               taskId: `${runId}-ops`,
-              mode: 'headless',
+              mode: SessionMode.HEADLESS,
               manifest,
               sessionDir: dir,
               userEnv,
@@ -287,7 +290,7 @@ export const createWorkflowRunner = (deps: WorkflowRunnerDeps) => {
         if (!opsContainerId) {
           ({ containerId: opsContainerId } = await deps.spawner.spawn({
             taskId: `${runId}-ops`,
-            mode: 'headless',
+            mode: SessionMode.HEADLESS,
             manifest,
             sessionDir: dir,
             userEnv,
@@ -342,7 +345,7 @@ export const createWorkflowRunner = (deps: WorkflowRunnerDeps) => {
       const [run] = await deps.db
         .insert(sessions)
         .values({
-          kind: 'workflow',
+          kind: SessionKind.WORKFLOW,
           workflowId,
           status: SessionStatus.RUNNING,
           currentStepKey: def.steps[0]!.key,
@@ -379,7 +382,7 @@ export const createWorkflowRunner = (deps: WorkflowRunnerDeps) => {
      *  is missing, already terminal, or not a workflow parent. */
     resume: async (parentId: string): Promise<void> => {
       const [run] = await deps.db.select().from(sessions).where(eq(sessions.id, parentId)).limit(1);
-      if (!run || run.kind !== 'workflow' || !run.workflowId || isTerminalStatus(run.status as SessionStatus)) return;
+      if (!run || run.kind !== SessionKind.WORKFLOW || !run.workflowId || isTerminalStatus(run.status as SessionStatus)) return;
       const [wf] = await deps.db.select().from(workflows).where(eq(workflows.id, run.workflowId)).limit(1);
       if (!wf) return;
       const def = workflowDefinitionSchema.parse(wf.definition);

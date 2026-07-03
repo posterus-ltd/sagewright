@@ -1,6 +1,7 @@
 import {
   EventType,
   RESERVED_ENV_KEYS,
+  SessionKind,
   SessionStatus,
   TERMINAL_STATUSES,
   isTerminalStatus,
@@ -9,7 +10,6 @@ import {
   sessionDir,
   worktreeDir,
   type RepoManifestEntry,
-  type SessionKind,
   type SessionMode,
 } from '@sagewright/shared';
 import { and, eq, notInArray } from 'drizzle-orm';
@@ -221,7 +221,7 @@ export const createSessionService = (deps: SessionServiceDeps) => {
    *  there is nothing to rehydrate (missing, non-interactive, terminal, no box). */
   const hydrateSession = async (sessionId: string): Promise<HydratedSessionInput | null> => {
     const [row] = await deps.db.select().from(sessions).where(eq(sessions.id, sessionId)).limit(1);
-    if (!row || row.kind !== 'interactive' || !row.containerId) return null;
+    if (!row || row.kind !== SessionKind.INTERACTIVE || !row.containerId) return null;
     if (isTerminalStatus(row.status as SessionStatus)) return null;
 
     const slugs = await deps.volume.listSessionWorktrees(sessionId);

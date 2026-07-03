@@ -3,7 +3,7 @@ import { mkdir, readdir, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { execa } from 'execa';
-import { repoDir, runBranch, sessionDir, worktreeDir, type RepoManifestEntry, type RepoStatus } from '@sagewright/shared';
+import { repoDir, runBranch, sessionDir, worktreeDir, RepoStatus, type RepoManifestEntry } from '@sagewright/shared';
 
 /** A repo the control-plane materialises onto the shared volume. */
 export interface VolumeRepo {
@@ -93,7 +93,7 @@ export const createVolume = (deps: VolumeDeps = {}) => {
     runExclusive(repo.slug, async () => {
       const dir = repoDir(repo.slug);
       const authUrl = authenticatedUrl(repo.url, token);
-      status.set(repo.slug, { status: 'cloning', error: null });
+      status.set(repo.slug, { status: RepoStatus.CLONING, error: null });
       try {
         if (pathExists(join(dir, '.git'))) {
           // Refresh the remote to the caller's token before fetching so a user's
@@ -103,15 +103,15 @@ export const createVolume = (deps: VolumeDeps = {}) => {
           await git(['fetch', '--all', '--prune'], dir);
           const def = await deriveDefaultBranch(dir);
           if (def) await git(['pull', '--ff-only', 'origin', def], dir).catch(() => undefined);
-          status.set(repo.slug, { status: 'present', error: null });
+          status.set(repo.slug, { status: RepoStatus.PRESENT, error: null });
           return { slug: repo.slug, url: repo.url, defaultBranch: def };
         }
         await git(['clone', authUrl, dir]);
         const def = await deriveDefaultBranch(dir);
-        status.set(repo.slug, { status: 'present', error: null });
+        status.set(repo.slug, { status: RepoStatus.PRESENT, error: null });
         return { slug: repo.slug, url: repo.url, defaultBranch: def };
       } catch (err) {
-        status.set(repo.slug, { status: 'error', error: String(err) });
+        status.set(repo.slug, { status: RepoStatus.ERROR, error: String(err) });
         throw err;
       }
     });
@@ -123,7 +123,10 @@ export const createVolume = (deps: VolumeDeps = {}) => {
   };
 
   const describe = (slug: string): { status: RepoStatus; error: string | null } =>
-    status.get(slug) ?? { status: pathExists(join(repoDir(slug), '.git')) ? 'present' : 'cloning', error: null };
+    status.get(slug) ?? {
+      status: pathExists(join(repoDir(slug), '.git')) ? RepoStatus.PRESENT : RepoStatus.CLONING,
+      error: null,
+    };
 
   /** Ensure each repo is present, then add a fresh worktree per repo on `branch`
    *  (defaults to `task/<id>`). Returns the manifest handed to the worker. `token`

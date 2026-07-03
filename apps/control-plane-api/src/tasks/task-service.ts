@@ -1,4 +1,4 @@
-import { EventType, SessionStatus, isTerminalStatus, type CreateSessionInput, type Session, type SessionKind, type SessionMode, type UpdateSessionInput } from '@sagewright/shared';
+import { EventType, SessionKind, SessionMode, SessionStatus, isTerminalStatus, type CreateSessionInput, type Session, type UpdateSessionInput } from '@sagewright/shared';
 import { and, desc, eq, isNull } from 'drizzle-orm';
 
 import type { Db } from '../db/client';
@@ -59,13 +59,13 @@ export const createTaskService = (deps: TaskServiceDeps) => {
   };
 
   const create = async (input: CreateSessionInput, createdBy: string, opts: CreateOpts = {}): Promise<Session> => {
-    const mode: SessionMode = opts.mode ?? 'interactive';
+    const mode: SessionMode = opts.mode ?? SessionMode.INTERACTIVE;
     // A scheduled fire is a headless run with a distinct kind; everything else maps 1:1.
     const kind: SessionKind = opts.scheduledPromptId
-      ? 'scheduled'
-      : mode === 'interactive'
-        ? 'interactive'
-        : 'headless';
+      ? SessionKind.SCHEDULED
+      : mode === SessionMode.INTERACTIVE
+        ? SessionKind.INTERACTIVE
+        : SessionKind.HEADLESS;
 
     // Provisioning (insert, image validation, env, worktrees, spawn, FAILED-on-throw)
     // is owned by the single session seam; here we only attach the drive policy.
@@ -78,7 +78,7 @@ export const createTaskService = (deps: TaskServiceDeps) => {
     });
     const [row] = await deps.db.select().from(sessions).where(eq(sessions.id, id)).limit(1);
 
-    if (mode === 'headless') {
+    if (mode === SessionMode.HEADLESS) {
       // The box is up; drive the agent over `docker exec` and stream it as the transcript.
       // Fire-and-forget: the run owns its own status/PR events; surface a crash as FAILED.
       void deps.agentRunner
@@ -132,7 +132,7 @@ export const createTaskService = (deps: TaskServiceDeps) => {
       // A workflow parent's shared run worktree belongs to its drive loop, which
       // notices the STOPPED row at the next step boundary and sweeps it itself —
       // yanking it here would pull the tree out from under the executing step.
-      if (row.kind !== 'workflow') await deps.volume.removeSessionWorktrees(id).catch(() => undefined);
+      if (row.kind !== SessionKind.WORKFLOW) await deps.volume.removeSessionWorktrees(id).catch(() => undefined);
       await deps.db.update(sessions).set({ status: SessionStatus.STOPPED, endedAt: new Date() }).where(eq(sessions.id, id));
       // Surface the stop in the transcript so a live viewer sees it.
       await emit(id, [{ type: EventType.STATUS, payload: { status: SessionStatus.STOPPED } }]);

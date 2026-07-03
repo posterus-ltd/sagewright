@@ -1,4 +1,5 @@
 import {
+  SessionKind,
   SessionStatus,
   workflowDefinitionSchema,
   type UpdateWorkflowInput,
@@ -86,7 +87,7 @@ export const createWorkflowService = (deps: WorkflowServiceDeps) => ({
   },
 
   listRuns: async (workflowId?: string): Promise<WorkflowRun[]> => {
-    const isRun = eq(sessions.kind, 'workflow');
+    const isRun = eq(sessions.kind, SessionKind.WORKFLOW);
     const where = workflowId ? and(isRun, eq(sessions.workflowId, workflowId)) : isRun;
     const rows = await deps.db.select().from(sessions).where(where).orderBy(desc(sessions.createdAt));
     return rows.map(rowToRun);

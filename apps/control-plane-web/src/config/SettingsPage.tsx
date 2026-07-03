@@ -15,7 +15,7 @@ import {
 import DeleteIcon from '@mui/icons-material/Delete';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
-import type { RepoStatus } from '@sagewright/shared';
+import { RepoStatus } from '@sagewright/shared';
 import { useEffect, useState, type FC } from 'react';
 
 import {
@@ -38,7 +38,7 @@ https://github.com/owner/another-repo
 Use HTTPS URLs, not SSH syntax like git@github.com:owner/repo.git`;
 
 const statusColor = (s: RepoStatus): 'success' | 'warning' | 'error' =>
-  s === 'present' ? 'success' : s === 'cloning' ? 'warning' : 'error';
+  s === RepoStatus.PRESENT ? 'success' : s === RepoStatus.CLONING ? 'warning' : 'error';
 
 const GithubSection: FC = () => {
   const { data: status } = useGithubStatus();

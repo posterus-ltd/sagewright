@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 import { SessionStatus } from './enums';
-import { sessionKindSchema } from './terminal';
+import { SessionKind } from './terminal';
 
 /** A configured repository. The UI edits these as a newline-separated URL list;
  *  `slug` and `defaultBranch` are derived server-side when the repo is cloned. */
@@ -15,11 +15,14 @@ export const repoSchema = z.object({
 export type Repo = z.infer<typeof repoSchema>;
 
 /** Reconcile state of a repo's main clone on the shared volume. */
-export const repoStatusSchema = z.enum(['present', 'cloning', 'error']);
-export type RepoStatus = z.infer<typeof repoStatusSchema>;
+export enum RepoStatus {
+  PRESENT = 'present',
+  CLONING = 'cloning',
+  ERROR = 'error',
+}
 
 export const repoWithStatusSchema = repoSchema.extend({
-  status: repoStatusSchema,
+  status: z.enum(RepoStatus),
   error: z.string().nullable().default(null),
 });
 export type RepoWithStatus = z.infer<typeof repoWithStatusSchema>;
@@ -48,11 +51,11 @@ export type CreateSessionInput = z.infer<typeof createSessionSchema>;
 
 export const sessionSchema = z.object({
   id: z.string(),
-  kind: sessionKindSchema,
+  kind: z.enum(SessionKind),
   name: z.string().nullable(),
   prompt: z.string().nullable(),
   workerImage: z.string().nullable(),
-  status: z.nativeEnum(SessionStatus),
+  status: z.enum(SessionStatus),
   branch: z.string().nullable(),
   prUrl: z.string().nullable(),
   createdBy: z.string(),
@@ -82,7 +85,10 @@ export const updateSessionSchema = z.object({
 export type UpdateSessionInput = z.infer<typeof updateSessionSchema>;
 
 /** The human label for a session: its custom name, else a prompt preview, else a generic fallback. */
-export const sessionLabel = (session: Pick<Session, 'name' | 'prompt'>, max = 60): string => {
+export const sessionLabel = (
+  session: Pick<Session, 'name' | 'prompt'>,
+  max = 60,
+): string => {
   const name = session.name?.trim();
   if (name) return name;
   if (session.prompt) return session.prompt.slice(0, max);
@@ -108,7 +114,12 @@ export const createScheduledPromptSchema = z.object({
   enabled: z.boolean().default(true),
   workerImage: z.string().optional(),
 });
-export type CreateScheduledPromptInput = z.infer<typeof createScheduledPromptSchema>;
+export type CreateScheduledPromptInput = z.infer<
+  typeof createScheduledPromptSchema
+>;
 
-export const updateScheduledPromptSchema = createScheduledPromptSchema.partial();
-export type UpdateScheduledPromptInput = z.infer<typeof updateScheduledPromptSchema>;
+export const updateScheduledPromptSchema =
+  createScheduledPromptSchema.partial();
+export type UpdateScheduledPromptInput = z.infer<
+  typeof updateScheduledPromptSchema
+>;

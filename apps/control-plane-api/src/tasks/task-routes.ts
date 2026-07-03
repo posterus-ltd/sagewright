@@ -1,4 +1,4 @@
-import { createSessionSchema, isTerminalStatus, postMessageSchema, updateSessionSchema, type Session } from '@sagewright/shared';
+import { createSessionSchema, isTerminalStatus, postMessageSchema, SessionKind, updateSessionSchema, type Session } from '@sagewright/shared';
 import type { FastifyInstance, FastifyReply } from 'fastify';
 
 import type { AppDeps } from '../app';
@@ -91,7 +91,7 @@ export const registerTaskRoutes = (app: FastifyInstance, deps: AppDeps): void =>
     // interactive session would otherwise sit unconsumed until a human next opened
     // the terminal. Resume a turn now (rehydrating post-restart state if needed) so
     // the agent picks it up on its next poll tick.
-    if (session.kind === 'interactive' && session.containerId && !isTerminalStatus(session.status)) {
+    if (session.kind === SessionKind.INTERACTIVE && session.containerId && !isTerminalStatus(session.status)) {
       if (!deps.sessionRuntime.has(id)) {
         const hydrated = await deps.sessionService.hydrateSession(id);
         if (hydrated) deps.sessionRuntime.ensure(hydrated);

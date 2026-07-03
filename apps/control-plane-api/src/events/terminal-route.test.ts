@@ -3,6 +3,7 @@ import { PassThrough } from 'node:stream';
 
 import { bridgeAgentTerminal, bridgeTerminal, cmdForKind, keepAlive } from './terminal-route';
 import type { TerminalSession } from '../tasks/docker-client';
+import { TerminalKind } from '@sagewright/shared';
 
 // Minimal EventEmitter-ish fake WebSocket matching the bits bridgeTerminal uses.
 class FakeSocket {
@@ -35,8 +36,8 @@ const fakeSession = () => {
 
 describe('cmdForKind', () => {
   it('maps agent → continue-agent and shell → bash', () => {
-    expect(cmdForKind('agent')).toEqual(['continue-agent']);
-    expect(cmdForKind('shell')).toEqual(['bash']);
+    expect(cmdForKind(TerminalKind.AGENT)).toEqual(['continue-agent']);
+    expect(cmdForKind(TerminalKind.SHELL)).toEqual(['bash']);
   });
 });
 

@@ -12,18 +12,23 @@ import { sessionSchema } from './session.schema';
  */
 
 /** A step either does work or validates prior work (the latter gates the loop). */
-export const workflowStepKindSchema = z.enum(['work', 'validation']);
-export type WorkflowStepKind = z.infer<typeof workflowStepKindSchema>;
+export enum WorkflowStepKind {
+  WORK = 'work',
+  VALIDATION = 'validation',
+}
 
 export const workflowStepSchema = z.object({
   /** Stable identifier referenced by onFailureGoTo and matched to step task rows. */
-  key: z.string().min(1).regex(/^[a-z0-9][a-z0-9-]*$/i, 'key must be alphanumeric/hyphen'),
+  key: z
+    .string()
+    .min(1)
+    .regex(/^[a-z0-9][a-z0-9-]*$/i, 'key must be alphanumeric/hyphen'),
   name: z.string().min(1),
   /** What this step should accomplish — injected into the worker's prompt. */
   goal: z.string().min(1),
   /** Docker image of the harness that runs this step (implies the model). */
   workerImage: z.string().min(1),
-  kind: workflowStepKindSchema,
+  kind: z.enum(WorkflowStepKind),
   /** On validation failure, jump back to this step key for another iteration. */
   onFailureGoTo: z.string().min(1).optional(),
   /** Objective checks run in the worktree; all must exit 0 for the step to pass. */
@@ -31,10 +36,15 @@ export const workflowStepSchema = z.object({
 });
 export type WorkflowStep = z.infer<typeof workflowStepSchema>;
 
+export enum TriggerType {
+  MANUAL = 'manual',
+  CRON = 'cron',
+}
+
 /** What kicks off a run. Manual (a "Run" click) or cron (reuses the scheduler). */
 export const workflowTriggerSchema = z
   .object({
-    type: z.enum(['manual', 'cron']),
+    type: z.enum(TriggerType),
     cron: z.string().min(1).optional(),
   })
   .refine((t) => t.type !== 'cron' || !!t.cron, {
@@ -54,7 +64,11 @@ export const workflowDefinitionSchema = z
     const keys = def.steps.map((s) => s.key);
     const dupes = [...new Set(keys.filter((k, i) => keys.indexOf(k) !== i))];
     if (dupes.length) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: `duplicate step keys: ${dupes.join(', ')}`, path: ['steps'] });
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `duplicate step keys: ${dupes.join(', ')}`,
+        path: ['steps'],
+      });
     }
     def.steps.forEach((s, i) => {
       if (s.onFailureGoTo && !keys.includes(s.onFailureGoTo)) {
@@ -65,8 +79,12 @@ export const workflowDefinitionSchema = z
         });
       }
     });
-    if (!def.steps.some((s) => s.kind === 'validation')) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'a workflow needs at least one validation step', path: ['steps'] });
+    if (!def.steps.some((s) => s.kind === WorkflowStepKind.VALIDATION)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'a workflow needs at least one validation step',
+        path: ['steps'],
+      });
     }
   });
 export type WorkflowDefinition = z.infer<typeof workflowDefinitionSchema>;
@@ -104,7 +122,7 @@ export type Workflow = z.infer<typeof workflowSchema>;
 export const workflowRunSchema = z.object({
   id: z.string(),
   workflowId: z.string(),
-  status: z.nativeEnum(SessionStatus),
+  status: z.enum(SessionStatus),
   branch: z.string().nullable(),
   prUrl: z.string().nullable(),
   currentStepKey: z.string().nullable(),

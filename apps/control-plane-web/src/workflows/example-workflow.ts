@@ -1,4 +1,4 @@
-import type { WorkflowDefinition } from '@sagewright/shared';
+import { TriggerType, WorkflowStepKind, type WorkflowDefinition } from '@sagewright/shared';
 
 /**
  * The canonical "implementation" workflow used as the editor's starting point:
@@ -7,27 +7,27 @@ import type { WorkflowDefinition } from '@sagewright/shared';
  */
 export const EXAMPLE_WORKFLOW: WorkflowDefinition = {
   name: 'Implementation',
-  trigger: { type: 'manual' },
+  trigger: { type: TriggerType.MANUAL },
   maxIterations: 3,
   steps: [
     {
       key: 'plan',
       name: 'Plan (BDD+SDD)',
-      kind: 'work',
+      kind: WorkflowStepKind.WORK,
       workerImage: 'sagewright-worker-claude-code:latest',
       goal: 'Produce a BDD/SDD implementation plan from the feature requirements.',
     },
     {
       key: 'implement',
       name: 'Implement',
-      kind: 'work',
+      kind: WorkflowStepKind.WORK,
       workerImage: 'sagewright-worker-opencode:latest',
       goal: 'Implement the plan described in the handoff.',
     },
     {
       key: 'validate',
       name: 'Validate',
-      kind: 'validation',
+      kind: WorkflowStepKind.VALIDATION,
       workerImage: 'sagewright-worker-opencode:latest',
       goal: 'Validate the implementation against the plan and report a verdict.',
       validateCommands: ['nx affected -t test lint build'],

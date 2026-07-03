@@ -1,4 +1,4 @@
-import { TERMINAL_STATUSES } from '@sagewright/shared';
+import { SessionKind, SessionMode, TERMINAL_STATUSES, TriggerType } from '@sagewright/shared';
 import { Cron } from 'croner';
 import { and, eq, notInArray } from 'drizzle-orm';
 
@@ -91,7 +91,7 @@ export const createScheduler = (deps: SchedulerDeps) => {
       // create() now persists a FAILED session even on bad input, but it still
       // re-throws — catch here so a failed run is logged, not silently dropped.
       await deps.taskService.create({ prompt: row.prompt, workerImage: row.workerImage ?? undefined }, row.createdBy, {
-        mode: 'headless',
+        mode: SessionMode.HEADLESS,
         scheduledPromptId: row.id,
       });
     } catch (err) {
@@ -129,7 +129,7 @@ export const createScheduler = (deps: SchedulerDeps) => {
     const runner = deps.workflowRunner;
     const workflows = await deps.workflowService.list();
     for (const wf of workflows) {
-      if (!wf.enabled || wf.definition.trigger.type !== 'cron' || !wf.definition.trigger.cron) continue;
+      if (!wf.enabled || wf.definition.trigger.type !== TriggerType.CRON || !wf.definition.trigger.cron) continue;
       try {
         jobs.set(
           `wf:${wf.id}`,
@@ -141,7 +141,7 @@ export const createScheduler = (deps: SchedulerDeps) => {
                 await hasActiveRun(
                   and(
                     eq(sessions.workflowId, wf.id),
-                    eq(sessions.kind, 'workflow'),
+                    eq(sessions.kind, SessionKind.WORKFLOW),
                     notInArray(sessions.status, [...TERMINAL_STATUSES]),
                   ),
                 )

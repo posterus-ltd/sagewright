@@ -1,4 +1,4 @@
-import { runWorkflowSchema, updateWorkflowSchema, workflowInputSchema } from '@sagewright/shared';
+import { runWorkflowSchema, TriggerType, updateWorkflowSchema, workflowInputSchema } from '@sagewright/shared';
 import type { FastifyInstance } from 'fastify';
 
 import type { AppDeps } from '../app';
@@ -16,9 +16,11 @@ const assertWorkerImages = async (deps: AppDeps, images: string[]): Promise<stri
  *  scheduled-prompt routes. */
 const assertCronTrigger = (
   deps: AppDeps,
-  trigger: { type: string; cron?: string | undefined },
+  trigger: { type: TriggerType; cron?: string | undefined },
 ): string | null =>
-  trigger.type === 'cron' && trigger.cron && !deps.scheduler.isValidCron(trigger.cron) ? 'invalid cron' : null;
+  trigger.type === TriggerType.CRON && trigger.cron && !deps.scheduler.isValidCron(trigger.cron)
+    ? 'invalid cron'
+    : null;
 
 export const registerWorkflowRoutes = (app: FastifyInstance, deps: AppDeps): void => {
   app.get('/api/workflows', { preHandler: app.requireUser }, async () => deps.workflowService.list());

@@ -1,4 +1,4 @@
-import { SessionStatus } from '@sagewright/shared';
+import { SessionStatus, TriggerType, WorkflowStepKind } from '@sagewright/shared';
 import { eq } from 'drizzle-orm';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -23,12 +23,12 @@ const config = loadConfig({
 
 const definition = {
   name: 'Impl',
-  trigger: { type: 'manual' as const },
+  trigger: { type: TriggerType.MANUAL },
   maxIterations: 3,
   steps: [
-    { key: 'plan', name: 'Plan', kind: 'work' as const, workerImage: 'w', goal: 'plan' },
-    { key: 'implement', name: 'Implement', kind: 'work' as const, workerImage: 'w', goal: 'build' },
-    { key: 'validate', name: 'Validate', kind: 'validation' as const, workerImage: 'w', goal: 'check', onFailureGoTo: 'implement' },
+    { key: 'plan', name: 'Plan', kind: WorkflowStepKind.WORK, workerImage: 'w', goal: 'plan' },
+    { key: 'implement', name: 'Implement', kind: WorkflowStepKind.WORK, workerImage: 'w', goal: 'build' },
+    { key: 'validate', name: 'Validate', kind: WorkflowStepKind.VALIDATION, workerImage: 'w', goal: 'check', onFailureGoTo: 'implement' },
   ],
 };
 

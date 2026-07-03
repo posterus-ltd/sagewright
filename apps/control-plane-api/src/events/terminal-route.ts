@@ -1,11 +1,11 @@
 import type { FastifyInstance } from 'fastify';
 import type { WebSocket } from 'ws';
+import { z } from 'zod';
 import {
   parseTerminalSize,
   sessionDir,
-  terminalKindSchema,
   terminalResizeSchema,
-  type TerminalKind,
+  TerminalKind,
   type TerminalSize,
 } from '@sagewright/shared';
 
@@ -22,7 +22,7 @@ import type { TerminalSession } from '../tasks/docker-client';
  * plane harness-agnostic.
  */
 export const cmdForKind = (kind: TerminalKind): string[] =>
-  kind === 'agent' ? ['continue-agent'] : ['bash'];
+  kind === TerminalKind.AGENT ? ['continue-agent'] : ['bash'];
 
 export const KEEPALIVE_MS = 30_000;
 
@@ -116,7 +116,7 @@ export const registerTerminalRoute = (app: FastifyInstance, deps: AppDeps): void
   app.get('/api/tasks/:id/terminal', { websocket: true, preHandler: app.requireUser }, async (socket, req) => {
     const { id } = req.params as { id: string };
     const query = req.query as { kind?: string; cols?: string; rows?: string };
-    const kind = terminalKindSchema.safeParse(query.kind ?? 'shell');
+    const kind = z.enum(TerminalKind).safeParse(query.kind ?? TerminalKind.SHELL);
     if (!kind.success) {
       socket.close(1008, 'invalid kind');
       return;
@@ -143,7 +143,7 @@ export const registerTerminalRoute = (app: FastifyInstance, deps: AppDeps): void
 
     // Agent terminal: attach to the persistent runtime exec — no per-attach continue-agent,
     // and the socket closing never tears the agent down.
-    if (kind.data === 'agent') {
+    if (kind.data === TerminalKind.AGENT) {
       // The runtime registry is in-process only: a detached session that predates this
       // process (control-plane restart) has no entry, and attaching to a missing entry
       // silently no-ops. Rebuild it from persistent state before bridging.

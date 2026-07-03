@@ -15,12 +15,16 @@ import FullscreenExitRounded from '@mui/icons-material/FullscreenExitRounded';
 import { useEffect, useState, type FC } from 'react';
 
 import { useStopTask, useTask } from '../api/hooks';
-import { ButtonType, useConfirmation } from '../components/ConfirmDialogProvider';
+import {
+  ButtonType,
+  useConfirmation,
+} from '../components/ConfirmDialogProvider';
 import { StatusChip } from '../components/StatusChip';
 import { Terminal } from './Terminal';
 import { TranscriptTerminal } from './TranscriptTerminal';
 import { useTaskStream } from './useTaskStream';
 import { Stop } from '@mui/icons-material';
+import { SessionKind, TerminalKind } from '@sagewright/shared';
 
 type TabValue = 'transcript' | 'agent' | 'shell' | 'log';
 
@@ -76,7 +80,8 @@ export const SessionPanel: FC<{
         {
           label: 'Stop',
           type: ButtonType.DANGER,
-          onClick: () => stopTask.mutate(taskId, { onSuccess: () => onStopped?.() }),
+          onClick: () =>
+            stopTask.mutate(taskId, { onSuccess: () => onStopped?.() }),
         },
       ],
     });
@@ -99,7 +104,7 @@ export const SessionPanel: FC<{
 
   // Headless runs are driven by the control plane and stream their PTY as the
   // transcript; interactive sessions are driven by the human over Agent/Shell PTYs.
-  const headless = task?.kind === 'headless';
+  const headless = task?.kind === SessionKind.HEADLESS;
   const tabValues: TabValue[] = headless
     ? ['transcript', 'shell', 'log']
     : ['agent', 'shell', 'log'];
@@ -238,7 +243,11 @@ export const SessionPanel: FC<{
 
       {current === 'agent' &&
         (live ? (
-          <Terminal key={`${taskId}-agent`} taskId={taskId} kind="agent" />
+          <Terminal
+            key={`${taskId}-agent`}
+            taskId={taskId}
+            kind={TerminalKind.AGENT}
+          />
         ) : (
           <Typography color="text.secondary">
             No running container — the agent terminal is unavailable.
@@ -247,7 +256,11 @@ export const SessionPanel: FC<{
 
       {current === 'shell' &&
         (live ? (
-          <Terminal key={`${taskId}-shell`} taskId={taskId} kind="shell" />
+          <Terminal
+            key={`${taskId}-shell`}
+            taskId={taskId}
+            kind={TerminalKind.SHELL}
+          />
         ) : (
           <Typography color="text.secondary">
             No running container — the shell is unavailable.

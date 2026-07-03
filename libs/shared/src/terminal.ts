@@ -13,8 +13,10 @@ export const repoDir = (slug: string): string => `${reposRoot()}/${slug}`;
 
 /** Per-session worktrees: `<VOLUME_ROOT>/sessions/<taskId>/<slug>`. */
 export const sessionsRoot = (): string => `${VOLUME_ROOT}/sessions`;
-export const sessionDir = (taskId: string): string => `${sessionsRoot()}/${taskId}`;
-export const worktreeDir = (taskId: string, slug: string): string => `${sessionDir(taskId)}/${slug}`;
+export const sessionDir = (taskId: string): string =>
+  `${sessionsRoot()}/${taskId}`;
+export const worktreeDir = (taskId: string, slug: string): string =>
+  `${sessionDir(taskId)}/${slug}`;
 
 /**
  * A workflow run reuses the per-session worktree layout, keyed by runId instead
@@ -22,13 +24,16 @@ export const worktreeDir = (taskId: string, slug: string): string => `${sessionD
  * run's steps share this one dir + branch so code persists from step to step.
  */
 export const runDir = (runId: string): string => `${sessionsRoot()}/${runId}`;
-export const runWorktreeDir = (runId: string, slug: string): string => `${runDir(runId)}/${slug}`;
+export const runWorktreeDir = (runId: string, slug: string): string =>
+  `${runDir(runId)}/${slug}`;
 /** The shared branch every step of a run commits onto; pushed once at run end. */
 export const runBranch = (runId: string): string => `workflow/${runId}`;
 
 /** Terminal flavours exposed on a session. */
-export const terminalKindSchema = z.enum(['shell', 'agent']);
-export type TerminalKind = z.infer<typeof terminalKindSchema>;
+export enum TerminalKind {
+  SHELL = 'shell',
+  AGENT = 'agent',
+}
 
 /** A PTY's character dimensions. */
 export const terminalSizeSchema = z.object({
@@ -49,14 +54,22 @@ export type TerminalResize = z.infer<typeof terminalResizeSchema>;
  * startup and a late resize can't cleanly recover that first paint. Returns
  * `undefined` when either dimension is missing or not a positive integer.
  */
-export const parseTerminalSize = (q: { cols?: string; rows?: string }): TerminalSize | undefined => {
-  const parsed = terminalSizeSchema.safeParse({ cols: Number(q.cols), rows: Number(q.rows) });
+export const parseTerminalSize = (q: {
+  cols?: string;
+  rows?: string;
+}): TerminalSize | undefined => {
+  const parsed = terminalSizeSchema.safeParse({
+    cols: Number(q.cols),
+    rows: Number(q.rows),
+  });
   return parsed.success ? parsed.data : undefined;
 };
 
 /** Worker session lifecycle mode, passed to the worker via SESSION_MODE. */
-export const sessionModeSchema = z.enum(['interactive', 'headless']);
-export type SessionMode = z.infer<typeof sessionModeSchema>;
+export enum SessionMode {
+  INTERACTIVE = 'interactive',
+  HEADLESS = 'headless',
+}
 
 /**
  * What a session is *for*. The single spawn path branches on this; every run path
@@ -64,16 +77,16 @@ export type SessionMode = z.infer<typeof sessionModeSchema>;
  * parent) maps to one kind. The worker only ever sees the derived `SessionMode`
  * (see `modeForKind`) — `kind` stays control-plane side.
  */
-export const sessionKindSchema = z.enum([
-  'interactive',
-  'headless',
-  'scheduled',
-  'workflow_step',
-  'workflow',
-]);
-export type SessionKind = z.infer<typeof sessionKindSchema>;
+
+export enum SessionKind {
+  INTERACTIVE = 'interactive',
+  HEADLESS = 'headless',
+  SCHEDULED = 'scheduled',
+  WORKFLOW_STEP = 'workflow_step',
+  WORKFLOW = 'workflow',
+}
 
 /** Derive the worker-facing lifecycle mode from a session kind. Only an interactive
  *  session keeps a human at the PTY; everything else is driven headless. */
 export const modeForKind = (kind: SessionKind): SessionMode =>
-  kind === 'interactive' ? 'interactive' : 'headless';
+  kind === SessionKind.INTERACTIVE ? SessionMode.INTERACTIVE : SessionMode.HEADLESS;

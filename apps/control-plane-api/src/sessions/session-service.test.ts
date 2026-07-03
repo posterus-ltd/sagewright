@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
-import { EventType, SessionStatus } from '@sagewright/shared';
+import { EventType, SessionKind, SessionStatus } from '@sagewright/shared';
 import { eq } from 'drizzle-orm';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -77,7 +77,7 @@ describe('session-service spawnSession', () => {
       credential: { token: 'ght', login: 'u', name: 'u', email: 'e' },
     });
 
-    await service.spawnSession({ kind: 'headless', createdBy: 'al', prompt: 'do it' });
+    await service.spawnSession({ kind: SessionKind.HEADLESS, createdBy: 'al', prompt: 'do it' });
 
     expect(spawns).toHaveLength(1);
     expect(spawns[0]!.userEnv.FOO).toBe('bar');
@@ -88,7 +88,7 @@ describe('session-service spawnSession', () => {
   it('persists the container id on the session row and returns it', async () => {
     const { db, service } = await setup();
 
-    const result = await service.spawnSession({ kind: 'interactive', createdBy: 'al' });
+    const result = await service.spawnSession({ kind: SessionKind.INTERACTIVE, createdBy: 'al' });
 
     expect(result.containerId).toBe('cid');
     const [row] = await db.select().from(sessions).where(eq(sessions.id, result.id)).limit(1);
@@ -103,7 +103,7 @@ describe('session-service spawnSession', () => {
       },
     });
 
-    await expect(service.spawnSession({ kind: 'headless', createdBy: 'al' })).rejects.toThrow('boom');
+    await expect(service.spawnSession({ kind: SessionKind.HEADLESS, createdBy: 'al' })).rejects.toThrow('boom');
 
     const [row] = await db.select().from(sessions).orderBy(sessions.createdAt).limit(1);
     expect(row!.status).toBe(SessionStatus.FAILED);
@@ -127,7 +127,7 @@ describe('session-service spawnSession', () => {
     });
     dbRef = db;
 
-    await expect(service.spawnSession({ kind: 'interactive', createdBy: 'al' })).rejects.toThrow(
+    await expect(service.spawnSession({ kind: SessionKind.INTERACTIVE, createdBy: 'al' })).rejects.toThrow(
       /settled during provisioning/,
     );
 
@@ -147,7 +147,7 @@ describe('session-service spawnSession', () => {
     const { db, service } = await setup();
 
     await expect(
-      service.spawnSession({ kind: 'headless', createdBy: 'al', workerImage: 'not-registered' }),
+      service.spawnSession({ kind: SessionKind.HEADLESS, createdBy: 'al', workerImage: 'not-registered' }),
     ).rejects.toThrow(/unknown worker image/);
 
     const [row] = await db.select().from(sessions).orderBy(sessions.createdAt).limit(1);
@@ -206,7 +206,7 @@ describe('session-service spawnSession', () => {
     const runId = randomUUID();
 
     await service.spawnSession({
-      kind: 'workflow_step',
+      kind: SessionKind.WORKFLOW_STEP,
       createdBy: 'al',
       prompt: 'step',
       workflowStepKey: 'plan',

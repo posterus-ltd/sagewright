@@ -1,4 +1,4 @@
-import { SessionStatus, type Session, type WorkflowDefinition } from '@sagewright/shared';
+import { SessionStatus, type Session, type WorkflowDefinition, type WorkflowStepKind } from '@sagewright/shared';
 import type { Edge, Node } from '@xyflow/react';
 
 export type StepNodeStatus = 'pending' | 'running' | 'done' | 'failed';
@@ -6,7 +6,7 @@ export type StepNodeStatus = 'pending' | 'running' | 'done' | 'failed';
 export interface StepNodeData {
   stepKey: string;
   name: string;
-  kind: 'work' | 'validation';
+  kind: WorkflowStepKind;
   workerImage: string;
   status: StepNodeStatus;
   iteration: number | null;

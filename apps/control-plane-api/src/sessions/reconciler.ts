@@ -1,4 +1,4 @@
-import { EventType, SessionStatus, isTerminalStatus } from '@sagewright/shared';
+import { EventType, SessionKind, SessionStatus, isTerminalStatus } from '@sagewright/shared';
 import { eq } from 'drizzle-orm';
 
 import type { Db } from '../db/client';
@@ -46,14 +46,14 @@ export const createReconciler = (deps: ReconcilerDeps) => {
 
   const reconcileRow = async (row: typeof sessions.$inferSelect): Promise<void> => {
     // The workflow parent has no container of its own; its drive loop is what died.
-    if (row.kind === 'workflow') {
+    if (row.kind === SessionKind.WORKFLOW) {
       await deps.resumeWorkflow(row.id);
       return;
     }
 
     const alive = row.containerId ? await deps.containerAlive(row.containerId) : false;
 
-    if (row.kind === 'interactive') {
+    if (row.kind === SessionKind.INTERACTIVE) {
       if (alive) {
         // Box is up but the live exec is gone with the process — rest as DETACHED so
         // the next input can resume it.
@@ -71,7 +71,7 @@ export const createReconciler = (deps: ReconcilerDeps) => {
     // (keyed by the run id, not the step id) — the parent's resumeWorkflow re-drives the
     // current step against it and owns its cleanup. Removing it here (or keying removal by
     // the step id) would either no-op wrongly or yank the worktree out from under the resume.
-    if (row.kind === 'workflow_step') {
+    if (row.kind === SessionKind.WORKFLOW_STEP) {
       await fail(row.id, 'reconciler: workflow step interrupted by a control-plane restart');
       if (alive && row.containerId) await deps.retire(row.containerId).catch(() => undefined);
       return;

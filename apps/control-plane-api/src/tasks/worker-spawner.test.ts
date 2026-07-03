@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { SessionMode } from '@sagewright/shared';
+import { SessionMode } from '@sagewright/shared';
 
 import { createWorkerSpawner } from './worker-spawner';
 
@@ -27,7 +27,7 @@ const spawnWith = async (mode: SessionMode, userEnv: Record<string, string> = {}
 
 describe('worker-spawner', () => {
   it('creates and starts a container with the worker env', async () => {
-    const { out, start, env } = await spawnWith('headless');
+    const { out, start, env } = await spawnWith(SessionMode.HEADLESS);
     expect(out.containerId).toBe('c123');
     expect(start).toHaveBeenCalled();
     expect(env).toContain('TASK_ID=t1');
@@ -43,41 +43,41 @@ describe('worker-spawner', () => {
   });
 
   it('labels the container with its session id so orphans stay discoverable', async () => {
-    const { createContainer } = await spawnWith('headless');
+    const { createContainer } = await spawnWith(SessionMode.HEADLESS);
     const labels = (createContainer.mock.calls[0]![0] as { Labels: Record<string, string> }).Labels;
     expect(labels).toEqual({ 'sagewright.session': 't1' });
   });
 
   it('mounts the shared repo volume at the canonical path', async () => {
-    const { hostConfig } = await spawnWith('interactive');
+    const { hostConfig } = await spawnWith(SessionMode.INTERACTIVE);
     expect(hostConfig.NetworkMode).toBe('sagewright');
     expect(hostConfig.Binds).toContain('sagewright-repos:/sagewright-volume');
   });
 
   it('passes the session mode through verbatim', async () => {
-    expect((await spawnWith('interactive')).env).toContain('SESSION_MODE=interactive');
-    expect((await spawnWith('headless')).env).toContain('SESSION_MODE=headless');
+    expect((await spawnWith(SessionMode.INTERACTIVE)).env).toContain('SESSION_MODE=interactive');
+    expect((await spawnWith(SessionMode.HEADLESS)).env).toContain('SESSION_MODE=headless');
   });
 
   it('injects the user env so it can override baked image secrets', async () => {
-    const { env } = await spawnWith('headless', { GITHUB_TOKEN: 'ghp_user', FOO: 'bar' });
+    const { env } = await spawnWith(SessionMode.HEADLESS, { GITHUB_TOKEN: 'ghp_user', FOO: 'bar' });
     expect(env).toContain('GITHUB_TOKEN=ghp_user');
     expect(env).toContain('FOO=bar');
   });
 
   it('lets operational vars win over a colliding user env value', async () => {
-    const { env } = await spawnWith('headless', { TASK_ID: 'attacker' });
+    const { env } = await spawnWith(SessionMode.HEADLESS, { TASK_ID: 'attacker' });
     expect(env).toContain('TASK_ID=t1');
     expect(env).not.toContain('TASK_ID=attacker');
   });
 
   it('falls back to config image when no workerImage override is provided', async () => {
-    const { image } = await spawnWith('headless');
+    const { image } = await spawnWith(SessionMode.HEADLESS);
     expect(image).toBe('img');
   });
 
   it('uses the per-session workerImage override when provided', async () => {
-    const { image } = await spawnWith('headless', {}, 'custom:latest');
+    const { image } = await spawnWith(SessionMode.HEADLESS, {}, 'custom:latest');
     expect(image).toBe('custom:latest');
   });
 });

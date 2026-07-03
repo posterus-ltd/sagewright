@@ -1,4 +1,5 @@
 import {
+  RepoStatus,
   type CanvasLayout,
   type CreateScheduledPromptInput,
   type CreateSessionInput,
@@ -54,7 +55,7 @@ export const useRepos = () =>
   useQuery({
     queryKey: ['repos'],
     queryFn: () => apiClient.get<RepoWithStatus[]>('/api/repos'),
-    refetchInterval: (query) => (query.state.data?.some((r) => r.status === 'cloning') ? 2000 : false),
+    refetchInterval: (query) => (query.state.data?.some((r) => r.status === RepoStatus.CLONING) ? 2000 : false),
   });
 
 export const useSaveRepos = () => {
