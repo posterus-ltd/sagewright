@@ -61,11 +61,11 @@ describe('LandingPage', () => {
   });
 
   it('offers the enterprise AI-native SDLC to small teams and solo builders', () => {
-    const { getByText } = renderPage();
+    const { getByText, getAllByText } = renderPage();
     expect(
       getByText(/within reach of small teams and solo builders/i),
     ).toBeTruthy();
-    expect(getByText(/small teams, big leverage/i)).toBeTruthy();
+    expect(getAllByText(/AI-native SDLC/i)).toHaveLength(2);
   });
 
   it('ranks audiences, placing the three sweet spots and flanking weaker fits', () => {

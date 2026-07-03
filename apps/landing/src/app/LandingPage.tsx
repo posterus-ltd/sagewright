@@ -52,7 +52,7 @@ const FEATURES: readonly Feature[] = [
     icon: '◷',
     tag: 'sync',
     title: 'mobile-first & resumable',
-    body: 'Every byte an agent emits is a persisted event log. Drop the connection, reconnect, and your sessions are still there.',
+    body: 'Every byte an agent emits is a persisted event log — scroll back through the full history of any session, mid-run or long after it ended.',
   },
   {
     icon: '↺',
@@ -65,28 +65,6 @@ const FEATURES: readonly Feature[] = [
     tag: 'open',
     title: 'no vendor lock-in',
     body: 'Open formats, your own models and harness, your own repos and infra. You deploy and run it yourself — just a multiplier.',
-  },
-];
-
-/** The same AI-native SDLC, framed for each audience it now reaches. */
-const TIERS: readonly Feature[] = [
-  {
-    icon: '◐',
-    tag: 'solo',
-    title: 'one builder, a full fleet',
-    body: 'Drive a whole team of agents from a single control plane. As a solo builder you ship like an org ten times your size.',
-  },
-  {
-    icon: '◑',
-    tag: 'team',
-    title: 'small teams, big leverage',
-    body: 'Coordinate work across repos and people from one shared control plane. The workflow scales with the team instead of fighting it.',
-  },
-  {
-    icon: '●',
-    tag: 'scale',
-    title: 'enterprise-grade by default',
-    body: 'Governance, audit trails, and compliance are built in from day one — so how you work as one stays how you work as a thousand.',
   },
 ];
 
@@ -108,7 +86,7 @@ const AUDIENCES: readonly Feature[] = [
     icon: '█',
     tag: 'ninjas',
     title: 'technical ninjas — sweet spot №1',
-    body: 'Right in the sweet spot. Running in minutes and bent to your workflow: a flexible, powerful setup with full freedom over harness, models, and infra — and zero vendor lock-in.',
+    body: 'Right in the sweet spot. Running in minutes and bent to your workflow — a flexible, powerful setup with full freedom over harness, models, and infra.',
   },
   {
     icon: '█',
@@ -120,7 +98,7 @@ const AUDIENCES: readonly Feature[] = [
     icon: '█',
     tag: 'tech-ent',
     title: 'tech-driven enterprises — sweet spot №3',
-    body: 'Hard-core, tech-driven orgs land in the sweet spot too: a native fit with full freedom over harness, models, and infra, plus governance and audit trails built in from day one.',
+    body: 'Hard-core, tech-driven orgs land in the sweet spot too — same freedom over harness, models, and infra, plus governance and audit trails built in from day one.',
   },
   {
     icon: '▓',
@@ -481,10 +459,26 @@ export const LandingPage: FC = () => (
         </p>
 
         <p className="tagline">
-          Run a fleet of agents in parallel — no local terminals to juggle. The
-          control plane is a <span className="hl">higher-order harness</span> —
-          a harness that orchestrates harnesses — that lives in your browser, so
-          you launch, watch and steer every agent from any device, anywhere.
+          Right now, agentic coding is ad hoc: everyone on the team running
+          their own agent, on their own laptop propped open so it doesn't sleep
+          — hit-or-miss results, no org-wide setup, a different vendor lock-in
+          behind every tool, and no durable place to put repetitive work.
+        </p>
+
+        <p className="tagline">
+          Sagewright fixes that with a fleet of agents running in parallel — no
+          local terminals to juggle. The control plane is a{' '}
+          <span className="hl">higher-order harness</span> — a harness that
+          orchestrates harnesses — that lives on a remote infra and is
+          accessible from any browser, so you launch, watch and steer every
+          agent from any device, anywhere.
+        </p>
+
+        <p className="tagline">
+          Every run compounds your org's capability and context into a strategic
+          asset you own — self-hosted and sovereign, yet model- and
+          provider-agnostic, turning synthetic intelligence into a swappable
+          commodity.
         </p>
 
         <p className="tagline tagline--opinion">
@@ -515,34 +509,15 @@ export const LandingPage: FC = () => (
         </ul>
       </Window>
 
-      <Window title="for_everyone.sh">
-        <p className="section-lead">
-          The <span className="hl">AI-native SDLC</span> that enterprises run on
-          — now within reach of small teams and solo builders. Same engine, same
-          rigor, no platform org required.
-        </p>
-        <ul className="features">
-          {TIERS.map((t) => (
-            <li className="feature" key={t.title}>
-              <span className="feature__glyph">
-                <span className="feature__icon">{t.icon}</span> [{t.tag}]
-              </span>
-              <div>
-                <h2 className="feature__title">{t.title}</h2>
-                <p className="feature__body">{t.body}</p>
-              </div>
-            </li>
-          ))}
-        </ul>
-      </Window>
-
       <Window title="who_is_it_for.sh">
         <p className="section-lead">
-          <span className="hl">Who is it for?</span> The sweet spot is a
-          contiguous band — technical ninjas, small teams, and tech-driven
-          enterprises: people technical enough to set it up fast who want a
+          <span className="hl">Who is it for?</span> The same{' '}
+          <span className="hl">AI-native SDLC</span> enterprises run on — now
+          within reach of small teams and solo builders too. The sweet spot is a
+          contiguous band: technical ninjas, small teams, and tech-driven
+          enterprises — people technical enough to set it up fast, who want a
           flexible, powerful workflow they fully own and are never locked into.
-          Vibe coders only land it if they are technical enough; the broader
+          Vibe coders fit only if they're technical enough; the broader
           enterprise gets a strong multiplier rather than a native fit.
         </p>
 
@@ -593,16 +568,16 @@ export const LandingPage: FC = () => (
         </p>
         <pre className="audit">{CRON_TABLE}</pre>
         <p className="diagram__caption">
-          Cron-style schedules, fully observable — every scheduled run is a
-          logged, replayable event, just like everything else.
+          Fully observable — every scheduled run lands in the same audit trail
+          as everything else.
         </p>
       </Window>
 
       <Window title="the_core_loop.sh">
         <pre className="diagram">{LOOP_DIAGRAM}</pre>
         <p className="diagram__caption">
-          If only this works reliably, it is already a product. Everything else
-          is a layer on top.
+          The system enables anyone to define and run custom self-correcting
+          loops.
         </p>
       </Window>
 
