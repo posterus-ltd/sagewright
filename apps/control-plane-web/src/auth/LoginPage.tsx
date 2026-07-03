@@ -169,7 +169,10 @@ export const LoginPage: FC = () => {
   const [password, setPassword] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
+  const isValid = name.trim().length > 0 && password.trim().length > 0;
+
   const onSubmit = async (): Promise<void> => {
+    if (!isValid) return;
     setSubmitting(true);
     try {
       await login(name, password);
@@ -222,6 +225,7 @@ export const LoginPage: FC = () => {
             onChange={(e) => setName(e.target.value)}
             autoFocus
             autoComplete="username"
+            required
           />
           <TextField
             label="Password"
@@ -229,8 +233,9 @@ export const LoginPage: FC = () => {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             autoComplete="current-password"
+            required
           />
-          <Button type="submit" variant="contained" size="large" disabled={submitting}>
+          <Button type="submit" variant="contained" size="large" disabled={!isValid || submitting}>
             Sign in
           </Button>
         </Box>

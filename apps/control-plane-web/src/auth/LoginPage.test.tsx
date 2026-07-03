@@ -58,4 +58,41 @@ describe('LoginPage', () => {
     );
     expect(navigate).not.toHaveBeenCalled();
   });
+
+  it('disables sign in until both fields have non-whitespace content', () => {
+    render(<LoginPage />);
+    const button = screen.getByRole('button', { name: /sign in/i }) as HTMLButtonElement;
+    expect(button.disabled).toBe(true);
+
+    typeInto(/display name/i, 'ada');
+    expect(button.disabled).toBe(true);
+
+    typeInto(/password/i, '   ');
+    expect(button.disabled).toBe(true);
+  });
+
+  it('submits on enter once the required fields are plausible', async () => {
+    login.mockResolvedValueOnce(undefined);
+    render(<LoginPage />);
+
+    typeInto(/display name/i, 'ada');
+    typeInto(/password/i, 'hunter2');
+    fireEvent.submit(screen.getByRole('button', { name: /sign in/i }).closest('form') as HTMLFormElement);
+
+    await waitFor(() => expect(login).toHaveBeenCalledWith('ada', 'hunter2'));
+    expect(navigate).toHaveBeenCalledWith('/');
+  });
+
+  it('does not attempt to log in when submitted with blank or whitespace-only fields', () => {
+    render(<LoginPage />);
+    const form = screen.getByRole('button', { name: /sign in/i }).closest('form') as HTMLFormElement;
+
+    fireEvent.submit(form);
+    expect(login).not.toHaveBeenCalled();
+
+    typeInto(/display name/i, '   ');
+    typeInto(/password/i, '   ');
+    fireEvent.submit(form);
+    expect(login).not.toHaveBeenCalled();
+  });
 });
