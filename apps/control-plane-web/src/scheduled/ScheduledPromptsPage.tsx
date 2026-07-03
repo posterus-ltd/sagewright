@@ -15,6 +15,7 @@ import { Cron } from 'croner';
 import { DateTime } from 'luxon';
 import { useEffect, useMemo, useState, type FC } from 'react';
 
+import { describeCron } from '../components/CronEditor';
 import { Header } from '../components/Header';
 import { MainContainer } from '../components/MainContainer';
 import { WorkerChip } from '../components/WorkerChip';
@@ -23,7 +24,7 @@ import {
   useScheduledPrompts,
   useUpdateScheduledPrompt,
 } from '../api/hooks';
-import { ScheduledPromptDialog, describeCron } from './ScheduledPromptDialog';
+import { ScheduledPromptDialog } from './ScheduledPromptDialog';
 
 const NO_NEXT_RUN = '—';
 

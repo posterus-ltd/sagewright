@@ -1,7 +1,5 @@
 import {
-  Box,
   Button,
-  Chip,
   Dialog,
   DialogActions,
   DialogContent,
@@ -12,8 +10,6 @@ import {
   Typography,
 } from '@mui/material';
 import { type ScheduledPrompt } from '@sagewright/shared';
-import { Cron } from 'croner';
-import cronstrue from 'cronstrue';
 import { useState, type FC } from 'react';
 
 import {
@@ -21,75 +17,11 @@ import {
   useUpdateScheduledPrompt,
   useWorkers,
 } from '../api/hooks';
+import { CronEditor } from '../components/CronEditor';
 
 // Sentinel for the worker <Select>: empty value means "inherit my default worker"
 // (resolved server-side at fire time), distinct from any real image ref.
 const INHERIT_DEFAULT = '';
-
-export const describeCron = (cron: string): string | null => {
-  const trimmed = cron.trim();
-  if (!trimmed) return null;
-  try {
-    return cronstrue.toString(trimmed, { throwExceptionOnParseError: true });
-  } catch {
-    return null;
-  }
-};
-
-const CRON_PRESETS: { label: string; cron: string }[] = [
-  { label: 'Every hour', cron: '0 * * * *' },
-  { label: 'Daily at 9am', cron: '0 9 * * *' },
-  { label: 'Every weekday at 9am', cron: '0 9 * * 1-5' },
-  { label: 'Every Monday at 9am', cron: '0 9 * * 1' },
-  { label: 'First of the month', cron: '0 9 1 * *' },
-  { label: 'In five minutes', cron: '*/5 * * * *' },
-];
-
-const nextRuns = (cron: string, count: number): Date[] => {
-  const trimmed = cron.trim();
-  if (!trimmed) return [];
-  try {
-    return new Cron(trimmed).nextRuns(count);
-  } catch {
-    return [];
-  }
-};
-
-const CronPreview: FC<{ cron: string }> = ({ cron }) => {
-  if (!cron.trim()) return null;
-  const description = describeCron(cron);
-  if (description === null) {
-    return (
-      <Typography variant="body2" color="error">
-        Not a valid cron expression
-      </Typography>
-    );
-  }
-  const runs = nextRuns(cron, 3);
-  return (
-    <Box sx={{ p: 1.5, borderRadius: 1, bgcolor: 'action.hover' }}>
-      <Typography variant="body2" sx={{ fontWeight: 600 }}>
-        {description}
-      </Typography>
-      {runs.length > 0 && (
-        <Stack sx={{ mt: 1 }}>
-          <Typography variant="caption" color="text.secondary">
-            Next runs
-          </Typography>
-          {runs.map((run) => (
-            <Typography
-              key={run.toISOString()}
-              variant="caption"
-              color="text.secondary"
-            >
-              {run.toLocaleString()}
-            </Typography>
-          ))}
-        </Stack>
-      )}
-    </Box>
-  );
-};
 
 // A single dialog drives both create and edit. When `editing` is provided the
 // fields seed from it and the update hook is used; otherwise it creates anew.
@@ -146,25 +78,7 @@ export const ScheduledPromptDialog: FC<{
           repo(s) to work in.
         </Typography>
         <Stack spacing={2} sx={{ mt: 1 }}>
-          <TextField
-            label="Cron (e.g. 0 9 * * *)"
-            value={cron}
-            onChange={(e) => setCron(e.target.value)}
-            error={Boolean(cron.trim()) && describeCron(cron) === null}
-          />
-          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-            {CRON_PRESETS.map((preset) => (
-              <Chip
-                key={preset.cron}
-                label={preset.label}
-                size="small"
-                variant={cron.trim() === preset.cron ? 'filled' : 'outlined'}
-                color={cron.trim() === preset.cron ? 'primary' : 'default'}
-                onClick={() => setCron(preset.cron)}
-              />
-            ))}
-          </Box>
-          <CronPreview cron={cron} />
+          <CronEditor value={cron} onChange={setCron} />
           <TextField
             label="Prompt"
             multiline
