@@ -208,6 +208,8 @@ const CanvasBoard: FC<BoardProps> = ({ initialLayout, tasks }) => {
           colorMode={theme.palette.mode}
           minZoom={0.2}
           maxZoom={2}
+          snapToGrid
+          snapGrid={[20, 20]}
           proOptions={{ hideAttribution: true }}
         >
           <Background color={theme.palette.divider} gap={20} />

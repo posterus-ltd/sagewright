@@ -70,6 +70,8 @@ export const WorkflowRunPage: FC = () => {
             colorMode={theme.palette.mode}
             fitView
             nodesDraggable={false}
+            snapToGrid
+            snapGrid={[20, 20]}
             proOptions={{ hideAttribution: true }}
           >
             <Background color={theme.palette.divider} gap={20} />
