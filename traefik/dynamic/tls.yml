@@ -1,0 +1,18 @@
+tls:
+  certificates:
+    - certFile: /certs/cert.pem
+      keyFile: /certs/key.pem
+
+http:
+  routers:
+    control-plane-https:
+      entryPoints:
+        - websecure
+      rule: "PathPrefix(`/`)"
+      service: control-plane
+      tls: {}
+  services:
+    control-plane:
+      loadBalancer:
+        servers:
+          - url: "http://control-plane:3000"

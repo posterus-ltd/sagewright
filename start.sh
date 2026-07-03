@@ -12,4 +12,4 @@ cd "$(dirname "$0")"
 # images are never pushed to a registry, so each host must build its own.
 docker compose --profile build build
 
-docker compose up --build -d
+docker compose --profile https up --build -d

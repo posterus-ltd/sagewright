@@ -57,6 +57,58 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       - sagewright-repos:/sagewright-volume
 
+  # ---------------------------------------------------------------------------
+  # Optional HTTPS sidecar (profile: https). Terminates TLS with a self-signed
+  # certificate and proxies to the control-plane's existing plain-HTTP port —
+  # needed so the web app can be installed as a PWA when reached via a LAN
+  # IP/hostname instead of localhost (browsers only treat plain HTTP as a
+  # secure context on localhost). Entirely decoupled from the control-plane
+  # app itself: skip the `https` profile if your deployment already terminates
+  # TLS some other way (a real reverse proxy, a cloud load balancer, …).
+  #
+  # Enable:  docker compose --profile https up -d
+  # Disable: just don't pass --profile https (or `docker compose rm -s -f
+  #          cert-init tls-proxy` to remove them from an existing stack).
+  # ---------------------------------------------------------------------------
+  cert-init:
+    profiles: ['https']
+    image: alpine:3
+    volumes:
+      - ./traefik/certs:/certs
+    entrypoint:
+      - sh
+      - -c
+      - |
+        if [ -f /certs/cert.pem ] && [ -f /certs/key.pem ]; then
+          echo "Self-signed certificate already exists in ./traefik/certs — skipping."
+          exit 0
+        fi
+        apk add --no-cache openssl >/dev/null
+        openssl req -x509 -newkey rsa:2048 -nodes -days 3650 \
+          -keyout /certs/key.pem -out /certs/cert.pem \
+          -subj "/CN=sagewright-control-plane" \
+          -addext "subjectAltName=DNS:localhost,IP:127.0.0.1"
+
+  tls-proxy:
+    profiles: ['https']
+    image: traefik:v3.3
+    depends_on:
+      cert-init:
+        condition: service_completed_successfully
+      control-plane:
+        condition: service_started
+    command:
+      - --entryPoints.websecure.address=:8443
+      - --providers.file.directory=/etc/traefik/dynamic
+      - --providers.file.watch=true
+    ports:
+      - '${HTTPS_PORT:-8443}:8443'
+    volumes:
+      - ./traefik/dynamic:/etc/traefik/dynamic:ro
+      - ./traefik/certs:/certs:ro
+    networks:
+      - sagewright
+
   # Build-only services for worker images. Worker containers are spawned
   # dynamically by the control-plane via the Docker socket (not run by compose),
   # so these services exist solely so `docker compose --profile build build`

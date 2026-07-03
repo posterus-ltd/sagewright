@@ -107,6 +107,24 @@ docker compose down      # stop (your data persists in the pgdata volume)
 docker compose up -d     # start again
 ```
 
+### Installing as a PWA (optional HTTPS)
+
+The control plane is installable as a PWA, but browsers only treat plain HTTP as a secure context
+on `localhost` — if you reach it via a LAN IP or hostname instead (e.g. to install it on your
+phone), they won't offer the install prompt over HTTP. An optional `https` compose profile adds a
+[Traefik](https://traefik.io) sidecar that generates a self-signed certificate and terminates
+HTTPS in front of the control plane. It's entirely decoupled from the app itself — skip it if your
+deployment already terminates TLS some other way (a real reverse proxy, a cloud load balancer, …).
+
+```bash
+docker compose --profile https up -d
+```
+
+Open **https://\<host\>:8443** (override the port with `HTTPS_PORT` in `.env`) and accept the
+browser's "not private" warning — expected, since the cert is self-signed rather than CA-issued.
+The install prompt becomes available once you do. The generated cert/key live in
+`./traefik/certs/`; delete them to force regeneration.
+
 ---
 
 ## Advanced: customizing the worker image
