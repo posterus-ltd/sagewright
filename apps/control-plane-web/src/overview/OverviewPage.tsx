@@ -133,7 +133,7 @@ const ShippedRow: FC<{ session: Session; onClick: () => void }> = ({
 const CountChips: FC<{ items: { label: string; count: number }[] }> = ({
   items,
 }) => (
-  <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap' }}>
+  <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: 'wrap' }}>
     {items.map(({ label, count }) => (
       <Box
         key={label}
@@ -233,7 +233,7 @@ export const OverviewPage: FC = () => {
           subtitle="Every agent active across the team right now"
         />
 
-        <Stack direction="row" spacing={2} sx={{ flexWrap: 'wrap' }}>
+        <Stack direction="row" spacing={2} useFlexGap sx={{ flexWrap: 'wrap' }}>
           {counts.map(({ group, count }) => (
             <StatTile
               key={group}
@@ -265,7 +265,7 @@ export const OverviewPage: FC = () => {
           empty={false}
           emptyMessage=""
         >
-          <Stack direction="row" spacing={2} sx={{ flexWrap: 'wrap' }}>
+          <Stack direction="row" spacing={2} useFlexGap sx={{ flexWrap: 'wrap' }}>
             <StatTile
               label="Completed"
               count={throughput.completed}
