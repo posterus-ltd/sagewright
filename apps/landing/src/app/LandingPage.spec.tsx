@@ -107,6 +107,13 @@ describe('LandingPage', () => {
     expect(getByText(/put routine work on a cron/i)).toBeTruthy();
   });
 
+  it('explains the worker-container security model', () => {
+    const { getByText } = renderPage();
+    expect(getByText(/security by isolation/i)).toBeTruthy();
+    expect(getByText(/sandboxed worker container/i)).toBeTruthy();
+    expect(getByText(/only sees whatever you mount as its work tree/i)).toBeTruthy();
+  });
+
   it('promises no vendor lock-in', () => {
     const { getByText } = renderPage();
     expect(getByText(/no vendor lock-in/i)).toBeTruthy();

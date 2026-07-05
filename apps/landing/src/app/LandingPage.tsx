@@ -639,6 +639,24 @@ export const LandingPage: FC = () => (
         </p>
       </Window>
 
+      <Window title="security.model">
+        <p className="section-lead">
+          <span className="hl">Security by isolation.</span> Every agent runs
+          in its own sandboxed worker container, separated from other agents and
+          from the control plane runtime.
+        </p>
+        <p className="section-lead">
+          A worker only sees whatever you mount as its work tree. If a repo,
+          file path, or secret is not mounted into that sandbox, the agent
+          cannot access it.
+        </p>
+        <p className="section-lead">
+          This keeps the blast radius small: each task gets a bounded workspace
+          with explicit inputs, clear audit logs, and no implicit access to the
+          rest of your infrastructure.
+        </p>
+      </Window>
+
       <Window title="quickstart.sh">
         <p className="section-lead">
           <span className="hl">Powered by Docker.</span> Control plane, workers,
