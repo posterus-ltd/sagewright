@@ -225,6 +225,13 @@ and the start script — nothing outside the image changes:
 The transcript is the agent's raw terminal output, so a chatty CLI gives a rich transcript. Mid-run
 interjections are written to the agent's stdin — they take effect only if your harness reads stdin.
 
+Each worker's `Dockerfile` also sets `LABEL sagewright.worker.name="..."` — the label shown in the
+New Session / Settings pickers. Shipped workers name it after the harness (`Codex`, `Pi`, `Opencode`,
+`Claude Code`), but that's just a convention: the label is a free-form string, so you can just as
+well name a worker after a role or persona instead — e.g. `Bob the CTO`, `Alice the Reviewer` — if
+that reads better for your team. Keep the folder/`id`/image tag tied to the underlying harness so
+the mapping stays traceable.
+
 ### Override the agent's system prompt / alignment ("soul")
 
 The agent's base instructions live in [`workers/opencode/SOUL.md`](./workers/opencode/SOUL.md), baked into the image and

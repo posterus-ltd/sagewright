@@ -60,7 +60,7 @@ const GithubSection: FC = () => {
       </Typography>
       {status?.connected ? (
         <Stack spacing={1}>
-          <Stack direction="row" spacing={1} alignItems="center">
+          <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
             <Chip size="small" color="success" label={`Connected as @${status.login}`} />
             <Typography variant="body2" color="text.secondary">{status.email}</Typography>
           </Stack>

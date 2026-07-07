@@ -23,18 +23,11 @@ import { Link, useParams } from 'react-router';
 
 import { useWorkflowRun } from '../api/hooks';
 import { MainContainer } from '../components/MainContainer';
+import { StatusChip } from '../components/StatusChip';
 import { WorkflowStepNode } from './WorkflowStepNode';
 import { buildWorkflowGraph } from './workflow-graph';
 
 const nodeTypes: NodeTypes = { workflowStep: WorkflowStepNode };
-
-const RUN_STATUS_COLOR = {
-  queued: 'info',
-  running: 'info',
-  done: 'success',
-  failed: 'error',
-  max_iterations: 'warning',
-} as const;
 
 export const WorkflowRunPage: FC = () => {
   const { id = '' } = useParams();
@@ -104,11 +97,7 @@ export const WorkflowRunPage: FC = () => {
                 <Typography variant="subtitle1">
                   {run.definition.name}
                 </Typography>
-                <Chip
-                  label={run.status}
-                  color={RUN_STATUS_COLOR[run.status]}
-                  size="small"
-                />
+                <StatusChip status={run.status} />
                 {run.iteration > 0 && (
                   <Chip
                     label={`iteration ${run.iteration}`}

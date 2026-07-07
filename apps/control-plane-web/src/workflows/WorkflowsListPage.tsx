@@ -36,20 +36,13 @@ import {
 import { ButtonType, useConfirmation } from '../components/ConfirmDialogProvider';
 import { Header } from '../components/Header';
 import { MainContainer } from '../components/MainContainer';
+import { StatusChip } from '../components/StatusChip';
 import { WorkflowEditorDialog } from './WorkflowEditorDialog';
 
 enum WorkflowsView {
   CONFIG = 'config',
   RUNS = 'runs',
 }
-
-const RUN_STATUS_COLOR = {
-  queued: 'info',
-  running: 'info',
-  done: 'success',
-  failed: 'error',
-  max_iterations: 'warning',
-} as const;
 
 const formatTime = (iso: string): string =>
   DateTime.fromISO(iso).toLocaleString(DateTime.DATETIME_MED);
@@ -242,13 +235,7 @@ export const WorkflowsListPage: FC = () => {
         field: 'status',
         headerName: 'Status',
         width: 140,
-        renderCell: (params) => (
-          <Chip
-            label={params.row.status}
-            color={RUN_STATUS_COLOR[params.row.status]}
-            size="small"
-          />
-        ),
+        renderCell: (params) => <StatusChip status={params.row.status} />,
       },
       {
         field: 'actions',

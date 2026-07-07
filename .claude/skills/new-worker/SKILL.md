@@ -35,6 +35,8 @@ Gather every field before writing anything. Validate `id` first.
 
 `id` MUST be kebab-case and `workers/<id>/` MUST NOT already exist — the folder name *is* the registry id (`libs/shared/src/worker.schema.ts` derives `id` from the `sagewright-worker-<id>` tag). Stop and ask if `id` is ambiguous.
 
+> **Naming convention:** existing workers name `name` after the harness itself (`Codex`, `Pi`, `Opencode`, `Claude Code`) — see the `LABEL sagewright.worker.name` in each `workers/<id>/Dockerfile`. That's a convention, not a requirement: the label is a free-form string (`worker-registry.ts` just reads it, falling back to `id` if absent), so a worker can instead be named after a role or persona — e.g. `Bob the CTO`, `Alice the Reviewer` — if that reads better in the picker for your team. Whatever `name` you choose, keep `id`/folder/image tag tied to the underlying harness so the mapping stays traceable.
+
 ## Procedure
 
 1. **Validate** — confirm `workers/<id>/` does not exist and `id` is kebab-case.

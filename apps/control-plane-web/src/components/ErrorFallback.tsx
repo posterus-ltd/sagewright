@@ -73,7 +73,7 @@ export const ErrorFallback: FC<ErrorFallbackProps> = ({
         sx={{ maxWidth: 560, width: '100%', p: { xs: 3, sm: 4 } }}
       >
         <Stack spacing={2.5}>
-          <Stack direction="row" spacing={1.5} alignItems="center">
+          <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
             <ReportProblemRoundedIcon color="error" />
             <Typography variant="h6">Something went wrong</Typography>
           </Stack>
@@ -84,7 +84,7 @@ export const ErrorFallback: FC<ErrorFallbackProps> = ({
             details are below if you need them.
           </Typography>
 
-          <Stack direction="row" spacing={1.5} flexWrap="wrap" useFlexGap>
+          <Stack direction="row" spacing={1.5} useFlexGap sx={{ flexWrap: 'wrap' }}>
             <Button
               variant="contained"
               startIcon={<RefreshRoundedIcon />}
