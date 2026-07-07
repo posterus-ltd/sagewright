@@ -1,10 +1,4 @@
-import {
-  Stack,
-  Tab,
-  Tabs,
-  ToggleButton,
-  ToggleButtonGroup,
-} from '@mui/material';
+import { Stack, ToggleButton, ToggleButtonGroup } from '@mui/material';
 import { DataGrid, type GridRowParams } from '@mui/x-data-grid';
 import type { Session } from '@sagewright/shared';
 import { useMemo, useState, type FC, type KeyboardEvent } from 'react';
@@ -12,8 +6,8 @@ import { useNavigate } from 'react-router';
 
 import {
   useArchiveTask,
-  useStopTask,
   useDeleteTask,
+  useStopTask,
   useTasks,
   useUpdateTask,
 } from '../api/hooks';
@@ -94,7 +88,16 @@ export const SessionsListPage: FC = () => {
         onDelete: deleteTask.mutate,
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [view, scope, displayName, renamingId, draft, archiveTask, stopTask, deleteTask],
+    [
+      view,
+      scope,
+      displayName,
+      renamingId,
+      draft,
+      archiveTask,
+      stopTask,
+      deleteTask,
+    ],
   );
 
   // Clicking a row opens the session, except while renaming it inline.
@@ -108,13 +111,19 @@ export const SessionsListPage: FC = () => {
       <Stack spacing={3}>
         <Header
           title={
-            <Tabs value={view} onChange={(_, v: SessionView) => setView(v)}>
-              <Tab label="Active" value={SessionView.ACTIVE} />
-              <Tab label="Archived" value={SessionView.ARCHIVED} />
-            </Tabs>
-          }
-          actions={
-            <>
+            <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+              <ToggleButtonGroup
+                exclusive
+                size="small"
+                value={view}
+                onChange={(_, v: SessionView | null) => v && setView(v)}
+                aria-label="Session scope"
+              >
+                <ToggleButton value={SessionView.ACTIVE}>Active</ToggleButton>
+                <ToggleButton value={SessionView.ARCHIVED}>
+                  Archived
+                </ToggleButton>
+              </ToggleButtonGroup>
               <ToggleButtonGroup
                 exclusive
                 size="small"
@@ -125,10 +134,12 @@ export const SessionsListPage: FC = () => {
                 <ToggleButton value={SessionScope.MINE}>Mine</ToggleButton>
                 <ToggleButton value={SessionScope.ALL}>All</ToggleButton>
               </ToggleButtonGroup>
-              <NewSessionButton
-                onCreated={(task) => navigate(`/tasks/${task.id}`)}
-              />
-            </>
+            </Stack>
+          }
+          actions={
+            <NewSessionButton
+              onCreated={(task) => navigate(`/tasks/${task.id}`)}
+            />
           }
         />
         <DataGrid
