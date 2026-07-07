@@ -11,6 +11,7 @@ import { type ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { SessionsListPage } from './SessionsListPage';
+import { PREFERENCES_STORAGE_KEY } from '../preferences/model';
 import { UserPreferencesProvider } from '../preferences/UserPreferencesProvider';
 
 const navigate = vi.fn();
@@ -73,6 +74,7 @@ describe('SessionsListPage', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
     navigate.mockReset();
+    localStorage.clear();
   });
 
   it('lists active sessions and navigates on row click', async () => {
@@ -131,5 +133,71 @@ describe('SessionsListPage', () => {
       ),
     );
     expect(navigate).not.toHaveBeenCalled();
+  });
+
+  it('switches from mine to all sessions via the scope toggle', async () => {
+    const fetchMock = stubApi([task({ id: 't1', name: 'My session' })]);
+    renderPage();
+
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/tasks?mine=1',
+        expect.anything(),
+      ),
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'All' }));
+
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith('/api/tasks', expect.anything()),
+    );
+  });
+
+  it('only shows the owner column in all-sessions scope', async () => {
+    stubApi([task({ id: 't1', name: 'My session' })]);
+    renderPage();
+
+    await waitFor(() => expect(screen.getByText('My session')).toBeTruthy());
+    expect(
+      screen.queryByRole('columnheader', { name: /owner/i }),
+    ).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'All' }));
+
+    await waitFor(() =>
+      expect(
+        screen.getByRole('columnheader', { name: /owner/i }),
+      ).toBeTruthy(),
+    );
+  });
+
+  it('hides actions on sessions owned by other users in all scope', async () => {
+    localStorage.setItem(
+      PREFERENCES_STORAGE_KEY,
+      JSON.stringify({ displayName: 'u1' }),
+    );
+    stubApi([
+      task({ id: 't1', name: 'My session', createdBy: 'u1' }),
+      task({ id: 't2', name: 'Their session', createdBy: 'u2' }),
+    ]);
+    renderPage();
+
+    await waitFor(() => expect(screen.getByText('My session')).toBeTruthy());
+    fireEvent.click(screen.getByRole('button', { name: 'All' }));
+    await waitFor(() => expect(screen.getByText('Their session')).toBeTruthy());
+
+    const ownRow = screen
+      .getByText('My session')
+      .closest('.MuiDataGrid-row') as HTMLElement;
+    const otherRow = screen
+      .getByText('Their session')
+      .closest('.MuiDataGrid-row') as HTMLElement;
+
+    expect(
+      within(ownRow).getByRole('button', { name: /rename session/i }),
+    ).toBeTruthy();
+    expect(
+      within(otherRow).queryByRole('button', { name: /rename session/i }),
+    ).toBeNull();
   });
 });

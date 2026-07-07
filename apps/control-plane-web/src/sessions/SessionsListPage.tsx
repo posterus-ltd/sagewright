@@ -1,30 +1,13 @@
-import Archive from '@mui/icons-material/Archive';
-import DeleteForever from '@mui/icons-material/DeleteForever';
-import StopCircleIcon from '@mui/icons-material/StopCircle';
-import EditRounded from '@mui/icons-material/EditRounded';
 import {
-  Box,
-  IconButton,
-  InputBase,
   Stack,
   Tab,
   Tabs,
-  Tooltip,
+  ToggleButton,
+  ToggleButtonGroup,
 } from '@mui/material';
-import {
-  DataGrid,
-  type GridColDef,
-  type GridRowParams,
-} from '@mui/x-data-grid';
-import { isTerminalStatus, sessionLabel, type Session } from '@sagewright/shared';
-import { DateTime } from 'luxon';
-import {
-  useEffect,
-  useMemo,
-  useState,
-  type FC,
-  type KeyboardEvent,
-} from 'react';
+import { DataGrid, type GridRowParams } from '@mui/x-data-grid';
+import type { Session } from '@sagewright/shared';
+import { useMemo, useState, type FC, type KeyboardEvent } from 'react';
 import { useNavigate } from 'react-router';
 
 import {
@@ -34,53 +17,26 @@ import {
   useTasks,
   useUpdateTask,
 } from '../api/hooks';
+import { useAuth } from '../auth/useAuth';
 import { Header } from '../components/Header';
 import { MainContainer } from '../components/MainContainer';
 import { NewSessionButton } from '../components/NewSessionButton';
-import { StatusChip } from '../components/StatusChip';
-import { WorkerChip } from '../components/WorkerChip';
+import { buildSessionColumns } from './session-list-columns';
 
 enum SessionView {
   ACTIVE = 'active',
   ARCHIVED = 'archived',
 }
 
-const _1_MINUTE = 60 * 1000;
-
-// Absolute start time, e.g. "Jun 26, 2026, 9:00 AM".
-const absoluteStart = (iso: string): string =>
-  DateTime.fromISO(iso).toLocaleString(DateTime.DATETIME_MED);
-
-// Human-readable time since the session started, e.g. "3 hours ago".
-const relativeStart = (iso: string): string =>
-  DateTime.fromISO(iso).toRelative() ?? absoluteStart(iso);
-
-// Shows the absolute start time; on hover a tooltip reveals the relative
-// "… ago" phrasing, re-rendered each minute so it stays live while pointed at.
-const StartedAtCell: FC<{ startedAt: string }> = ({ startedAt }) => {
-  const [open, setOpen] = useState(false);
-  const [, tick] = useState(0);
-
-  useEffect(() => {
-    if (!open) return;
-    const id = setInterval(() => tick((n) => n + 1), _1_MINUTE);
-    return () => clearInterval(id);
-  }, [open]);
-
-  return (
-    <Tooltip
-      open={open}
-      onOpen={() => setOpen(true)}
-      onClose={() => setOpen(false)}
-      title={relativeStart(startedAt)}
-    >
-      <span>{absoluteStart(startedAt)}</span>
-    </Tooltip>
-  );
-};
+enum SessionScope {
+  MINE = 'mine',
+  ALL = 'all',
+}
 
 export const SessionsListPage: FC = () => {
-  const { data: tasks = [] } = useTasks(true);
+  const [scope, setScope] = useState<SessionScope>(SessionScope.MINE);
+  const { data: tasks = [] } = useTasks(scope === SessionScope.MINE);
+  const { displayName } = useAuth();
   const stopTask = useStopTask();
   const archiveTask = useArchiveTask();
   const deleteTask = useDeleteTask();
@@ -117,141 +73,28 @@ export const SessionsListPage: FC = () => {
     else if (e.key === 'Escape') setRenamingId(null);
   };
 
-  const columns = useMemo<GridColDef<Session>[]>(
-    () => [
-      {
-        field: 'session',
-        headerName: 'Session',
-        flex: 1,
-        minWidth: 220,
-        sortable: false,
-        valueGetter: (_value, row) => sessionLabel(row, 80),
-        renderCell: (params) =>
-          renamingId === params.row.id ? (
-            <InputBase
-              autoFocus
-              fullWidth
-              value={draft}
-              placeholder={
-                params.row.prompt
-                  ? params.row.prompt.slice(0, 80)
-                  : 'Session name'
-              }
-              // Editing must not trigger the row's navigate-on-click.
-              onClick={(e) => e.stopPropagation()}
-              onChange={(e) => setDraft(e.target.value)}
-              onBlur={() => commitRename(params.row)}
-              onKeyDown={(e) => onRenameKeyDown(e, params.row)}
-              inputProps={{ 'aria-label': 'Session name', maxLength: 200 }}
-            />
-          ) : (
-            sessionLabel(params.row, 80)
-          ),
-      },
-      {
-        field: 'worker',
-        headerName: 'Worker',
-        width: 160,
-        sortable: false,
-        renderCell: (params) => <WorkerChip image={params.row.workerImage} />,
-      },
-      {
-        field: 'status',
-        headerName: 'Status',
-        width: 150,
-        renderCell: (params) => <StatusChip status={params.row.status} />,
-      },
-      {
-        field: 'createdAt',
-        headerName: 'Started',
-        width: 180,
-        valueGetter: (_value, row) => new Date(row.createdAt),
-        renderCell: (params) => (
-          <StartedAtCell startedAt={params.row.createdAt} />
-        ),
-      },
-      {
-        field: 'actions',
-        headerName: '',
-        width: 100,
-        sortable: false,
-        filterable: false,
-        disableColumnMenu: true,
-        align: 'right',
-        renderCell: (params) => {
-          const t = params.row;
-          return (
-            <Box
-              className="row-actions"
-              sx={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'flex-end',
-                height: '100%',
-                gap: 0.25,
-              }}
-            >
-              {view !== SessionView.ARCHIVED && (
-                <Tooltip title="Rename">
-                  <IconButton
-                    size="small"
-                    aria-label="Rename session"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      startRename(t);
-                    }}
-                  >
-                    <EditRounded fontSize="small" />
-                  </IconButton>
-                </Tooltip>
-              )}
-              {view === SessionView.ARCHIVED ? (
-                <Tooltip title="Delete permanently">
-                  <IconButton
-                    size="small"
-                    aria-label="Delete session"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      deleteTask.mutate(t.id);
-                    }}
-                  >
-                    <DeleteForever fontSize="small" />
-                  </IconButton>
-                </Tooltip>
-              ) : isTerminalStatus(t.status) ? (
-                <Tooltip title="Archive">
-                  <IconButton
-                    size="small"
-                    aria-label="Archive session"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      archiveTask.mutate(t.id);
-                    }}
-                  >
-                    <Archive fontSize="small" />
-                  </IconButton>
-                </Tooltip>
-              ) : (
-                <Tooltip title="Stop">
-                  <IconButton
-                    size="small"
-                    aria-label="Stop session"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      stopTask.mutate(t.id);
-                    }}
-                  >
-                    <StopCircleIcon fontSize="small" />
-                  </IconButton>
-                </Tooltip>
-              )}
-            </Box>
-          );
-        },
-      },
-    ],
+  // Other users' sessions are read-only in "All" scope — the API rejects
+  // mutating a session you don't own.
+  const canActOn = (t: Session): boolean =>
+    scope === SessionScope.MINE || t.createdBy === displayName;
+
+  const columns = useMemo(
+    () =>
+      buildSessionColumns({
+        isArchivedView: view === SessionView.ARCHIVED,
+        canActOn,
+        renamingId,
+        draft,
+        onDraftChange: setDraft,
+        onStartRename: startRename,
+        onCommitRename: commitRename,
+        onRenameKeyDown,
+        onStop: stopTask.mutate,
+        onArchive: archiveTask.mutate,
+        onDelete: deleteTask.mutate,
+      }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [view, renamingId, draft, archiveTask, stopTask, deleteTask],
+    [view, scope, displayName, renamingId, draft, archiveTask, stopTask, deleteTask],
   );
 
   // Clicking a row opens the session, except while renaming it inline.
@@ -271,14 +114,27 @@ export const SessionsListPage: FC = () => {
             </Tabs>
           }
           actions={
-            <NewSessionButton
-              onCreated={(task) => navigate(`/tasks/${task.id}`)}
-            />
+            <>
+              <ToggleButtonGroup
+                exclusive
+                size="small"
+                value={scope}
+                onChange={(_, v: SessionScope | null) => v && setScope(v)}
+                aria-label="Session scope"
+              >
+                <ToggleButton value={SessionScope.MINE}>Mine</ToggleButton>
+                <ToggleButton value={SessionScope.ALL}>All</ToggleButton>
+              </ToggleButtonGroup>
+              <NewSessionButton
+                onCreated={(task) => navigate(`/tasks/${task.id}`)}
+              />
+            </>
           }
         />
         <DataGrid
           rows={visible}
           columns={columns}
+          columnVisibilityModel={{ createdBy: scope === SessionScope.ALL }}
           autoHeight
           disableVirtualization
           disableRowSelectionOnClick
