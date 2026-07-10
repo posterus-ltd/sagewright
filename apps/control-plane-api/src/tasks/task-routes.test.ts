@@ -408,6 +408,37 @@ describe('task routes', () => {
     expect(taskRow!.workerImage).toBe('evil:latest');
   });
 
+  it('listGraph returns every session including workflow parents and steps', async () => {
+    const { db } = await makeTestApp();
+    const service = buildService({ db, spawner: { spawn: vi.fn(), retire: vi.fn() }, volume: fakeVolume() });
+    const [standalone] = await db.insert(sessions).values({ kind: 'headless', createdBy: 'al' }).returning();
+    const [parent] = await db.insert(sessions).values({ kind: 'workflow', createdBy: 'al' }).returning();
+    const [step] = await db
+      .insert(sessions)
+      .values({ kind: 'workflow_step', createdBy: 'al', parentSessionId: parent!.id, workflowStepKey: 'plan' })
+      .returning();
+
+    const all = await service.listGraph();
+
+    expect(all.map((s) => s.id).sort()).toEqual([standalone!.id, parent!.id, step!.id].sort());
+  });
+
+  it('GET /api/tasks/graph returns sessions for every user, not just the requester', async () => {
+    const { app } = await makeTestApp();
+    const login = async (displayName: string) => {
+      const c = (await app.inject({ method: 'POST', url: '/api/login', payload: { displayName, password: 'pw' } })).cookies[0];
+      return { cookie: `${c!.name}=${c!.value}` };
+    };
+    const alice = await login('alice');
+    await app.inject({ method: 'POST', url: '/api/tasks', headers: alice, payload: {} });
+    const bob = await login('bob');
+
+    const res = await app.inject({ method: 'GET', url: '/api/tasks/graph', headers: bob });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toHaveLength(1);
+  });
+
   it('forbids a non-owner from reading or mutating another user’s session (403)', async () => {
     const { app } = await makeTestApp();
     const login = async (displayName: string) => {

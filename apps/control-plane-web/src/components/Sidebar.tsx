@@ -4,6 +4,7 @@ import {
   ChevronRightRounded,
   DarkModeRounded,
   AccountTreeRounded,
+  AutoAwesomeRounded,
   DashboardRounded,
   GridViewRounded,
   InfoOutlined,
@@ -63,6 +64,12 @@ const NAV = [
     label: 'Canvas',
     icon: <GridViewRounded fontSize="small" />,
     match: (p: string) => p.startsWith('/canvas'),
+  },
+  {
+    to: '/galaxy',
+    label: 'Galaxy',
+    icon: <AutoAwesomeRounded fontSize="small" />,
+    match: (p: string) => p.startsWith('/galaxy'),
   },
   {
     to: '/scheduled',

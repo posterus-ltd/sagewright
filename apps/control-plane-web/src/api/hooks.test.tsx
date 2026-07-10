@@ -3,7 +3,7 @@ import { renderHook, waitFor } from '@testing-library/react';
 import { type ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { useSaveRepos, useTasks, useUpdateCanvasLayout } from './hooks';
+import { useSaveRepos, useTaskGraph, useTasks, useUpdateCanvasLayout } from './hooks';
 
 const createWrapper = () => {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false, refetchInterval: false } } });
@@ -44,6 +44,25 @@ describe('useTasks', () => {
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
     expect(result.current.data).toEqual(mockTasks);
+  });
+});
+
+describe('useTaskGraph', () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('fetches every session from the graph endpoint', async () => {
+    const mockSessions = [{ id: 'wf-1', kind: 'workflow', status: 'running', createdAt: new Date().toISOString() }];
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify(mockSessions), { status: 200, headers: { 'content-type': 'application/json' } }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { result } = renderHook(() => useTaskGraph(), { wrapper: createWrapper() });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    expect(fetchMock).toHaveBeenCalledWith('/api/tasks/graph', expect.anything());
+    expect(result.current.data).toEqual(mockSessions);
   });
 });
 

@@ -109,6 +109,12 @@ export const createTaskService = (deps: TaskServiceDeps) => {
       const rows = await deps.db.select().from(sessions).where(where).orderBy(desc(sessions.createdAt));
       return rows.map(rowToSession);
     },
+    // Every session, including workflow parents and their steps — for the task
+    // galaxy visualization, which maps the whole run graph, not just the flat list.
+    listGraph: async (): Promise<Session[]> => {
+      const rows = await deps.db.select().from(sessions).orderBy(desc(sessions.createdAt));
+      return rows.map(rowToSession);
+    },
     get: async (id: string): Promise<Session | null> => {
       const [row] = await deps.db.select().from(sessions).where(eq(sessions.id, id)).limit(1);
       return row ? rowToSession(row) : null;

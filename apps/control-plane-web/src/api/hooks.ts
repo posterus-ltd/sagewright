@@ -47,6 +47,11 @@ export const useSetDefaultWorker = () => {
 export const useTasks = (mine: boolean) =>
   useQuery({ queryKey: ['tasks', mine], queryFn: () => apiClient.get<Session[]>(`/api/tasks${mine ? '?mine=1' : ''}`), refetchInterval: 5000 });
 
+// Every session (including workflow parents/steps) for the galaxy visualization —
+// unlike useTasks, not scoped to standalone sessions or a single user.
+export const useTaskGraph = () =>
+  useQuery({ queryKey: ['tasks', 'graph'], queryFn: () => apiClient.get<Session[]>('/api/tasks/graph'), refetchInterval: 5000 });
+
 export const useTask = (id: string) =>
   useQuery({ queryKey: ['task', id], queryFn: () => apiClient.get<Session>(`/api/tasks/${id}`) });
 
