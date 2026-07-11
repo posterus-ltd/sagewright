@@ -18,6 +18,7 @@ import {
   type NodeTypes,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
+import { SessionStatus } from '@sagewright/shared';
 import { useMemo, type FC } from 'react';
 import { Link, useParams } from 'react-router';
 
@@ -115,9 +116,9 @@ export const WorkflowRunPage: FC = () => {
 
             {run.error && (
               <Panel position="bottom-center" style={{ maxWidth: '80%' }}>
-                <Alert severity={run.status === 'failed' ? 'error' : 'warning'}>
+                <Alert severity={run.status === SessionStatus.FAILED ? 'error' : 'warning'}>
                   <AlertTitle>
-                    {run.status === 'failed'
+                    {run.status === SessionStatus.FAILED
                       ? 'Run failed'
                       : 'Stopped at max iterations'}
                     {run.currentStepKey && ` — step "${run.currentStepKey}"`}

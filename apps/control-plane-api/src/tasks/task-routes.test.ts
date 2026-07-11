@@ -2,6 +2,7 @@ import { EventType, SessionStatus } from '@sagewright/shared';
 import { eq } from 'drizzle-orm';
 import { describe, expect, it, vi } from 'vitest';
 
+import { loadConfig } from '../config';
 import { inboundMessages, scheduledPrompts, sessions } from '../db/schema';
 import { createSessionRuntime } from '../sessions/session-runtime';
 import { createSessionService } from '../sessions/session-service';
@@ -297,6 +298,47 @@ describe('task routes', () => {
     expect(retire).toHaveBeenCalledWith('c1');
   });
 
+  it('DELETE /api/tasks/:id removes an owned session when deletion is allowed (default)', async () => {
+    const { app, db } = await makeTestApp();
+    const cookie = (
+      await app.inject({ method: 'POST', url: '/api/login', payload: { displayName: 'alice', password: 'pw' } })
+    ).cookies[0];
+    const headers = { cookie: `${cookie!.name}=${cookie!.value}` };
+    const [row] = await db
+      .insert(sessions)
+      .values({ kind: 'headless', status: SessionStatus.DONE, createdBy: 'alice', archivedAt: new Date() })
+      .returning();
+
+    const res = await app.inject({ method: 'DELETE', url: `/api/tasks/${row!.id}`, headers });
+
+    expect(res.statusCode).toBe(200);
+    expect(await db.select().from(sessions).where(eq(sessions.id, row!.id))).toHaveLength(0);
+  });
+
+  it('DELETE /api/tasks/:id returns 403 and keeps the row when ALLOW_SESSION_DELETION=false', async () => {
+    // Same env makeTestApp uses, with deletion switched off — the audit-retention deployment.
+    const config = loadConfig({
+      DATABASE_URL: 'postgres://x', APP_PASSWORD: 'pw', SESSION_SECRET: 'sec',
+      SECRETS_KEY: '0123456789abcdef0123456789abcdef', WORKER_IMAGE: 'w',
+      CONTROL_PLANE_URL: 'http://c', ALLOW_SESSION_DELETION: 'false',
+    });
+    const { app, db } = await makeTestApp({ config });
+    const cookie = (
+      await app.inject({ method: 'POST', url: '/api/login', payload: { displayName: 'alice', password: 'pw' } })
+    ).cookies[0];
+    const headers = { cookie: `${cookie!.name}=${cookie!.value}` };
+    const [row] = await db
+      .insert(sessions)
+      .values({ kind: 'headless', status: SessionStatus.DONE, createdBy: 'alice', archivedAt: new Date() })
+      .returning();
+
+    const res = await app.inject({ method: 'DELETE', url: `/api/tasks/${row!.id}`, headers });
+
+    expect(res.statusCode).toBe(403);
+    // The archived row survives — that retention is the point of the flag.
+    expect(await db.select().from(sessions).where(eq(sessions.id, row!.id))).toHaveLength(1);
+  });
+
   it('POST /api/tasks returns 201 with createdBy and status=running', async () => {
     const { app } = await makeTestApp();
     const cookie = (
@@ -406,6 +448,37 @@ describe('task routes', () => {
       .select().from(sessions).orderBy(sessions.createdAt);
     expect(taskRow!.status).toBe(SessionStatus.FAILED);
     expect(taskRow!.workerImage).toBe('evil:latest');
+  });
+
+  it('listGraph returns every session including workflow parents and steps', async () => {
+    const { db } = await makeTestApp();
+    const service = buildService({ db, spawner: { spawn: vi.fn(), retire: vi.fn() }, volume: fakeVolume() });
+    const [standalone] = await db.insert(sessions).values({ kind: 'headless', createdBy: 'al' }).returning();
+    const [parent] = await db.insert(sessions).values({ kind: 'workflow', createdBy: 'al' }).returning();
+    const [step] = await db
+      .insert(sessions)
+      .values({ kind: 'workflow_step', createdBy: 'al', parentSessionId: parent!.id, workflowStepKey: 'plan' })
+      .returning();
+
+    const all = await service.listGraph();
+
+    expect(all.map((s) => s.id).sort()).toEqual([standalone!.id, parent!.id, step!.id].sort());
+  });
+
+  it('GET /api/tasks/graph returns sessions for every user, not just the requester', async () => {
+    const { app } = await makeTestApp();
+    const login = async (displayName: string) => {
+      const c = (await app.inject({ method: 'POST', url: '/api/login', payload: { displayName, password: 'pw' } })).cookies[0];
+      return { cookie: `${c!.name}=${c!.value}` };
+    };
+    const alice = await login('alice');
+    await app.inject({ method: 'POST', url: '/api/tasks', headers: alice, payload: {} });
+    const bob = await login('bob');
+
+    const res = await app.inject({ method: 'GET', url: '/api/tasks/graph', headers: bob });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toHaveLength(1);
   });
 
   it('forbids a non-owner from reading or mutating another user’s session (403)', async () => {

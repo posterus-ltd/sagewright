@@ -1,7 +1,12 @@
 import { SessionStatus, type Session, type WorkflowDefinition, type WorkflowStepKind } from '@sagewright/shared';
 import type { Edge, Node } from '@xyflow/react';
 
-export type StepNodeStatus = 'pending' | 'running' | 'done' | 'failed';
+export enum StepNodeStatus {
+  PENDING = 'pending',
+  RUNNING = 'running',
+  DONE = 'done',
+  FAILED = 'failed',
+}
 
 export interface StepNodeData {
   stepKey: string;
@@ -26,10 +31,10 @@ const latestTaskFor = (steps: Session[], key: string): Session | undefined =>
     .sort((a, b) => (b.iteration ?? 0) - (a.iteration ?? 0) || b.createdAt.localeCompare(a.createdAt))[0];
 
 const toStatus = (t: Session | undefined): StepNodeStatus => {
-  if (!t) return 'pending';
-  if (t.status === SessionStatus.DONE) return 'done';
-  if (t.status === SessionStatus.FAILED || t.status === SessionStatus.STOPPED) return 'failed';
-  return 'running';
+  if (!t) return StepNodeStatus.PENDING;
+  if (t.status === SessionStatus.DONE) return StepNodeStatus.DONE;
+  if (t.status === SessionStatus.FAILED || t.status === SessionStatus.STOPPED) return StepNodeStatus.FAILED;
+  return StepNodeStatus.RUNNING;
 };
 
 /**

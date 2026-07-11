@@ -2,9 +2,9 @@ import { CssBaseline, ThemeProvider } from '@mui/material';
 import { createContext, useContext, useEffect, useMemo, useState, type FC, type ReactNode } from 'react';
 
 import { useUserPreferences } from '../preferences/UserPreferencesProvider';
-import { buildTheme, type ResolvedMode, type ThemeMode } from './theme';
+import { buildTheme, ResolvedMode, ThemeMode } from './theme';
 
-export type { ThemeMode } from './theme';
+export { ThemeMode } from './theme';
 
 interface ThemeModeContextValue {
   mode: ThemeMode; // the user's preference
@@ -20,14 +20,14 @@ const systemPrefersDark = (): boolean =>
   window.matchMedia('(prefers-color-scheme: dark)').matches;
 
 export const resolveMode = (mode: ThemeMode, prefersDark: boolean): ResolvedMode => {
-  if (mode === 'system') return prefersDark ? 'dark' : 'light';
-  return mode;
+  if (mode === ThemeMode.SYSTEM) return prefersDark ? ResolvedMode.DARK : ResolvedMode.LIGHT;
+  return mode === ThemeMode.DARK ? ResolvedMode.DARK : ResolvedMode.LIGHT;
 };
 
 export const ThemeModeProvider: FC<{ children: ReactNode }> = ({ children }) => {
   // The user's choice is persisted as a user preference; only the live
   // OS-preference resolution stays local to this provider.
-  const { preference: mode, updatePreference: setMode } = useUserPreferences('themeMode', 'system');
+  const { preference: mode, updatePreference: setMode } = useUserPreferences('themeMode', ThemeMode.SYSTEM);
   const [prefersDark, setPrefersDark] = useState<boolean>(systemPrefersDark);
 
   // Follow the OS preference live while the user is on "system".

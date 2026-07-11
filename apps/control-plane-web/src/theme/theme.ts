@@ -1,14 +1,18 @@
-import { createTheme, type Theme } from '@mui/material';
+import { createTheme, type PaletteMode, type Theme } from '@mui/material';
 // Registers MuiDataGrid as a themeable component for TS.
 import type {} from '@mui/x-data-grid/themeAugmentation';
 
-import { fonts, palettes, radius } from './tokens';
+import { fonts, palettes, radius, ResolvedMode } from './tokens';
 
-export type ResolvedMode = 'light' | 'dark';
+export { ResolvedMode } from './tokens';
 
 // The user's theme choice. 'system' follows the OS; ThemeModeProvider resolves
 // it live to a ResolvedMode for rendering.
-export type ThemeMode = 'system' | 'light' | 'dark';
+export enum ThemeMode {
+  SYSTEM = 'system',
+  LIGHT = 'light',
+  DARK = 'dark',
+}
 
 // Builds a MUI theme from our tokens. The overrides push MUI away from its
 // stock Material look (drop shadows, big radii, uppercase buttons) toward a
@@ -18,7 +22,9 @@ export const buildTheme = (mode: ResolvedMode): Theme => {
 
   return createTheme({
     palette: {
-      mode,
+      // ResolvedMode's values are exactly MUI's PaletteMode ('light' | 'dark');
+      // the cast bridges our enum to MUI's string-literal prop.
+      mode: mode as PaletteMode,
       primary: {
         main: p.accent,
         dark: p.accentHover,

@@ -72,10 +72,16 @@ export const SessionsListPage: FC = () => {
   const canActOn = (t: Session): boolean =>
     scope === SessionScope.MINE || t.createdBy === displayName;
 
+  // Baked in at build time: audit-retention deployments build the web bundle
+  // with VITE_ALLOW_SESSION_DELETION=false to drop the permanent-delete action
+  // (the API refuses the call regardless, via ALLOW_SESSION_DELETION).
+  const canDelete = import.meta.env.VITE_ALLOW_SESSION_DELETION !== 'false';
+
   const columns = useMemo(
     () =>
       buildSessionColumns({
         isArchivedView: view === SessionView.ARCHIVED,
+        canDelete,
         canActOn,
         renamingId,
         draft,

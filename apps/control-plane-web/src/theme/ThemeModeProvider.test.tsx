@@ -2,6 +2,7 @@ import { act, render, renderHook, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { UserPreferencesProvider } from '../preferences/UserPreferencesProvider';
+import { ResolvedMode, ThemeMode } from './theme';
 import { ThemeModeProvider, resolveMode, useThemeMode } from './ThemeModeProvider';
 
 // Node 22 ships a non-functional experimental `localStorage` global that
@@ -33,13 +34,13 @@ const mockMatchMedia = (matches: boolean): void => {
 
 describe('resolveMode', () => {
   it('follows the system preference when mode is "system"', () => {
-    expect(resolveMode('system', true)).toBe('dark');
-    expect(resolveMode('system', false)).toBe('light');
+    expect(resolveMode(ThemeMode.SYSTEM, true)).toBe(ResolvedMode.DARK);
+    expect(resolveMode(ThemeMode.SYSTEM, false)).toBe(ResolvedMode.LIGHT);
   });
 
   it('honours an explicit choice regardless of system preference', () => {
-    expect(resolveMode('light', true)).toBe('light');
-    expect(resolveMode('dark', false)).toBe('dark');
+    expect(resolveMode(ThemeMode.LIGHT, true)).toBe(ResolvedMode.LIGHT);
+    expect(resolveMode(ThemeMode.DARK, false)).toBe(ResolvedMode.DARK);
   });
 });
 
@@ -62,28 +63,28 @@ describe('ThemeModeProvider', () => {
   it('defaults to system preference (dark) on first load', () => {
     mockMatchMedia(true);
     const { result } = renderHook(() => useThemeMode(), { wrapper });
-    expect(result.current.mode).toBe('system');
-    expect(result.current.resolvedMode).toBe('dark');
+    expect(result.current.mode).toBe(ThemeMode.SYSTEM);
+    expect(result.current.resolvedMode).toBe(ResolvedMode.DARK);
   });
 
   it('persists an explicit choice and resolves to it', () => {
     mockMatchMedia(true);
     const { result } = renderHook(() => useThemeMode(), { wrapper });
 
-    act(() => result.current.setMode('light'));
+    act(() => result.current.setMode(ThemeMode.LIGHT));
 
-    expect(result.current.resolvedMode).toBe('light');
+    expect(result.current.resolvedMode).toBe(ResolvedMode.LIGHT);
     expect(JSON.parse(localStorage.getItem('sagewright.preferences')!)).toMatchObject({
-      themeMode: 'light',
+      themeMode: ThemeMode.LIGHT,
     });
   });
 
   it('restores the persisted choice on reload', () => {
     mockMatchMedia(true);
-    localStorage.setItem('sagewright.preferences', JSON.stringify({ themeMode: 'light' }));
+    localStorage.setItem('sagewright.preferences', JSON.stringify({ themeMode: ThemeMode.LIGHT }));
     const { result } = renderHook(() => useThemeMode(), { wrapper });
-    expect(result.current.mode).toBe('light');
-    expect(result.current.resolvedMode).toBe('light');
+    expect(result.current.mode).toBe(ThemeMode.LIGHT);
+    expect(result.current.resolvedMode).toBe(ResolvedMode.LIGHT);
   });
 
   it('renders children inside the provider', () => {

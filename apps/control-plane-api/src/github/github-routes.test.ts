@@ -1,3 +1,4 @@
+import { GithubCredentialSource } from '@sagewright/shared';
 import { describe, expect, it, vi } from 'vitest';
 
 import { makeTestApp } from '../test/make-test-app';
@@ -29,7 +30,7 @@ describe('github routes', () => {
     const put = await app.inject({ method: 'PUT', url: '/api/github/token', headers, payload: { token: 'ghp_user' } });
     expect(put.statusCode).toBe(200);
     expect(put.json()).not.toHaveProperty('token');
-    expect(githubCredentialService.validateAndStore).toHaveBeenCalledWith('al', 'ghp_user', 'pat');
+    expect(githubCredentialService.validateAndStore).toHaveBeenCalledWith('al', 'ghp_user', GithubCredentialSource.PAT);
 
     expect((await app.inject({ method: 'GET', url: '/api/github/status', headers })).json()).toMatchObject({
       connected: true,

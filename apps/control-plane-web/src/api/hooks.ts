@@ -1,5 +1,7 @@
 import {
+  GithubCredentialSource,
   RepoStatus,
+  SessionStatus,
   type CanvasLayout,
   type CreateScheduledPromptInput,
   type CreateSessionInput,
@@ -21,7 +23,7 @@ export type GithubStatus =
   | { connected: false }
   | {
       connected: true;
-      source: 'pat' | 'oauth';
+      source: GithubCredentialSource;
       login: string;
       name: string | null;
       email: string;
@@ -46,6 +48,11 @@ export const useSetDefaultWorker = () => {
 
 export const useTasks = (mine: boolean) =>
   useQuery({ queryKey: ['tasks', mine], queryFn: () => apiClient.get<Session[]>(`/api/tasks${mine ? '?mine=1' : ''}`), refetchInterval: 5000 });
+
+// Every session (including workflow parents/steps) for the galaxy visualization —
+// unlike useTasks, not scoped to standalone sessions or a single user.
+export const useTaskGraph = () =>
+  useQuery({ queryKey: ['tasks', 'graph'], queryFn: () => apiClient.get<Session[]>('/api/tasks/graph'), refetchInterval: 5000 });
 
 export const useTask = (id: string) =>
   useQuery({ queryKey: ['task', id], queryFn: () => apiClient.get<Session>(`/api/tasks/${id}`) });
@@ -220,7 +227,7 @@ export const useWorkflowRun = (id: string) =>
   useQuery({
     queryKey: ['workflow-run', id],
     queryFn: () => apiClient.get<WorkflowRunDetail>(`/api/workflows/runs/${id}`),
-    refetchInterval: (query) => (query.state.data?.status === 'running' ? 2000 : false),
+    refetchInterval: (query) => (query.state.data?.status === SessionStatus.RUNNING ? 2000 : false),
   });
 
 // The per-user custom .env. The list view is masked; reveal is fetched on demand

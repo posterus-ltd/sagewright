@@ -25,6 +25,15 @@ describe('loadConfig', () => {
   it('rejects a SECRETS_KEY that is not 32 chars', () => {
     expect(() => loadConfig({ ...base, SECRETS_KEY: 'short' })).toThrow();
   });
+  it('defaults allowSessionDeletion to true when ALLOW_SESSION_DELETION is unset', () => {
+    expect(loadConfig(base).allowSessionDeletion).toBe(true);
+  });
+  it('disables session deletion when ALLOW_SESSION_DELETION=false', () => {
+    expect(loadConfig({ ...base, ALLOW_SESSION_DELETION: 'false' }).allowSessionDeletion).toBe(false);
+  });
+  it('rejects a non-boolean ALLOW_SESSION_DELETION instead of silently re-enabling deletion', () => {
+    expect(() => loadConfig({ ...base, ALLOW_SESSION_DELETION: 'no' })).toThrow();
+  });
   it('surfaces SCHEDULER_TIMEZONE as schedulerTimezone', () => {
     expect(loadConfig({ ...base, SCHEDULER_TIMEZONE: 'Europe/Sofia' }).schedulerTimezone).toBe('Europe/Sofia');
   });

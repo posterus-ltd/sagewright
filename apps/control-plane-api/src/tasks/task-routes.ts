@@ -37,6 +37,8 @@ export const registerTaskRoutes = (app: FastifyInstance, deps: AppDeps): void =>
     return deps.taskService.list(mine ? req.displayName : undefined);
   });
 
+  app.get('/api/tasks/graph', { preHandler: app.requireUser }, async () => deps.taskService.listGraph());
+
   app.get('/api/tasks/:id', { preHandler: app.requireUser }, async (req, reply) => {
     const session = await ownedOr(deps, (req.params as { id: string }).id, req.displayName!, reply);
     return session ?? reply;
@@ -74,6 +76,11 @@ export const registerTaskRoutes = (app: FastifyInstance, deps: AppDeps): void =>
   });
 
   app.delete('/api/tasks/:id', { preHandler: app.requireUser }, async (req, reply) => {
+    // Audit-retention deployments set ALLOW_SESSION_DELETION=false: archiving
+    // still hides sessions, but permanently dropping their history is refused.
+    if (!deps.config.allowSessionDeletion) {
+      return reply.code(403).send({ error: 'session deletion is disabled on this deployment' });
+    }
     const { id } = req.params as { id: string };
     if (!(await ownedOr(deps, id, req.displayName!, reply))) return reply;
     await deps.taskService.remove(id);

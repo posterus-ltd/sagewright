@@ -1,22 +1,29 @@
-import { SessionStatus, type Session, type WorkflowDefinition } from '@sagewright/shared';
+import {
+  SessionKind,
+  SessionStatus,
+  TriggerType,
+  WorkflowStepKind,
+  type Session,
+  type WorkflowDefinition,
+} from '@sagewright/shared';
 import { describe, expect, it } from 'vitest';
 
-import { buildWorkflowGraph } from './workflow-graph';
+import { buildWorkflowGraph, StepNodeStatus } from './workflow-graph';
 
 const def: WorkflowDefinition = {
   name: 'Impl',
-  trigger: { type: 'manual' },
+  trigger: { type: TriggerType.MANUAL },
   maxIterations: 3,
   steps: [
-    { key: 'plan', name: 'Plan', kind: 'work', workerImage: 'w', goal: 'g' },
-    { key: 'implement', name: 'Implement', kind: 'work', workerImage: 'w', goal: 'g' },
-    { key: 'validate', name: 'Validate', kind: 'validation', workerImage: 'w', goal: 'g', onFailureGoTo: 'implement' },
+    { key: 'plan', name: 'Plan', kind: WorkflowStepKind.WORK, workerImage: 'w', goal: 'g' },
+    { key: 'implement', name: 'Implement', kind: WorkflowStepKind.WORK, workerImage: 'w', goal: 'g' },
+    { key: 'validate', name: 'Validate', kind: WorkflowStepKind.VALIDATION, workerImage: 'w', goal: 'g', onFailureGoTo: 'implement' },
   ],
 };
 
 const task = (over: Partial<Session>): Session => ({
   id: 't',
-  kind: 'headless',
+  kind: SessionKind.HEADLESS,
   name: null,
   prompt: null,
   workerImage: 'w',
@@ -38,7 +45,7 @@ describe('buildWorkflowGraph', () => {
   it('creates a node per step with sequential + loop-back edges', () => {
     const { nodes, edges } = buildWorkflowGraph(def, []);
     expect(nodes.map((n) => n.id)).toEqual(['plan', 'implement', 'validate']);
-    expect(nodes.every((n) => n.data.status === 'pending')).toBe(true);
+    expect(nodes.every((n) => n.data.status === StepNodeStatus.PENDING)).toBe(true);
     expect(edges.find((e) => e.id === 'plan->implement')).toBeTruthy();
     expect(edges.find((e) => e.id === 'implement->validate')).toBeTruthy();
     // loop-back edge from validation to its onFailureGoTo target
@@ -54,10 +61,10 @@ describe('buildWorkflowGraph', () => {
     ];
     const { nodes } = buildWorkflowGraph(def, tasks);
     const implement = nodes.find((n) => n.id === 'implement')!;
-    expect(implement.data.status).toBe('running');
+    expect(implement.data.status).toBe(StepNodeStatus.RUNNING);
     expect(implement.data.taskId).toBe('i1');
     expect(implement.data.iteration).toBe(1);
-    expect(nodes.find((n) => n.id === 'validate')!.data.status).toBe('pending');
+    expect(nodes.find((n) => n.id === 'validate')!.data.status).toBe(StepNodeStatus.PENDING);
   });
 
   it('maps failed/stopped task statuses to a failed node', () => {

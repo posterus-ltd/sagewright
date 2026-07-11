@@ -21,6 +21,11 @@ services:
     build:
       context: .
       dockerfile: apps/control-plane-api/Dockerfile
+      args:
+        # Baked into the web bundle at build time: 'false' compiles the UI
+        # without the permanent-delete action. Same var also gates the API at
+        # runtime (below), so one setting drives both.
+        ALLOW_SESSION_DELETION: ${ALLOW_SESSION_DELETION:-true}
     depends_on:
       postgres:
         condition: service_healthy
@@ -49,6 +54,9 @@ services:
       # uses, so worktree gitdir links (absolute paths) resolve inside the worker.
       WORKER_VOLUME: sagewright-repos
       PORT: 3000
+      # Set to 'false' on deployments that must retain session history for
+      # auditing: archiving keeps working, permanent deletion is refused.
+      ALLOW_SESSION_DELETION: ${ALLOW_SESSION_DELETION:-true}
     ports:
       - '3000:3000'
     networks:

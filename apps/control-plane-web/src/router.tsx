@@ -9,6 +9,7 @@ import { CanvasPage } from './canvas/CanvasPage';
 import { Layout } from './components/Layout';
 import { RouteErrorBoundary } from './components/RouteErrorBoundary';
 import { SettingsPage } from './config/SettingsPage';
+import { GalaxyPage } from './galaxy/GalaxyPage';
 import { OverviewPage } from './overview/OverviewPage';
 import { ScheduledPromptsPage } from './scheduled/ScheduledPromptsPage';
 import { SessionsListPage } from './sessions/SessionsListPage';
@@ -32,6 +33,7 @@ const router = createBrowserRouter([
         { index: true, element: <SessionsListPage /> },
         { path: 'overview', element: <OverviewPage /> },
         { path: 'canvas', element: <CanvasPage /> },
+        { path: 'galaxy', element: <GalaxyPage /> },
         { path: 'scheduled', element: <ScheduledPromptsPage /> },
         { path: 'workflows', element: <WorkflowsListPage /> },
         { path: 'workflows/runs/:id', element: <WorkflowRunPage /> },
