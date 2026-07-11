@@ -47,6 +47,9 @@ export default defineConfig(() => ({
       },
       workbox: {
         navigateFallbackDenylist: [/^\/api/, /^\/internal/],
+        // The main bundle exceeds Workbox's 2 MiB precache default; raise the
+        // cap so the app shell stays fully precached.
+        maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
       },
       devOptions: { enabled: false },
     }),

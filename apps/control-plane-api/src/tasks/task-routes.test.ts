@@ -2,6 +2,7 @@ import { EventType, SessionStatus } from '@sagewright/shared';
 import { eq } from 'drizzle-orm';
 import { describe, expect, it, vi } from 'vitest';
 
+import { loadConfig } from '../config';
 import { inboundMessages, scheduledPrompts, sessions } from '../db/schema';
 import { createSessionRuntime } from '../sessions/session-runtime';
 import { createSessionService } from '../sessions/session-service';
@@ -295,6 +296,47 @@ describe('task routes', () => {
     expect(await eventStore.readSince(task.id, 0)).toHaveLength(0);
     expect(removeSessionWorktrees).toHaveBeenCalledWith(task.id);
     expect(retire).toHaveBeenCalledWith('c1');
+  });
+
+  it('DELETE /api/tasks/:id removes an owned session when deletion is allowed (default)', async () => {
+    const { app, db } = await makeTestApp();
+    const cookie = (
+      await app.inject({ method: 'POST', url: '/api/login', payload: { displayName: 'alice', password: 'pw' } })
+    ).cookies[0];
+    const headers = { cookie: `${cookie!.name}=${cookie!.value}` };
+    const [row] = await db
+      .insert(sessions)
+      .values({ kind: 'headless', status: SessionStatus.DONE, createdBy: 'alice', archivedAt: new Date() })
+      .returning();
+
+    const res = await app.inject({ method: 'DELETE', url: `/api/tasks/${row!.id}`, headers });
+
+    expect(res.statusCode).toBe(200);
+    expect(await db.select().from(sessions).where(eq(sessions.id, row!.id))).toHaveLength(0);
+  });
+
+  it('DELETE /api/tasks/:id returns 403 and keeps the row when ALLOW_SESSION_DELETION=false', async () => {
+    // Same env makeTestApp uses, with deletion switched off — the audit-retention deployment.
+    const config = loadConfig({
+      DATABASE_URL: 'postgres://x', APP_PASSWORD: 'pw', SESSION_SECRET: 'sec',
+      SECRETS_KEY: '0123456789abcdef0123456789abcdef', WORKER_IMAGE: 'w',
+      CONTROL_PLANE_URL: 'http://c', ALLOW_SESSION_DELETION: 'false',
+    });
+    const { app, db } = await makeTestApp({ config });
+    const cookie = (
+      await app.inject({ method: 'POST', url: '/api/login', payload: { displayName: 'alice', password: 'pw' } })
+    ).cookies[0];
+    const headers = { cookie: `${cookie!.name}=${cookie!.value}` };
+    const [row] = await db
+      .insert(sessions)
+      .values({ kind: 'headless', status: SessionStatus.DONE, createdBy: 'alice', archivedAt: new Date() })
+      .returning();
+
+    const res = await app.inject({ method: 'DELETE', url: `/api/tasks/${row!.id}`, headers });
+
+    expect(res.statusCode).toBe(403);
+    // The archived row survives — that retention is the point of the flag.
+    expect(await db.select().from(sessions).where(eq(sessions.id, row!.id))).toHaveLength(1);
   });
 
   it('POST /api/tasks returns 201 with createdBy and status=running', async () => {

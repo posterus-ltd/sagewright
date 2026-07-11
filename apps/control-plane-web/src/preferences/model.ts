@@ -1,3 +1,4 @@
+import type { GalaxyTimeWindow } from '../galaxy/galaxy-time-window';
 import type { ThemeMode } from '../theme/theme';
 
 // User-facing preferences persisted on the client. Add new preferences here; the
@@ -14,6 +15,9 @@ export interface UserPreferences {
   // Client-side record of who is logged in. The httpOnly cookie remains the
   // source of truth for server authorization.
   displayName: string | null;
+  // Activity window preselected on the Galaxy view; defaults to recent activity
+  // at the call site so the view opens as "what's happening lately".
+  galaxyTimeWindow: GalaxyTimeWindow;
 }
 
 // localStorage key holding the serialised UserPreferences blob.

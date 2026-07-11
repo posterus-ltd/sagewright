@@ -49,6 +49,9 @@ services:
       # uses, so worktree gitdir links (absolute paths) resolve inside the worker.
       WORKER_VOLUME: sagewright-repos
       PORT: 3000
+      # Set to 'false' on deployments that must retain session history for
+      # auditing: archiving keeps working, permanent deletion is refused.
+      ALLOW_SESSION_DELETION: ${ALLOW_SESSION_DELETION:-true}
     ports:
       - '3000:3000'
     networks:
