@@ -5,17 +5,23 @@ import type { Session } from '@sagewright/shared';
 
 /** Archived sessions are hidden by default, never gone — same principle as the
  *  time window. */
-export type GalaxyView = 'active' | 'archived';
+export enum GalaxyView {
+  ACTIVE = 'active',
+  ARCHIVED = 'archived',
+}
 
 /** The galaxy defaults to the whole fleet (its job is the project-wide read);
  *  'mine' narrows to the sessions the current user started. */
-export type GalaxyScope = 'mine' | 'all';
+export enum GalaxyScope {
+  MINE = 'mine',
+  ALL = 'all',
+}
 
 export const filterSessionsByView = (sessions: Session[], view: GalaxyView): Session[] =>
-  sessions.filter((s) => (view === 'archived' ? s.archivedAt !== null : s.archivedAt === null));
+  sessions.filter((s) => (view === GalaxyView.ARCHIVED ? s.archivedAt !== null : s.archivedAt === null));
 
 export const filterSessionsByScope = (
   sessions: Session[],
   scope: GalaxyScope,
   displayName: string | null,
-): Session[] => (scope === 'all' ? sessions : sessions.filter((s) => s.createdBy === displayName));
+): Session[] => (scope === GalaxyScope.ALL ? sessions : sessions.filter((s) => s.createdBy === displayName));

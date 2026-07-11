@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 
 import { dark } from '../theme/tokens';
 import { starColor } from './star-appearance';
-import { countByGroup, STATUS_GROUPS, statusGroupKey } from './status-legend';
+import { countByGroup, STATUS_GROUPS, statusGroupKey, StatusGroupKey } from './status-legend';
 
 describe('STATUS_GROUPS', () => {
   it('covers every session status exactly once', () => {
@@ -22,13 +22,13 @@ describe('STATUS_GROUPS', () => {
 
 describe('statusGroupKey', () => {
   it('maps statuses to their legend group', () => {
-    expect(statusGroupKey(SessionStatus.RUNNING)).toBe('active');
-    expect(statusGroupKey(SessionStatus.NEEDS_ASSISTANCE)).toBe('attention');
-    expect(statusGroupKey(SessionStatus.MAX_ITERATIONS)).toBe('attention');
-    expect(statusGroupKey(SessionStatus.DONE)).toBe('done');
-    expect(statusGroupKey(SessionStatus.FAILED)).toBe('failed');
-    expect(statusGroupKey(SessionStatus.STOPPED)).toBe('failed');
-    expect(statusGroupKey(SessionStatus.DETACHED)).toBe('detached');
+    expect(statusGroupKey(SessionStatus.RUNNING)).toBe(StatusGroupKey.ACTIVE);
+    expect(statusGroupKey(SessionStatus.NEEDS_ASSISTANCE)).toBe(StatusGroupKey.ATTENTION);
+    expect(statusGroupKey(SessionStatus.MAX_ITERATIONS)).toBe(StatusGroupKey.ATTENTION);
+    expect(statusGroupKey(SessionStatus.DONE)).toBe(StatusGroupKey.DONE);
+    expect(statusGroupKey(SessionStatus.FAILED)).toBe(StatusGroupKey.FAILED);
+    expect(statusGroupKey(SessionStatus.STOPPED)).toBe(StatusGroupKey.FAILED);
+    expect(statusGroupKey(SessionStatus.DETACHED)).toBe(StatusGroupKey.DETACHED);
   });
 });
 

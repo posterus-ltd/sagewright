@@ -3,8 +3,8 @@ import { Box, ButtonBase, IconButton, Tooltip } from '@mui/material';
 import type { FC, ReactNode } from 'react';
 
 import { fonts, radius, type Palette } from '../theme/tokens';
-import type { GalaxyScope, GalaxyView } from './galaxy-filters';
-import { GALAXY_TIME_WINDOWS, type GalaxyTimeWindow } from './galaxy-time-window';
+import { GalaxyScope, GalaxyView } from './galaxy-filters';
+import { GALAXY_TIME_WINDOWS, GalaxyTimeWindow } from './galaxy-time-window';
 import { STATUS_GROUPS, type StatusGroupKey } from './status-legend';
 
 interface GalaxyHudProps {
@@ -43,7 +43,21 @@ const monoSx = (palette: Palette) =>
     color: palette.muted,
   }) as const;
 
-const Corner: FC<{ placement: 'nw' | 'ne' | 'sw' | 'se'; children: ReactNode }> = ({ placement, children }) => (
+enum CornerPlacement {
+  NW = 'nw',
+  NE = 'ne',
+  SW = 'sw',
+  SE = 'se',
+}
+
+const CORNER_POSITION: Record<CornerPlacement, Record<string, number>> = {
+  [CornerPlacement.NW]: { top: 16, left: 16 },
+  [CornerPlacement.NE]: { top: 16, right: 16 },
+  [CornerPlacement.SW]: { bottom: 16, left: 16 },
+  [CornerPlacement.SE]: { bottom: 16, right: 16 },
+};
+
+const Corner: FC<{ placement: CornerPlacement; children: ReactNode }> = ({ placement, children }) => (
   <Box
     sx={{
       position: 'absolute',
@@ -52,8 +66,7 @@ const Corner: FC<{ placement: 'nw' | 'ne' | 'sw' | 'se'; children: ReactNode }> 
       display: 'flex',
       flexWrap: 'wrap',
       gap: 1,
-      ...(placement.includes('n') ? { top: 16 } : { bottom: 16 }),
-      ...(placement.includes('w') ? { left: 16 } : { right: 16 }),
+      ...CORNER_POSITION[placement],
     }}
   >
     {children}
@@ -97,13 +110,13 @@ const Segmented = <V extends string>({ palette, value, options, onChange }: Segm
 );
 
 const VIEW_OPTIONS: readonly { value: GalaxyView; label: string }[] = [
-  { value: 'active', label: 'Active' },
-  { value: 'archived', label: 'Archived' },
+  { value: GalaxyView.ACTIVE, label: 'Active' },
+  { value: GalaxyView.ARCHIVED, label: 'Archived' },
 ];
 
 const SCOPE_OPTIONS: readonly { value: GalaxyScope; label: string }[] = [
-  { value: 'all', label: 'All' },
-  { value: 'mine', label: 'Mine' },
+  { value: GalaxyScope.ALL, label: 'All' },
+  { value: GalaxyScope.MINE, label: 'Mine' },
 ];
 
 /** The galaxy's corner instruments: activity window, active/archived and
@@ -128,13 +141,13 @@ export const GalaxyHud: FC<GalaxyHudProps> = ({
 
   return (
     <>
-      <Corner placement="nw">
+      <Corner placement={CornerPlacement.NW}>
         <Segmented palette={palette} value={timeWindow} options={GALAXY_TIME_WINDOWS} onChange={onTimeWindowChange} />
         <Segmented palette={palette} value={view} options={VIEW_OPTIONS} onChange={onViewChange} />
         <Segmented palette={palette} value={scope} options={SCOPE_OPTIONS} onChange={onScopeChange} />
       </Corner>
 
-      <Corner placement="ne">
+      <Corner placement={CornerPlacement.NE}>
         <Box sx={{ ...panelSx(palette), display: 'flex', flexDirection: 'column', p: 0.5, minWidth: 190 }}>
           {STATUS_GROUPS.map((group) => {
             const hidden = hiddenGroups.has(group.key);
@@ -182,16 +195,16 @@ export const GalaxyHud: FC<GalaxyHudProps> = ({
         </Box>
       </Corner>
 
-      <Corner placement="sw">
+      <Corner placement={CornerPlacement.SW}>
         <Box sx={{ ...panelSx(palette), ...monoSx(palette), px: 1.25, py: 0.75 }}>
           {taskCount} {taskCount === 1 ? 'task' : 'tasks'} · {agentCount} {agentCount === 1 ? 'agent' : 'agents'} ·{' '}
-          {timeWindow === 'all' ? 'all time' : `last ${windowLabel.toLowerCase()}`}
-          {view === 'archived' ? ' · archived' : ''}
-          {scope === 'mine' ? ' · mine' : ''}
+          {timeWindow === GalaxyTimeWindow.ALL ? 'all time' : `last ${windowLabel.toLowerCase()}`}
+          {view === GalaxyView.ARCHIVED ? ' · archived' : ''}
+          {scope === GalaxyScope.MINE ? ' · mine' : ''}
         </Box>
       </Corner>
 
-      <Corner placement="se">
+      <Corner placement={CornerPlacement.SE}>
         <Tooltip title="Reset view" placement="left">
           <IconButton
             onClick={onResetView}

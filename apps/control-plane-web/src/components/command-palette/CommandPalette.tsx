@@ -27,7 +27,10 @@ import { useNavigate } from 'react-router';
 
 import { useCreateSession, useTasks, useWorkers } from '../../api/hooks';
 
-type Mode = 'root' | 'sessions';
+enum Mode {
+  ROOT = 'root',
+  SESSIONS = 'sessions',
+}
 
 interface Item {
   id: string;
@@ -54,7 +57,7 @@ export const CommandPalette: FC<CommandPaletteProps> = ({
   const { data: workerData } = useWorkers();
   const workers = workerData?.workers ?? [];
   const defaultImage = workerData?.defaultImage ?? null;
-  const [mode, setMode] = useState<Mode>('root');
+  const [mode, setMode] = useState<Mode>(Mode.ROOT);
   const [query, setQuery] = useState('');
   const [active, setActive] = useState(0);
 
@@ -67,14 +70,14 @@ export const CommandPalette: FC<CommandPaletteProps> = ({
   };
 
   const enterSessions = (): void => {
-    setMode('sessions');
+    setMode(Mode.SESSIONS);
     setQuery('');
     setActive(0);
   };
 
   const items = useMemo<Item[]>(() => {
     const q = query.trim().toLowerCase();
-    if (mode === 'sessions') {
+    if (mode === Mode.SESSIONS) {
       return tasks
         .filter((t) => t.archivedAt === null)
         .map((t) => ({ task: t, label: sessionLabel(t, 80) }))
@@ -127,7 +130,7 @@ export const CommandPalette: FC<CommandPaletteProps> = ({
   const highlighted = Math.min(active, Math.max(items.length - 1, 0));
 
   const goBack = (): void => {
-    setMode('root');
+    setMode(Mode.ROOT);
     setQuery('');
     setActive(0);
   };
@@ -144,9 +147,9 @@ export const CommandPalette: FC<CommandPaletteProps> = ({
       items[highlighted]?.run();
     } else if (e.key === 'Escape') {
       e.preventDefault();
-      if (mode === 'sessions') goBack();
+      if (mode === Mode.SESSIONS) goBack();
       else onClose();
-    } else if (e.key === 'Backspace' && mode === 'sessions' && query === '') {
+    } else if (e.key === 'Backspace' && mode === Mode.SESSIONS && query === '') {
       goBack();
     }
   };
@@ -172,7 +175,7 @@ export const CommandPalette: FC<CommandPaletteProps> = ({
           borderColor: 'divider',
         }}
       >
-        {mode === 'sessions' ? (
+        {mode === Mode.SESSIONS ? (
           <ChevronLeftRounded
             fontSize="small"
             onClick={goBack}
@@ -192,11 +195,11 @@ export const CommandPalette: FC<CommandPaletteProps> = ({
           }}
           onKeyDown={onKeyDown}
           placeholder={
-            mode === 'sessions' ? 'Search sessions…' : 'Type a command…'
+            mode === Mode.SESSIONS ? 'Search sessions…' : 'Type a command…'
           }
           inputProps={{
             'aria-label':
-              mode === 'sessions' ? 'Search sessions' : 'Type a command',
+              mode === Mode.SESSIONS ? 'Search sessions' : 'Type a command',
           }}
           sx={{ fontSize: 15 }}
         />
@@ -208,7 +211,7 @@ export const CommandPalette: FC<CommandPaletteProps> = ({
             color="text.secondary"
             sx={{ px: 2, py: 1.5 }}
           >
-            {mode === 'sessions'
+            {mode === Mode.SESSIONS
               ? 'No matching sessions.'
               : 'No matching commands.'}
           </Typography>

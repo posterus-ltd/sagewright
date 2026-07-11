@@ -58,4 +58,14 @@ export const light: Palette = {
   info: '#0969da',
 };
 
-export const palettes = { dark, light } as const;
+/** The two concrete colour schemes a theme resolves to (see ThemeMode). Keys the
+ *  palette lookup, so it lives with the tokens it selects. */
+export enum ResolvedMode {
+  LIGHT = 'light',
+  DARK = 'dark',
+}
+
+export const palettes: Record<ResolvedMode, Palette> = {
+  [ResolvedMode.DARK]: dark,
+  [ResolvedMode.LIGHT]: light,
+};

@@ -24,11 +24,20 @@ import { Terminal } from './Terminal';
 import { TranscriptTerminal } from './TranscriptTerminal';
 import { useTaskStream } from './useTaskStream';
 import { Stop } from '@mui/icons-material';
-import { SessionMode, TerminalKind, modeForKind } from '@sagewright/shared';
+import { SessionMode, SessionStatus, TerminalKind, modeForKind } from '@sagewright/shared';
 
-type TabValue = 'transcript' | 'agent' | 'shell' | 'log';
+enum TabValue {
+  TRANSCRIPT = 'transcript',
+  AGENT = 'agent',
+  SHELL = 'shell',
+  LOG = 'log',
+}
 
-const TERMINAL_DEAD_STATUSES = ['done', 'failed', 'stopped'];
+const TERMINAL_DEAD_STATUSES: readonly SessionStatus[] = [
+  SessionStatus.DONE,
+  SessionStatus.FAILED,
+  SessionStatus.STOPPED,
+];
 const sessionTabSx = {
   minHeight: 32,
   minWidth: 64,
@@ -68,7 +77,7 @@ export const SessionPanel: FC<{
   const { events } = useTaskStream(taskId);
   const stopTask = useStopTask();
   const { confirm } = useConfirmation();
-  const [tab, setTab] = useState<TabValue>('agent');
+  const [tab, setTab] = useState<TabValue>(TabValue.AGENT);
 
   // Stopping kills the running container and can't be undone, so gate it behind a confirmation.
   const confirmStop = (): void =>
@@ -107,28 +116,28 @@ export const SessionPanel: FC<{
   // only an interactive session is driven by the human over Agent/Shell PTYs.
   const headless = task != null && modeForKind(task.kind) === SessionMode.HEADLESS;
   const tabValues: TabValue[] = headless
-    ? ['transcript', 'shell', 'log']
-    : ['agent', 'shell', 'log'];
+    ? [TabValue.TRANSCRIPT, TabValue.SHELL, TabValue.LOG]
+    : [TabValue.AGENT, TabValue.SHELL, TabValue.LOG];
   // Once a session has stopped its container is gone, so the agent/shell PTYs can't be
   // opened — those tabs are disabled. Keep them out of the selectable set so the active
   // view falls back to the log (the one tab that's always readable) rather than landing
   // on a disabled tab showing an "unavailable" note.
   const dead = task != null && TERMINAL_DEAD_STATUSES.includes(task.status);
   const selectable: TabValue[] = dead
-    ? tabValues.filter((t) => t === 'log' || t === 'transcript')
+    ? tabValues.filter((t) => t === TabValue.LOG || t === TabValue.TRANSCRIPT)
     : tabValues;
   const current: TabValue = selectable.includes(tab)
     ? tab
     : dead
-      ? 'log'
+      ? TabValue.LOG
       : tabValues[0];
 
   // Widgets only ever host active sessions, so a status chip is only worth a glance
   // once one reaches a terminal outcome — done or failed. While live, no chip.
   const compactStatus =
-    task?.status === 'done'
+    task?.status === SessionStatus.DONE
       ? { label: 'done', color: 'success' as const }
-      : task?.status === 'failed' || task?.status === 'stopped'
+      : task?.status === SessionStatus.FAILED || task?.status === SessionStatus.STOPPED
         ? { label: 'failed', color: 'error' as const }
         : null;
 
@@ -229,20 +238,20 @@ export const SessionPanel: FC<{
         }}
       >
         {headless && (
-          <Tab value="transcript" label="Transcript" sx={sessionTabSx} />
+          <Tab value={TabValue.TRANSCRIPT} label="Transcript" sx={sessionTabSx} />
         )}
         {!headless && (
-          <Tab value="agent" label="Agent" disabled={!live} sx={sessionTabSx} />
+          <Tab value={TabValue.AGENT} label="Agent" disabled={!live} sx={sessionTabSx} />
         )}
-        <Tab value="shell" label="Shell" disabled={!live} sx={sessionTabSx} />
-        <Tab value="log" label="Log" sx={sessionTabSx} />
+        <Tab value={TabValue.SHELL} label="Shell" disabled={!live} sx={sessionTabSx} />
+        <Tab value={TabValue.LOG} label="Log" sx={sessionTabSx} />
       </Tabs>
 
-      {current === 'transcript' && (
+      {current === TabValue.TRANSCRIPT && (
         <TranscriptTerminal key={`${taskId}-transcript`} events={events} />
       )}
 
-      {current === 'agent' &&
+      {current === TabValue.AGENT &&
         (live ? (
           <Terminal
             key={`${taskId}-agent`}
@@ -256,7 +265,7 @@ export const SessionPanel: FC<{
           </Typography>
         ))}
 
-      {current === 'shell' &&
+      {current === TabValue.SHELL &&
         (live ? (
           <Terminal
             key={`${taskId}-shell`}
@@ -269,7 +278,7 @@ export const SessionPanel: FC<{
           </Typography>
         ))}
 
-      {current === 'log' && (
+      {current === TabValue.LOG && (
         <Box
           sx={{
             fontFamily: 'monospace',

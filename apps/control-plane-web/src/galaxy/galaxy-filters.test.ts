@@ -1,11 +1,11 @@
-import { SessionStatus, type Session } from '@sagewright/shared';
+import { SessionKind, SessionStatus, type Session } from '@sagewright/shared';
 import { describe, expect, it } from 'vitest';
 
-import { filterSessionsByScope, filterSessionsByView } from './galaxy-filters';
+import { filterSessionsByScope, filterSessionsByView, GalaxyScope, GalaxyView } from './galaxy-filters';
 
 const session = (over: Partial<Session>): Session => ({
   id: 's1',
-  kind: 'headless',
+  kind: SessionKind.HEADLESS,
   name: null,
   prompt: null,
   workerImage: 'claude-code',
@@ -36,11 +36,11 @@ describe('filterSessionsByView', () => {
   ];
 
   it('shows only unarchived sessions in the active view', () => {
-    expect(filterSessionsByView(sessions, 'active').map((s) => s.id)).toEqual(['live']);
+    expect(filterSessionsByView(sessions, GalaxyView.ACTIVE).map((s) => s.id)).toEqual(['live']);
   });
 
   it('shows only archived sessions in the archived view', () => {
-    expect(filterSessionsByView(sessions, 'archived').map((s) => s.id)).toEqual(['shelved']);
+    expect(filterSessionsByView(sessions, GalaxyView.ARCHIVED).map((s) => s.id)).toEqual(['shelved']);
   });
 });
 
@@ -48,14 +48,14 @@ describe('filterSessionsByScope', () => {
   const sessions = [session({ id: 'mine', createdBy: 'al' }), session({ id: 'theirs', createdBy: 'bo' })];
 
   it('keeps everything in the all scope', () => {
-    expect(filterSessionsByScope(sessions, 'all', 'al')).toHaveLength(2);
+    expect(filterSessionsByScope(sessions, GalaxyScope.ALL, 'al')).toHaveLength(2);
   });
 
   it('keeps only the current user\'s sessions in the mine scope', () => {
-    expect(filterSessionsByScope(sessions, 'mine', 'al').map((s) => s.id)).toEqual(['mine']);
+    expect(filterSessionsByScope(sessions, GalaxyScope.MINE, 'al').map((s) => s.id)).toEqual(['mine']);
   });
 
   it('matches nothing in the mine scope when no user is known', () => {
-    expect(filterSessionsByScope(sessions, 'mine', null)).toHaveLength(0);
+    expect(filterSessionsByScope(sessions, GalaxyScope.MINE, null)).toHaveLength(0);
   });
 });

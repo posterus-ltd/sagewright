@@ -1,3 +1,4 @@
+import { GithubCredentialSource } from '@sagewright/shared';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 
@@ -14,7 +15,11 @@ export const registerGithubRoutes = (app: FastifyInstance, deps: AppDeps): void 
     const parsed = putBody.safeParse(req.body);
     if (!parsed.success) return reply.code(400).send({ error: 'token must be a string' });
     try {
-      const result = await deps.githubCredentialService.validateAndStore(req.displayName!, parsed.data.token, 'pat');
+      const result = await deps.githubCredentialService.validateAndStore(
+        req.displayName!,
+        parsed.data.token,
+        GithubCredentialSource.PAT,
+      );
       return reply.send(result);
     } catch (err) {
       if (err instanceof GithubTokenValidationError) return reply.code(400).send({ error: err.message });

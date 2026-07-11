@@ -38,7 +38,7 @@ import { Link, useLocation, useNavigate } from 'react-router';
 
 import { useAuth } from '../auth/useAuth';
 import { useUserPreferences } from '../preferences/UserPreferencesProvider';
-import { useThemeMode, type ThemeMode } from '../theme/ThemeModeProvider';
+import { useThemeMode, ThemeMode } from '../theme/ThemeModeProvider';
 import { fonts } from '../theme/tokens';
 import { useCommandPalette } from './command-palette/CommandPaletteProvider';
 import { shortcutLabel } from './command-palette/shortcut';
@@ -165,20 +165,20 @@ const Row: FC<RowProps> = ({
 };
 
 const themeIcon = (mode: ThemeMode): ReactNode => {
-  if (mode === 'light') return <LightModeRounded fontSize="small" />;
-  if (mode === 'dark') return <DarkModeRounded fontSize="small" />;
+  if (mode === ThemeMode.LIGHT) return <LightModeRounded fontSize="small" />;
+  if (mode === ThemeMode.DARK) return <DarkModeRounded fontSize="small" />;
   return <SettingsBrightnessRounded fontSize="small" />;
 };
 
 const NEXT: Record<ThemeMode, ThemeMode> = {
-  system: 'light',
-  light: 'dark',
-  dark: 'system',
+  [ThemeMode.SYSTEM]: ThemeMode.LIGHT,
+  [ThemeMode.LIGHT]: ThemeMode.DARK,
+  [ThemeMode.DARK]: ThemeMode.SYSTEM,
 };
 const LABEL: Record<ThemeMode, string> = {
-  system: 'System',
-  light: 'Light',
-  dark: 'Dark',
+  [ThemeMode.SYSTEM]: 'System',
+  [ThemeMode.LIGHT]: 'Light',
+  [ThemeMode.DARK]: 'Dark',
 };
 
 export const Sidebar: FC = () => {

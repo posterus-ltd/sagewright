@@ -6,10 +6,10 @@ import { useAuth } from '../auth/useAuth';
 import { MainContainer } from '../components/MainContainer';
 import { useUserPreferences } from '../preferences/UserPreferencesProvider';
 import { useThemeMode } from '../theme/ThemeModeProvider';
-import { palettes } from '../theme/tokens';
-import { filterSessionsByScope, filterSessionsByView, type GalaxyScope, type GalaxyView } from './galaxy-filters';
+import { palettes, ResolvedMode } from '../theme/tokens';
+import { filterSessionsByScope, filterSessionsByView, GalaxyScope, GalaxyView } from './galaxy-filters';
 import { buildGalaxyGraph } from './galaxy-graph-data';
-import { DEFAULT_GALAXY_TIME_WINDOW, filterSessionsByWindow } from './galaxy-time-window';
+import { DEFAULT_GALAXY_TIME_WINDOW, filterSessionsByWindow, GalaxyTimeWindow } from './galaxy-time-window';
 import { GalaxyHud } from './GalaxyHud';
 import { GalaxyScene, type GalaxySceneHandle } from './GalaxyScene';
 import { countByGroup, type StatusGroupKey } from './status-legend';
@@ -30,8 +30,8 @@ export const GalaxyPage: FC = () => {
   );
   // Like the Sessions page's toggles, these are transient lenses, not saved
   // preferences — every visit starts on the live, fleet-wide field.
-  const [view, setView] = useState<GalaxyView>('active');
-  const [scope, setScope] = useState<GalaxyScope>('all');
+  const [view, setView] = useState<GalaxyView>(GalaxyView.ACTIVE);
+  const [scope, setScope] = useState<GalaxyScope>(GalaxyScope.ALL);
   const [hiddenGroups, setHiddenGroups] = useState<ReadonlySet<StatusGroupKey>>(new Set());
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
@@ -84,7 +84,7 @@ export const GalaxyPage: FC = () => {
               nodes={nodes}
               links={links}
               palette={palette}
-              isDark={resolvedMode === 'dark'}
+              isDark={resolvedMode === ResolvedMode.DARK}
               hiddenGroups={hiddenGroups}
               selectedId={selectedId}
               reducedMotion={reducedMotion}
@@ -106,8 +106,8 @@ export const GalaxyPage: FC = () => {
                 <Typography variant="body2" color="text.secondary">
                   No tasks match this view.
                 </Typography>
-                {timeWindow !== 'all' && (
-                  <Button variant="outlined" size="small" onClick={() => setTimeWindow('all')} sx={{ pointerEvents: 'auto' }}>
+                {timeWindow !== GalaxyTimeWindow.ALL && (
+                  <Button variant="outlined" size="small" onClick={() => setTimeWindow(GalaxyTimeWindow.ALL)} sx={{ pointerEvents: 'auto' }}>
                     Show all time
                   </Button>
                 )}

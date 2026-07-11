@@ -1,3 +1,4 @@
+import { GithubCredentialSource } from '@sagewright/shared';
 import { eq } from 'drizzle-orm';
 
 import type { AppConfig } from '../config';
@@ -5,8 +6,6 @@ import type { SecretCipher } from '../crypto/secret-cipher';
 import type { Db } from '../db/client';
 import { githubCredentials } from '../db/schema';
 import type { UserEnvService } from '../user-env/user-env-service';
-
-type CredentialSource = 'pat' | 'oauth';
 
 export interface GithubIdentity {
   login: string;
@@ -86,7 +85,7 @@ export const createGithubCredentialService = (deps: GithubCredentialServiceDeps)
   const validateAndStore = async (
     userKey: string,
     token: string,
-    source: CredentialSource = 'pat',
+    source: GithubCredentialSource = GithubCredentialSource.PAT,
   ): Promise<{ identity: GithubIdentity; scopes: string[]; missingRepoScope: boolean }> => {
     const trimmed = token.trim();
     if (!trimmed) throw new GithubTokenValidationError('GitHub token is required');
@@ -145,7 +144,7 @@ export const createGithubCredentialService = (deps: GithubCredentialServiceDeps)
       if (!row) return { connected: false as const };
       return {
         connected: true as const,
-        source: row.source as CredentialSource,
+        source: row.source as GithubCredentialSource,
         login: row.login,
         name: row.name,
         email: row.email,

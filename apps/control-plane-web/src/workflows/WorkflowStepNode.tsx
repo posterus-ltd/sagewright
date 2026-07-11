@@ -5,20 +5,20 @@ import { useNavigate } from 'react-router';
 import { WorkflowStepKind } from '@sagewright/shared';
 
 import { WorkerChip } from '../components/WorkerChip';
-import { NODE_H, NODE_W, type StepNodeData, type StepNodeStatus } from './workflow-graph';
+import { NODE_H, NODE_W, StepNodeStatus, type StepNodeData } from './workflow-graph';
 
 const STATUS_COLOR: Record<StepNodeStatus, 'default' | 'info' | 'success' | 'error'> = {
-  pending: 'default',
-  running: 'info',
-  done: 'success',
-  failed: 'error',
+  [StepNodeStatus.PENDING]: 'default',
+  [StepNodeStatus.RUNNING]: 'info',
+  [StepNodeStatus.DONE]: 'success',
+  [StepNodeStatus.FAILED]: 'error',
 };
 
 const BORDER: Record<StepNodeStatus, string> = {
-  pending: 'divider',
-  running: 'info.main',
-  done: 'success.main',
-  failed: 'error.main',
+  [StepNodeStatus.PENDING]: 'divider',
+  [StepNodeStatus.RUNNING]: 'info.main',
+  [StepNodeStatus.DONE]: 'success.main',
+  [StepNodeStatus.FAILED]: 'error.main',
 };
 
 /** One step in the run graph. Clicking it opens that step's live transcript. */

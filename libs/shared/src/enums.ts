@@ -25,6 +25,12 @@ export const TERMINAL_STATUSES: readonly SessionStatus[] = [
 /** True once a session has finished (or failed/stopped) and is no longer running. */
 export const isTerminalStatus = (status: SessionStatus): boolean => TERMINAL_STATUSES.includes(status);
 
+/** How a stored GitHub credential was obtained. */
+export enum GithubCredentialSource {
+  PAT = 'pat',
+  OAUTH = 'oauth',
+}
+
 export enum EventType {
   LOG = 'log',
   /** Raw terminal output from the agent's PTY — the headless transcript. */

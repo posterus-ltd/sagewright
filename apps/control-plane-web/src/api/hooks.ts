@@ -1,5 +1,7 @@
 import {
+  GithubCredentialSource,
   RepoStatus,
+  SessionStatus,
   type CanvasLayout,
   type CreateScheduledPromptInput,
   type CreateSessionInput,
@@ -21,7 +23,7 @@ export type GithubStatus =
   | { connected: false }
   | {
       connected: true;
-      source: 'pat' | 'oauth';
+      source: GithubCredentialSource;
       login: string;
       name: string | null;
       email: string;
@@ -225,7 +227,7 @@ export const useWorkflowRun = (id: string) =>
   useQuery({
     queryKey: ['workflow-run', id],
     queryFn: () => apiClient.get<WorkflowRunDetail>(`/api/workflows/runs/${id}`),
-    refetchInterval: (query) => (query.state.data?.status === 'running' ? 2000 : false),
+    refetchInterval: (query) => (query.state.data?.status === SessionStatus.RUNNING ? 2000 : false),
   });
 
 // The per-user custom .env. The list view is masked; reveal is fetched on demand

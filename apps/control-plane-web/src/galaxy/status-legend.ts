@@ -2,7 +2,13 @@ import { SessionStatus } from '@sagewright/shared';
 
 import type { Palette } from '../theme/tokens';
 
-export type StatusGroupKey = 'active' | 'attention' | 'done' | 'failed' | 'detached';
+export enum StatusGroupKey {
+  ACTIVE = 'active',
+  ATTENTION = 'attention',
+  DONE = 'done',
+  FAILED = 'failed',
+  DETACHED = 'detached',
+}
 
 export interface StatusGroup {
   key: StatusGroupKey;
@@ -16,20 +22,20 @@ export interface StatusGroup {
 /** The legend's five lenses over the field — same partition starColor draws with. */
 export const STATUS_GROUPS: readonly StatusGroup[] = [
   {
-    key: 'active',
+    key: StatusGroupKey.ACTIVE,
     label: 'Active',
     paletteKey: 'info',
     statuses: [SessionStatus.QUEUED, SessionStatus.PROVISIONING, SessionStatus.RUNNING, SessionStatus.PUSHING],
   },
   {
-    key: 'attention',
+    key: StatusGroupKey.ATTENTION,
     label: 'Needs attention',
     paletteKey: 'warning',
     statuses: [SessionStatus.NEEDS_ASSISTANCE, SessionStatus.MAX_ITERATIONS],
   },
-  { key: 'done', label: 'Done', paletteKey: 'success', statuses: [SessionStatus.DONE] },
-  { key: 'failed', label: 'Failed', paletteKey: 'error', statuses: [SessionStatus.FAILED, SessionStatus.STOPPED] },
-  { key: 'detached', label: 'Detached', paletteKey: 'muted', statuses: [SessionStatus.DETACHED] },
+  { key: StatusGroupKey.DONE, label: 'Done', paletteKey: 'success', statuses: [SessionStatus.DONE] },
+  { key: StatusGroupKey.FAILED, label: 'Failed', paletteKey: 'error', statuses: [SessionStatus.FAILED, SessionStatus.STOPPED] },
+  { key: StatusGroupKey.DETACHED, label: 'Detached', paletteKey: 'muted', statuses: [SessionStatus.DETACHED] },
 ];
 
 const GROUP_BY_STATUS = new Map<SessionStatus, StatusGroupKey>(
