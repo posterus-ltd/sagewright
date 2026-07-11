@@ -9,6 +9,12 @@ RUN npm ci --legacy-peer-deps
 # Copy source
 COPY . .
 
+# Compile-time UI switch: 'false' builds the web bundle without the
+# permanent-delete action (audit-retention deployments). The API enforces the
+# same policy at runtime via the ALLOW_SESSION_DELETION env var.
+ARG ALLOW_SESSION_DELETION=true
+ENV VITE_ALLOW_SESSION_DELETION=$ALLOW_SESSION_DELETION
+
 # Build both apps
 # Outputs:
 #   apps/control-plane-api/dist/main.js

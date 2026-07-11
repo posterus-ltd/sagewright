@@ -21,6 +21,11 @@ services:
     build:
       context: .
       dockerfile: apps/control-plane-api/Dockerfile
+      args:
+        # Baked into the web bundle at build time: 'false' compiles the UI
+        # without the permanent-delete action. Same var also gates the API at
+        # runtime (below), so one setting drives both.
+        ALLOW_SESSION_DELETION: ${ALLOW_SESSION_DELETION:-true}
     depends_on:
       postgres:
         condition: service_healthy

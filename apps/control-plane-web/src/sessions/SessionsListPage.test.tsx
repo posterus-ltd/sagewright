@@ -73,6 +73,7 @@ const renderPage = () => {
 describe('SessionsListPage', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+    vi.unstubAllEnvs();
     navigate.mockReset();
     localStorage.clear();
   });
@@ -116,7 +117,7 @@ describe('SessionsListPage', () => {
     ]);
     renderPage();
 
-    fireEvent.click(screen.getByRole('tab', { name: /archived/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'Archived' }));
 
     await waitFor(() => expect(screen.getByText('Archived one')).toBeTruthy());
     const row = screen
@@ -133,6 +134,22 @@ describe('SessionsListPage', () => {
       ),
     );
     expect(navigate).not.toHaveBeenCalled();
+  });
+
+  it('omits the delete button when the build disallows session deletion', async () => {
+    vi.stubEnv('VITE_ALLOW_SESSION_DELETION', 'false');
+    stubApi([task({ id: 't1', name: 'Archived one', archivedAt: '2026-01-01' })]);
+    renderPage();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Archived' }));
+
+    await waitFor(() => expect(screen.getByText('Archived one')).toBeTruthy());
+    const row = screen
+      .getByText('Archived one')
+      .closest('.MuiDataGrid-row') as HTMLElement;
+    expect(
+      within(row).queryByRole('button', { name: /delete session/i }),
+    ).toBeNull();
   });
 
   it('switches from mine to all sessions via the scope toggle', async () => {

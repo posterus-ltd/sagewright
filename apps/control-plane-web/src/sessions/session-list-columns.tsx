@@ -47,6 +47,9 @@ const StartedAtCell: FC<{ startedAt: string }> = ({ startedAt }) => {
 
 export interface SessionListColumnsParams {
   isArchivedView: boolean;
+  // Whether this build allows permanent deletion at all — compiled to false
+  // on audit-retention deployments, where the delete action is not rendered.
+  canDelete: boolean;
   // Whether the current user is allowed to rename/stop/archive/delete this
   // session — false for other users' rows when viewing "All" scope.
   canActOn: (session: Session) => boolean;
@@ -63,6 +66,7 @@ export interface SessionListColumnsParams {
 
 export const buildSessionColumns = ({
   isArchivedView,
+  canDelete,
   canActOn,
   renamingId,
   draft,
@@ -168,18 +172,20 @@ export const buildSessionColumns = ({
           )}
           {canAct &&
             (isArchivedView ? (
-              <Tooltip title="Delete permanently">
-                <IconButton
-                  size="small"
-                  aria-label="Delete session"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onDelete(t.id);
-                  }}
-                >
-                  <DeleteForever fontSize="small" />
-                </IconButton>
-              </Tooltip>
+              canDelete && (
+                <Tooltip title="Delete permanently">
+                  <IconButton
+                    size="small"
+                    aria-label="Delete session"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onDelete(t.id);
+                    }}
+                  >
+                    <DeleteForever fontSize="small" />
+                  </IconButton>
+                </Tooltip>
+              )
             ) : isTerminalStatus(t.status) ? (
               <Tooltip title="Archive">
                 <IconButton
