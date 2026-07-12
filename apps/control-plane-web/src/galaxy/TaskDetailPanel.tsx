@@ -1,5 +1,17 @@
-import { CloseRounded } from '@mui/icons-material';
-import { Box, Divider, Drawer, IconButton, Link as MuiLink, Typography } from '@mui/material';
+import {
+  ArrowOutwardRounded,
+  CloseRounded,
+  PersonOutlineRounded,
+  RouteRounded,
+} from '@mui/icons-material';
+import {
+  Box,
+  Divider,
+  Drawer,
+  IconButton,
+  Link as MuiLink,
+  Typography,
+} from '@mui/material';
 import { DateTime } from 'luxon';
 import type { FC } from 'react';
 import { Link as RouterLink } from 'react-router';
@@ -35,36 +47,195 @@ const Row: FC<{ label: string; value: string }> = ({ label, value }) => (
 // A slide-over rather than a route change — clicking a star surfaces its details
 // without pulling the user out of the 3D scene. The panel links into the full
 // task view (terminal/event stream) for anyone who wants to leave the galaxy.
-export const TaskDetailPanel: FC<TaskDetailPanelProps> = ({ node, onClose }) => {
+export const TaskDetailPanel: FC<TaskDetailPanelProps> = ({
+  node,
+  onClose,
+}) => {
   const created = node ? DateTime.fromISO(node.createdAt) : null;
   const ended = node?.endedAt ? DateTime.fromISO(node.endedAt) : null;
 
   return (
     // Persistent (non-modal): no backdrop dimming the field, and stars stay
     // clickable while it's open so the panel follows the selection.
-    <Drawer anchor="right" variant="persistent" open={node !== null} onClose={onClose}>
+    <Drawer
+      anchor="right"
+      variant="persistent"
+      open={node !== null}
+      onClose={onClose}
+      slotProps={{
+        paper: {
+          sx: {
+            width: { xs: 'min(100vw, 380px)', md: 380 },
+            bgcolor: 'background.paper',
+            backgroundImage: 'none',
+            borderLeftColor: 'divider',
+          },
+        },
+      }}
+    >
       {node && created && (
-        <Box sx={{ width: 320, p: 3, display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <Typography variant="subtitle1" sx={{ fontWeight: 600, pr: 1 }}>
-              {node.name}
-            </Typography>
-            <IconButton size="small" onClick={onClose}>
-              <CloseRounded fontSize="small" />
-            </IconButton>
+        <Box
+          sx={{ minHeight: '100%', display: 'flex', flexDirection: 'column' }}
+        >
+          <Box
+            sx={{
+              height: 3,
+              background: 'linear-gradient(90deg, primary.main, info.main)',
+            }}
+          />
+          <Box
+            sx={{
+              p: { xs: 2.5, md: 3 },
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 2,
+            }}
+          >
+            <Box
+              sx={{
+                display: 'flex',
+                alignItems: 'flex-start',
+                justifyContent: 'space-between',
+                gap: 1,
+              }}
+            >
+              <Box>
+                <Typography
+                  variant="overline"
+                  color="text.secondary"
+                  sx={{ letterSpacing: '0.12em' }}
+                >
+                  Task signal
+                </Typography>
+                <Typography
+                  variant="h6"
+                  sx={{ fontWeight: 700, lineHeight: 1.25, mt: 0.25 }}
+                >
+                  {node.name}
+                </Typography>
+              </Box>
+              <IconButton
+                size="small"
+                onClick={onClose}
+                aria-label="Close task details"
+              >
+                <CloseRounded fontSize="small" />
+              </IconButton>
+            </Box>
+            <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+              <StatusChip status={node.status} />
+              <WorkerChip image={node.workerImage} />
+            </Box>
+            {node.prompt && (
+              <Box
+                sx={{
+                  p: 2,
+                  bgcolor: 'action.hover',
+                  border: '1px solid',
+                  borderColor: 'divider',
+                  borderRadius: 1,
+                }}
+              >
+                <Typography
+                  variant="caption"
+                  color="text.secondary"
+                  sx={{
+                    display: 'block',
+                    mb: 0.75,
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.08em',
+                  }}
+                >
+                  Mission brief
+                </Typography>
+                <Typography variant="body2" sx={{ lineHeight: 1.6 }}>
+                  {node.prompt}
+                </Typography>
+              </Box>
+            )}
+            <Box
+              sx={{
+                display: 'grid',
+                gridTemplateColumns: '32px 1fr',
+                gap: 1.25,
+                alignItems: 'center',
+              }}
+            >
+              <PersonOutlineRounded color="action" />
+              <Box>
+                <Typography variant="caption" color="text.secondary">
+                  Owned by
+                </Typography>
+                <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                  {node.createdBy}
+                </Typography>
+              </Box>
+              <RouteRounded color="action" />
+              <Box>
+                <Typography variant="caption" color="text.secondary">
+                  Working on
+                </Typography>
+                <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                  {(
+                    node.currentStepKey ??
+                    node.workflowStepKey ??
+                    'Building & validating'
+                  ).replace(/[-_]/g, ' ')}
+                  {node.iteration !== null
+                    ? ` · iteration ${node.iteration}`
+                    : ''}
+                </Typography>
+              </Box>
+            </Box>
+            <Divider />
+            <Row label="Kind" value={node.kind} />
+            <Row
+              label="Created"
+              value={
+                created.toRelative() ??
+                created.toLocaleString(DateTime.DATETIME_MED)
+              }
+            />
+            {ended && (
+              <Row
+                label="Ended"
+                value={
+                  ended.toRelative() ??
+                  ended.toLocaleString(DateTime.DATETIME_MED)
+                }
+              />
+            )}
+            {ended && (
+              <Row
+                label="Duration"
+                value={formatDuration(ended.toMillis() - created.toMillis())}
+              />
+            )}
+            {node.branch && <Row label="Branch" value={node.branch} />}
+            <MuiLink
+              component={RouterLink}
+              to={`/tasks/${node.id}`}
+              sx={{
+                mt: 1,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 0.5,
+                fontWeight: 650,
+              }}
+            >
+              Open live task <ArrowOutwardRounded sx={{ fontSize: 16 }} />
+            </MuiLink>
+            {node.prUrl && (
+              <MuiLink
+                href={node.prUrl}
+                target="_blank"
+                rel="noreferrer"
+                sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5 }}
+              >
+                View pull request <ArrowOutwardRounded sx={{ fontSize: 16 }} />
+              </MuiLink>
+            )}
           </Box>
-          <Box sx={{ display: 'flex', gap: 1 }}>
-            <StatusChip status={node.status} />
-            <WorkerChip image={node.workerImage} />
-          </Box>
-          <Divider />
-          <Row label="Kind" value={node.kind} />
-          <Row label="Created" value={created.toRelative() ?? created.toLocaleString(DateTime.DATETIME_MED)} />
-          {ended && <Row label="Ended" value={ended.toRelative() ?? ended.toLocaleString(DateTime.DATETIME_MED)} />}
-          {ended && <Row label="Duration" value={formatDuration(ended.toMillis() - created.toMillis())} />}
-          <MuiLink component={RouterLink} to={`/tasks/${node.id}`} sx={{ mt: 1 }}>
-            Open full task view →
-          </MuiLink>
         </Box>
       )}
     </Drawer>

@@ -1,5 +1,11 @@
-import { CenterFocusWeakRounded } from '@mui/icons-material';
-import { Box, ButtonBase, IconButton, Tooltip } from '@mui/material';
+import { CenterFocusWeakRounded, HubRounded } from '@mui/icons-material';
+import {
+  Box,
+  ButtonBase,
+  IconButton,
+  Tooltip,
+  Typography,
+} from '@mui/material';
 import type { FC, ReactNode } from 'react';
 
 import { fonts, radius, type Palette } from '../theme/tokens';
@@ -57,7 +63,10 @@ const CORNER_POSITION: Record<CornerPlacement, Record<string, number>> = {
   [CornerPlacement.SE]: { bottom: 16, right: 16 },
 };
 
-const Corner: FC<{ placement: CornerPlacement; children: ReactNode }> = ({ placement, children }) => (
+const Corner: FC<{ placement: CornerPlacement; children: ReactNode }> = ({
+  placement,
+  children,
+}) => (
   <Box
     sx={{
       position: 'absolute',
@@ -67,6 +76,14 @@ const Corner: FC<{ placement: CornerPlacement; children: ReactNode }> = ({ place
       flexWrap: 'wrap',
       gap: 1,
       ...CORNER_POSITION[placement],
+      ...(placement === CornerPlacement.NW && {
+        top: { xs: 12, md: 18 },
+        left: { xs: 12, md: 20 },
+        right: { xs: 12, md: 'auto' },
+      }),
+      ...(placement === CornerPlacement.NE && { top: 18, right: 20 }),
+      ...(placement === CornerPlacement.SW && { bottom: 18, left: 20 }),
+      ...(placement === CornerPlacement.SE && { bottom: 18, right: 20 }),
     }}
   >
     {children}
@@ -82,7 +99,12 @@ interface SegmentedProps<V extends string> {
 
 // A HUD-styled exclusive toggle — the galaxy's equivalent of the Sessions
 // page's ToggleButtonGroups.
-const Segmented = <V extends string>({ palette, value, options, onChange }: SegmentedProps<V>): ReactNode => (
+const Segmented = <V extends string>({
+  palette,
+  value,
+  options,
+  onChange,
+}: SegmentedProps<V>): ReactNode => (
   <Box sx={{ ...panelSx(palette), display: 'flex', p: 0.5, gap: 0.25 }}>
     {options.map((option) => {
       const active = option.value === value;
@@ -137,18 +159,112 @@ export const GalaxyHud: FC<GalaxyHudProps> = ({
   agentCount,
   onResetView,
 }) => {
-  const windowLabel = GALAXY_TIME_WINDOWS.find((w) => w.value === timeWindow)?.label ?? timeWindow;
+  const windowLabel =
+    GALAXY_TIME_WINDOWS.find((w) => w.value === timeWindow)?.label ??
+    timeWindow;
+  const activeCount = counts.active;
+  const attentionCount = counts.attention;
 
   return (
     <>
       <Corner placement={CornerPlacement.NW}>
-        <Segmented palette={palette} value={timeWindow} options={GALAXY_TIME_WINDOWS} onChange={onTimeWindowChange} />
-        <Segmented palette={palette} value={view} options={VIEW_OPTIONS} onChange={onViewChange} />
-        <Segmented palette={palette} value={scope} options={SCOPE_OPTIONS} onChange={onScopeChange} />
+        <Box
+          sx={{
+            width: { xs: '100%', md: 560 },
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 1,
+          }}
+        >
+          <Box
+            sx={{ display: 'flex', alignItems: 'center', gap: 1.25, px: 0.5 }}
+          >
+            <Box
+              sx={{
+                width: 34,
+                height: 34,
+                display: 'grid',
+                placeItems: 'center',
+                border: `1px solid ${palette.border}`,
+                borderRadius: `${radius}px`,
+                bgcolor: `${palette.surface}D8`,
+                color: palette.accent,
+                backdropFilter: 'blur(10px)',
+              }}
+            >
+              <HubRounded sx={{ fontSize: 19 }} />
+            </Box>
+            <Box sx={{ minWidth: 0 }}>
+              <Typography
+                sx={{
+                  color: palette.text,
+                  fontSize: { xs: 17, md: 20 },
+                  fontWeight: 720,
+                  lineHeight: 1.1,
+                  letterSpacing: '-0.02em',
+                }}
+              >
+                Team galaxy
+              </Typography>
+              <Typography
+                sx={{
+                  ...monoSx(palette),
+                  mt: 0.35,
+                  fontSize: { xs: 8, md: 10 },
+                }}
+                noWrap
+              >
+                {activeCount > 0
+                  ? `${activeCount} tasks building now`
+                  : 'Fleet standing by'}
+                {attentionCount > 0
+                  ? ` · ${attentionCount} awaiting you`
+                  : ` · ${taskCount} tasks mapped`}
+              </Typography>
+            </Box>
+          </Box>
+          <Box
+            sx={{
+              display: 'flex',
+              gap: 0.75,
+              overflowX: 'auto',
+              pb: 0.25,
+              scrollbarWidth: 'none',
+              '&::-webkit-scrollbar': { display: 'none' },
+            }}
+          >
+            <Segmented
+              palette={palette}
+              value={timeWindow}
+              options={GALAXY_TIME_WINDOWS}
+              onChange={onTimeWindowChange}
+            />
+            <Segmented
+              palette={palette}
+              value={view}
+              options={VIEW_OPTIONS}
+              onChange={onViewChange}
+            />
+            <Segmented
+              palette={palette}
+              value={scope}
+              options={SCOPE_OPTIONS}
+              onChange={onScopeChange}
+            />
+          </Box>
+        </Box>
       </Corner>
 
       <Corner placement={CornerPlacement.NE}>
-        <Box sx={{ ...panelSx(palette), display: 'flex', flexDirection: 'column', p: 0.5, minWidth: 190 }}>
+        <Box
+          sx={{
+            ...panelSx(palette),
+            display: { xs: 'none', lg: 'flex' },
+            flexDirection: 'column',
+            p: 0.5,
+            minWidth: 190,
+          }}
+        >
           {STATUS_GROUPS.map((group) => {
             const hidden = hiddenGroups.has(group.key);
             const color = palette[group.paletteKey];
@@ -167,7 +283,9 @@ export const GalaxyHud: FC<GalaxyHudProps> = ({
                   borderRadius: `${radius - 2}px`,
                   opacity: hidden ? 0.45 : 1,
                   '&:hover': { bgcolor: palette.elevated },
-                  '&.Mui-focusVisible': { outline: `1px solid ${palette.accent}` },
+                  '&.Mui-focusVisible': {
+                    outline: `1px solid ${palette.accent}`,
+                  },
                 }}
               >
                 <Box
@@ -183,10 +301,20 @@ export const GalaxyHud: FC<GalaxyHudProps> = ({
                     boxShadow: hidden ? 'none' : `0 0 6px ${color}80`,
                   }}
                 />
-                <Box component="span" sx={{ ...monoSx(palette), flex: 1, textAlign: 'left' }}>
+                <Box
+                  component="span"
+                  sx={{ ...monoSx(palette), flex: 1, textAlign: 'left' }}
+                >
                   {group.label}
                 </Box>
-                <Box component="span" sx={{ ...monoSx(palette), color: palette.text, fontVariantNumeric: 'tabular-nums' }}>
+                <Box
+                  component="span"
+                  sx={{
+                    ...monoSx(palette),
+                    color: palette.text,
+                    fontVariantNumeric: 'tabular-nums',
+                  }}
+                >
                   {counts[group.key]}
                 </Box>
               </ButtonBase>
@@ -196,9 +324,21 @@ export const GalaxyHud: FC<GalaxyHudProps> = ({
       </Corner>
 
       <Corner placement={CornerPlacement.SW}>
-        <Box sx={{ ...panelSx(palette), ...monoSx(palette), px: 1.25, py: 0.75 }}>
-          {taskCount} {taskCount === 1 ? 'task' : 'tasks'} · {agentCount} {agentCount === 1 ? 'agent' : 'agents'} ·{' '}
-          {timeWindow === GalaxyTimeWindow.ALL ? 'all time' : `last ${windowLabel.toLowerCase()}`}
+        <Box
+          sx={{
+            ...panelSx(palette),
+            ...monoSx(palette),
+            display: { xs: 'none', md: 'block' },
+            px: 1.25,
+            py: 0.75,
+            ml: { md: 41 },
+          }}
+        >
+          {taskCount} {taskCount === 1 ? 'task' : 'tasks'} · {agentCount}{' '}
+          {agentCount === 1 ? 'agent' : 'agents'} ·{' '}
+          {timeWindow === GalaxyTimeWindow.ALL
+            ? 'all time'
+            : `last ${windowLabel.toLowerCase()}`}
           {view === GalaxyView.ARCHIVED ? ' · archived' : ''}
           {scope === GalaxyScope.MINE ? ' · mine' : ''}
         </Box>
@@ -210,7 +350,12 @@ export const GalaxyHud: FC<GalaxyHudProps> = ({
             onClick={onResetView}
             aria-label="Reset view"
             size="small"
-            sx={{ ...panelSx(palette), color: palette.muted, '&:hover': { color: palette.text, bgcolor: palette.elevated } }}
+            sx={{
+              ...panelSx(palette),
+              display: { xs: 'none', md: 'inline-flex' },
+              color: palette.muted,
+              '&:hover': { color: palette.text, bgcolor: palette.elevated },
+            }}
           >
             <CenterFocusWeakRounded fontSize="small" />
           </IconButton>

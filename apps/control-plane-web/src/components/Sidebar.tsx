@@ -4,7 +4,6 @@ import {
   ChevronRightRounded,
   DarkModeRounded,
   AccountTreeRounded,
-  AutoAwesomeRounded,
   DashboardRounded,
   GridViewRounded,
   InfoOutlined,
@@ -12,6 +11,7 @@ import {
   LogoutRounded,
   ScheduleRounded,
   SearchRounded,
+  HubRounded,
   SettingsBrightnessRounded,
   SettingsRounded,
   TerminalRounded,
@@ -28,12 +28,7 @@ import {
   MenuItem,
   Tooltip,
 } from '@mui/material';
-import {
-  useState,
-  type FC,
-  type MouseEvent,
-  type ReactNode,
-} from 'react';
+import { useState, type FC, type MouseEvent, type ReactNode } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router';
 
 import { useAuth } from '../auth/useAuth';
@@ -68,7 +63,7 @@ const NAV = [
   {
     to: '/galaxy',
     label: 'Galaxy',
-    icon: <AutoAwesomeRounded fontSize="small" />,
+    icon: <HubRounded fontSize="small" />,
     match: (p: string) => p.startsWith('/galaxy'),
   },
   {
@@ -191,10 +186,8 @@ export const Sidebar: FC = () => {
     preference: fullWidthContent,
     updatePreference: setFullWidthContent,
   } = useUserPreferences('fullWidthContent', false);
-  const {
-    preference: collapsed,
-    updatePreference: setCollapsed,
-  } = useUserPreferences('sidebarCollapsed', false);
+  const { preference: collapsed, updatePreference: setCollapsed } =
+    useUserPreferences('sidebarCollapsed', false);
   const [userAnchor, setUserAnchor] = useState<HTMLElement | null>(null);
 
   const signOut = (): void => {

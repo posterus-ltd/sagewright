@@ -19,6 +19,14 @@ export interface StarNode {
   workflowId: string | null;
   createdAt: string;
   endedAt: string | null;
+  updatedAt: string;
+  prompt: string | null;
+  createdBy: string;
+  currentStepKey: string | null;
+  workflowStepKey: string | null;
+  iteration: number | null;
+  branch: string | null;
+  prUrl: string | null;
   // The session's worker image, or 'unassigned' — each distinct cluster gets its
   // own constellation region (see clusterAnchor).
   clusterId: string;
@@ -51,12 +59,19 @@ const RING_RADIUS = 260;
  * center rather than on the ring.
  */
 const clusterAnchors = (clusterIds: Set<string>): Map<string, StarAnchor> => {
-  const ordered = [...clusterIds].filter((id) => id !== UNASSIGNED_CLUSTER).sort();
+  const ordered = [...clusterIds]
+    .filter((id) => id !== UNASSIGNED_CLUSTER)
+    .sort();
   const anchors = new Map<string, StarAnchor>();
-  if (clusterIds.has(UNASSIGNED_CLUSTER)) anchors.set(UNASSIGNED_CLUSTER, { x: 0, y: 0, z: 0 });
+  if (clusterIds.has(UNASSIGNED_CLUSTER))
+    anchors.set(UNASSIGNED_CLUSTER, { x: 0, y: 0, z: 0 });
   ordered.forEach((id, i) => {
     const angle = (i / ordered.length) * Math.PI * 2;
-    anchors.set(id, { x: Math.cos(angle) * RING_RADIUS, y: 0, z: Math.sin(angle) * RING_RADIUS });
+    anchors.set(id, {
+      x: Math.cos(angle) * RING_RADIUS,
+      y: 0,
+      z: Math.sin(angle) * RING_RADIUS,
+    });
   });
   return anchors;
 };
@@ -64,7 +79,8 @@ const clusterAnchors = (clusterIds: Set<string>): Map<string, StarAnchor> => {
 /** Turn every session (standalone + workflow parents/steps) into a star-field
  *  graph: one node per session clustered by agent, one link per parent/child pair. */
 export const buildGalaxyGraph = (sessions: Session[]): GalaxyGraph => {
-  const clusterIdFor = (s: Session): string => s.workerImage ?? UNASSIGNED_CLUSTER;
+  const clusterIdFor = (s: Session): string =>
+    s.workerImage ?? UNASSIGNED_CLUSTER;
   const anchors = clusterAnchors(new Set(sessions.map(clusterIdFor)));
   const idsInPayload = new Set(sessions.map((s) => s.id));
 
@@ -80,6 +96,14 @@ export const buildGalaxyGraph = (sessions: Session[]): GalaxyGraph => {
       workflowId: s.workflowId,
       createdAt: s.createdAt,
       endedAt: s.endedAt,
+      updatedAt: s.updatedAt,
+      prompt: s.prompt,
+      createdBy: s.createdBy,
+      currentStepKey: s.currentStepKey,
+      workflowStepKey: s.workflowStepKey,
+      iteration: s.iteration,
+      branch: s.branch,
+      prUrl: s.prUrl,
       clusterId,
       isHub: s.kind === SessionKind.WORKFLOW,
       anchor: anchors.get(clusterId)!,
@@ -123,12 +147,19 @@ export const clusterSummaries = (nodes: StarNode[]): ClusterSummary[] => {
     const summary =
       byCluster.get(node.clusterId) ??
       byCluster
-        .set(node.clusterId, { clusterId: node.clusterId, anchor: node.anchor, total: 0, live: 0 })
+        .set(node.clusterId, {
+          clusterId: node.clusterId,
+          anchor: node.anchor,
+          total: 0,
+          live: 0,
+        })
         .get(node.clusterId)!;
     summary.total += 1;
     if (starEmphasis(node.status)) summary.live += 1;
   }
-  return [...byCluster.values()].sort((a, b) => a.clusterId.localeCompare(b.clusterId));
+  return [...byCluster.values()].sort((a, b) =>
+    a.clusterId.localeCompare(b.clusterId),
+  );
 };
 
 /** A star node once the force engine owns it — positions/velocities live on the
@@ -162,7 +193,13 @@ export const carrySimulationState = (
       const { x, y, z, vx, vy, vz } = carried;
       return { ...node, x, y, z, vx, vy, vz };
     }
-    const jitter = (salt: number): number => (hashUnit(node.id, salt) * 2 - 1) * SPAWN_JITTER_RADIUS;
-    return { ...node, x: node.anchor.x + jitter(1), y: node.anchor.y + jitter(2), z: node.anchor.z + jitter(3) };
+    const jitter = (salt: number): number =>
+      (hashUnit(node.id, salt) * 2 - 1) * SPAWN_JITTER_RADIUS;
+    return {
+      ...node,
+      x: node.anchor.x + jitter(1),
+      y: node.anchor.y + jitter(2),
+      z: node.anchor.z + jitter(3),
+    };
   });
 };

@@ -1,6 +1,14 @@
 import { CameraControls, Stars } from '@react-three/drei';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { useCallback, useEffect, useImperativeHandle, useRef, type FC, type Ref, type RefObject } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useRef,
+  type FC,
+  type Ref,
+  type RefObject,
+} from 'react';
 
 import type { Palette } from '../theme/tokens';
 import type { StarAnchor, StarLink, StarNode } from './galaxy-graph-data';
@@ -34,10 +42,10 @@ interface GalaxySceneProps {
 // turning like a real sky, pausing whenever a hand is on the controls, the
 // pointer is exploring the field, or the camera is mid-flight, and staying off
 // entirely under reduced motion.
-const IdleDrift: FC<{ controls: RefObject<CameraControls | null>; enabled: boolean }> = ({
-  controls,
-  enabled,
-}) => {
+const IdleDrift: FC<{
+  controls: RefObject<CameraControls | null>;
+  enabled: boolean;
+}> = ({ controls, enabled }) => {
   const lastInteractionRef = useRef(0);
   const glDomElement = useThree((state) => state.gl.domElement);
 
@@ -83,7 +91,15 @@ export const GalaxyScene: FC<GalaxySceneProps> = ({
 
   useImperativeHandle(ref, () => ({
     resetView: () => {
-      void controlsRef.current?.setLookAt(HOME_CAMERA.x, HOME_CAMERA.y, HOME_CAMERA.z, 0, 0, 0, smooth);
+      void controlsRef.current?.setLookAt(
+        HOME_CAMERA.x,
+        HOME_CAMERA.y,
+        HOME_CAMERA.z,
+        0,
+        0,
+        0,
+        smooth,
+      );
     },
   }));
 
@@ -96,7 +112,9 @@ export const GalaxyScene: FC<GalaxySceneProps> = ({
       if (!controls) return;
       const ringDistance = Math.hypot(anchor.x, anchor.z);
       const [outX, outZ] =
-        ringDistance > 1 ? [anchor.x / ringDistance, anchor.z / ringDistance] : [0, 1];
+        ringDistance > 1
+          ? [anchor.x / ringDistance, anchor.z / ringDistance]
+          : [0, 1];
       void controls.setLookAt(
         anchor.x + outX * CLUSTER_VIEW_DISTANCE,
         anchor.y + CLUSTER_VIEW_HEIGHT,
@@ -114,7 +132,12 @@ export const GalaxyScene: FC<GalaxySceneProps> = ({
   // enough to bring it into comfortable view alongside the opening detail panel.
   const focusNode = useCallback(
     (position: StarAnchor): void => {
-      void controlsRef.current?.setTarget(position.x, position.y, position.z, smooth);
+      void controlsRef.current?.setTarget(
+        position.x,
+        position.y,
+        position.z,
+        smooth,
+      );
     },
     [smooth],
   );
@@ -124,14 +147,31 @@ export const GalaxyScene: FC<GalaxySceneProps> = ({
     // the default (1000) is inside the zoom range, so zooming out clipped the
     // entire scene away.
     <Canvas
-      camera={{ position: [HOME_CAMERA.x, HOME_CAMERA.y, HOME_CAMERA.z], fov: 55, far: 4000 }}
-      style={{ background: palette.bg }}
+      camera={{
+        position: [HOME_CAMERA.x, HOME_CAMERA.y, HOME_CAMERA.z],
+        fov: 55,
+        far: 4000,
+      }}
+      style={{ background: 'transparent' }}
     >
       {/* Ambient background sparkle, distinct from the task stars themselves. A low
           `factor` keeps any single background point from ballooning when it lands
           close to the camera (drei sizes points by inverse distance). */}
-      <Stars radius={500} depth={80} count={3000} factor={1.2} saturation={0} fade speed={reducedMotion ? 0 : 0.5} />
-      <CameraControls ref={controlsRef} minDistance={50} maxDistance={1200} smoothTime={0.35} />
+      <Stars
+        radius={500}
+        depth={80}
+        count={3000}
+        factor={1.2}
+        saturation={0}
+        fade
+        speed={reducedMotion ? 0 : 0.5}
+      />
+      <CameraControls
+        ref={controlsRef}
+        minDistance={50}
+        maxDistance={1200}
+        smoothTime={0.35}
+      />
       <IdleDrift controls={controlsRef} enabled={!reducedMotion} />
       <TaskForceGraph
         nodes={nodes}
