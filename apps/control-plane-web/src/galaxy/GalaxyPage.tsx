@@ -21,7 +21,6 @@ import {
 } from './galaxy-time-window';
 import { GalaxyHud } from './GalaxyHud';
 import { GalaxyScene, type GalaxySceneHandle } from './GalaxyScene';
-import { GalaxyWorkFeed } from './GalaxyWorkFeed';
 import { countByGroup, type StatusGroupKey } from './status-legend';
 import { TaskDetailPanel } from './TaskDetailPanel';
 import { usePrefersReducedMotion } from './usePrefersReducedMotion';
@@ -138,12 +137,6 @@ export const GalaxyPage: FC = () => {
               reducedMotion={reducedMotion}
               onSelectNode={(node) => setSelectedId(node.id)}
             />
-            <GalaxyWorkFeed
-              nodes={nodes}
-              palette={palette}
-              selectedId={selectedId}
-              onSelectNode={(node) => setSelectedId(node.id)}
-            />
             {nodes.length === 0 && (
               <Box
                 sx={{
@@ -186,6 +179,9 @@ export const GalaxyPage: FC = () => {
               taskCount={nodes.length}
               agentCount={agentCount}
               onResetView={() => sceneRef.current?.resetView()}
+              nodes={nodes}
+              selectedId={selectedId}
+              onSelectNode={(node) => setSelectedId(node.id)}
             />
           </>
         )}

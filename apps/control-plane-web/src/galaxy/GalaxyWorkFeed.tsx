@@ -15,8 +15,8 @@ import { clusterDisplayName, type StarNode } from './galaxy-graph-data';
 import { starColor } from './star-appearance';
 
 interface GalaxyWorkFeedProps {
-  nodes: StarNode[];
   palette: Palette;
+  nodes: StarNode[];
   selectedId: string | null;
   onSelectNode: (node: StarNode) => void;
 }
@@ -30,8 +30,16 @@ const ATTENTION_ORDER: Partial<Record<SessionStatus, number>> = {
   [SessionStatus.QUEUED]: 4,
 };
 
+// Priority for a star with nothing demanding attention — sorts to the bottom.
+const SETTLED_PRIORITY = 10;
+
 const workPriority = (node: StarNode): number =>
-  ATTENTION_ORDER[node.status] ?? 10;
+  ATTENTION_ORDER[node.status] ?? SETTLED_PRIORITY;
+
+// Live = actively working or waiting on a human; drives the "N LIVE" tally and
+// the collapsed pip.
+const isLive = (node: StarNode): boolean =>
+  workPriority(node) < SETTLED_PRIORITY;
 
 const sortWork = (nodes: StarNode[]): StarNode[] =>
   [...nodes].sort(
@@ -43,6 +51,7 @@ const sortWork = (nodes: StarNode[]): StarNode[] =>
 const initials = (name: string): string =>
   name
     .split(/\s+/)
+    .filter(Boolean)
     .map((part) => part[0])
     .join('')
     .slice(0, 2)
@@ -51,6 +60,8 @@ const initials = (name: string): string =>
 const activityLabel = (node: StarNode): string => {
   if (node.status === SessionStatus.NEEDS_ASSISTANCE)
     return 'Waiting for input';
+  if (node.status === SessionStatus.MAX_ITERATIONS)
+    return 'Reached iteration limit';
   if (node.status === SessionStatus.PUSHING) return 'Publishing changes';
   if (node.status === SessionStatus.PROVISIONING) return 'Preparing workspace';
   if (node.status === SessionStatus.QUEUED) return 'Queued to start';
@@ -165,8 +176,6 @@ const WorkCard: FC<{
               fontSize: 11,
               lineHeight: 1.45,
               color: palette.muted,
-            }}
-            style={{
               display: '-webkit-box',
               WebkitLineClamp: 2,
               WebkitBoxOrient: 'vertical',
@@ -221,8 +230,13 @@ export const GalaxyWorkFeed: FC<GalaxyWorkFeedProps> = ({
   onSelectNode,
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
-  const workItems = useMemo(() => sortWork(nodes), [nodes]);
-  const inFlight = nodes.filter((node) => workPriority(node) < 10).length;
+  const { workItems, inFlight } = useMemo(
+    () => ({
+      workItems: sortWork(nodes),
+      inFlight: nodes.filter(isLive).length,
+    }),
+    [nodes],
+  );
 
   return (
     <Box
@@ -359,31 +373,36 @@ export const GalaxyWorkFeed: FC<GalaxyWorkFeedProps> = ({
             </Typography>
             <ChevronLeftRounded sx={{ fontSize: 18, color: palette.muted }} />
           </Box>
-          <Box
-            sx={{
-              pointerEvents: 'auto',
-              display: 'flex',
-              flexDirection: { xs: 'row', md: 'column' },
-              gap: 1,
-              overflowX: { xs: 'auto', md: 'hidden' },
-              overflowY: { xs: 'hidden', md: 'auto' },
-              pr: { md: 0.5 },
-              pb: { xs: 0.5, md: 0 },
-              scrollbarWidth: 'thin',
-              '& > *': { flex: { xs: '0 0 280px', md: '0 0 auto' } },
-            }}
-          >
-            {workItems.map((node) => (
-              <WorkCard
-                key={node.id}
-                node={node}
-                palette={palette}
-                isSelected={selectedId === node.id}
-                onSelect={() => onSelectNode(node)}
-              />
-            ))}
-          </Box>
-          {workItems.length === 0 && (
+          {workItems.length > 0 ? (
+            <Box
+              sx={{
+                pointerEvents: 'auto',
+                // Fill the remaining panel height and scroll inside it, rather
+                // than letting the card list overflow the fixed-height aside.
+                flex: 1,
+                minHeight: 0,
+                display: 'flex',
+                flexDirection: { xs: 'row', md: 'column' },
+                gap: 1,
+                overflowX: { xs: 'auto', md: 'hidden' },
+                overflowY: { xs: 'hidden', md: 'auto' },
+                pr: { md: 0.5 },
+                pb: { xs: 0.5, md: 0 },
+                scrollbarWidth: 'thin',
+                '& > *': { flex: { xs: '0 0 280px', md: '0 0 auto' } },
+              }}
+            >
+              {workItems.map((node) => (
+                <WorkCard
+                  key={node.id}
+                  node={node}
+                  palette={palette}
+                  isSelected={selectedId === node.id}
+                  onSelect={() => onSelectNode(node)}
+                />
+              ))}
+            </Box>
+          ) : (
             <Box
               sx={{
                 pointerEvents: 'auto',

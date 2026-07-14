@@ -10,7 +10,9 @@ import type { FC, ReactNode } from 'react';
 
 import { fonts, radius, type Palette } from '../theme/tokens';
 import { GalaxyScope, GalaxyView } from './galaxy-filters';
+import { type StarNode } from './galaxy-graph-data';
 import { GALAXY_TIME_WINDOWS, GalaxyTimeWindow } from './galaxy-time-window';
+import { GalaxyWorkFeed } from './GalaxyWorkFeed';
 import { STATUS_GROUPS, type StatusGroupKey } from './status-legend';
 
 interface GalaxyHudProps {
@@ -27,6 +29,9 @@ interface GalaxyHudProps {
   taskCount: number;
   agentCount: number;
   onResetView: () => void;
+  nodes: StarNode[];
+  selectedId: string | null;
+  onSelectNode: (node: StarNode) => void;
 }
 
 // Shared "instrument" chrome: a hairline glass panel in the corner of the field,
@@ -158,6 +163,9 @@ export const GalaxyHud: FC<GalaxyHudProps> = ({
   taskCount,
   agentCount,
   onResetView,
+  nodes,
+  selectedId,
+  onSelectNode,
 }) => {
   const windowLabel =
     GALAXY_TIME_WINDOWS.find((w) => w.value === timeWindow)?.label ??
@@ -204,7 +212,7 @@ export const GalaxyHud: FC<GalaxyHudProps> = ({
                   letterSpacing: '-0.02em',
                 }}
               >
-                Team galaxy
+                Galaxy
               </Typography>
               <Typography
                 sx={{
@@ -323,6 +331,16 @@ export const GalaxyHud: FC<GalaxyHudProps> = ({
         </Box>
       </Corner>
 
+      {/* Self-positioning overlay — anchors against the galaxy container, so it
+          is rendered bare rather than inside a Corner (which would reparent its
+          absolute offsets and push it off-screen). */}
+      <GalaxyWorkFeed
+        palette={palette}
+        nodes={nodes}
+        selectedId={selectedId}
+        onSelectNode={onSelectNode}
+      />
+
       <Corner placement={CornerPlacement.SW}>
         <Box
           sx={{
@@ -331,7 +349,6 @@ export const GalaxyHud: FC<GalaxyHudProps> = ({
             display: { xs: 'none', md: 'block' },
             px: 1.25,
             py: 0.75,
-            ml: { md: 41 },
           }}
         >
           {taskCount} {taskCount === 1 ? 'task' : 'tasks'} · {agentCount}{' '}

@@ -63,4 +63,42 @@ describe('GalaxyWorkFeed', () => {
         .getAttribute('aria-expanded'),
     ).toBe('true');
   });
+
+  it('shows an empty-state message when no work matches the lens', () => {
+    render(
+      <GalaxyWorkFeed
+        nodes={[]}
+        palette={dark}
+        selectedId={null}
+        onSelectNode={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Expand work in orbit, 0 tasks' }),
+    );
+
+    expect(screen.getByText('No work matches this lens.')).toBeTruthy();
+  });
+
+  it('labels a stalled task that hit its iteration cap', () => {
+    const nodes = buildGalaxyGraph([
+      { ...session('1'), status: SessionStatus.MAX_ITERATIONS },
+    ]).nodes;
+
+    render(
+      <GalaxyWorkFeed
+        nodes={nodes}
+        palette={dark}
+        selectedId={null}
+        onSelectNode={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Expand work in orbit, 1 tasks' }),
+    );
+
+    expect(screen.getByText('Reached iteration limit')).toBeTruthy();
+  });
 });
