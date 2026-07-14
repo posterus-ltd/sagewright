@@ -11,7 +11,7 @@ import {
 } from '@mui/material';
 import FullscreenRounded from '@mui/icons-material/FullscreenRounded';
 import FullscreenExitRounded from '@mui/icons-material/FullscreenExitRounded';
-import { useEffect, useState, type FC } from 'react';
+import { useEffect, useRef, useState, type FC } from 'react';
 
 import { useStopTask, useTask } from '../api/hooks';
 import {
@@ -87,18 +87,43 @@ export const SessionPanel: FC<{
       ],
     });
 
-  // Fullscreen lifts the panel into a fixed full-viewport overlay so the terminal
-  // gets the whole screen; it's a detail-route affordance only (widgets are sized by
-  // the canvas, not the user). Escape exits, matching the browser fullscreen idiom.
+  // Fullscreen prefers the browser fullscreen API so the session truly occupies the
+  // display, and falls back to an in-app overlay when fullscreen APIs are unavailable.
   const [fullscreen, setFullscreen] = useState(false);
+  const panelRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
-    if (!fullscreen) return;
-    const onKey = (e: KeyboardEvent): void => {
-      if (e.key === 'Escape') setFullscreen(false);
+    const onFullscreenChange = (): void => {
+      setFullscreen(document.fullscreenElement === panelRef.current);
     };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [fullscreen]);
+    document.addEventListener('fullscreenchange', onFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', onFullscreenChange);
+  }, []);
+
+  const toggleFullscreen = async (): Promise<void> => {
+    const panel = panelRef.current;
+    if (!panel) return;
+
+    try {
+      if (document.fullscreenElement === panel) {
+        if (document.exitFullscreen) {
+          await document.exitFullscreen();
+        } else {
+          setFullscreen(false);
+        }
+        return;
+      }
+
+      if (panel.requestFullscreen) {
+        await panel.requestFullscreen();
+        return;
+      }
+    } catch {
+      setFullscreen((prev) => !prev);
+      return;
+    }
+
+    setFullscreen((prev) => !prev);
+  };
 
   const live =
     !!task?.containerId && !TERMINAL_DEAD_STATUSES.includes(task.status);
@@ -137,6 +162,7 @@ export const SessionPanel: FC<{
 
   return (
     <Stack
+      ref={panelRef}
       spacing={2}
       sx={{
         height: '100%',
@@ -148,7 +174,7 @@ export const SessionPanel: FC<{
           inset: 0,
           zIndex: (theme) => theme.zIndex.modal,
           bgcolor: 'background.default',
-          p: 2,
+          p: 0,
         }),
       }}
     >
@@ -246,7 +272,9 @@ export const SessionPanel: FC<{
                 size="small"
                 color="secondary"
                 aria-label="Fullscreen"
-                onClick={() => setFullscreen((prev) => !prev)}
+                onClick={() => {
+                  void toggleFullscreen();
+                }}
               >
                 {fullscreen ? (
                   <FullscreenExitRounded fontSize="small" />
