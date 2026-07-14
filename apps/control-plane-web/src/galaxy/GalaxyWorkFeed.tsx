@@ -2,7 +2,6 @@ import {
   ArrowForwardRounded,
   AutoAwesomeRounded,
   ChevronLeftRounded,
-  ChevronRightRounded,
   PersonRounded,
 } from '@mui/icons-material';
 import { Box, ButtonBase, Typography } from '@mui/material';
@@ -223,6 +222,81 @@ const WorkCard: FC<{
   );
 };
 
+type ExpandableButtonProps = {
+  palette: Palette;
+  isExpanded: boolean;
+  toggleExpanded: () => void;
+  workItemsCount: number;
+  inFlightCount: number;
+};
+
+const ExpandableButton: FC<ExpandableButtonProps> = ({
+  palette,
+  isExpanded,
+  toggleExpanded,
+  workItemsCount,
+  inFlightCount,
+}) => (
+  <Box
+    component={ButtonBase}
+    onClick={toggleExpanded}
+    aria-label="Collapse work in orbit"
+    aria-expanded={true}
+    sx={{
+      pointerEvents: 'auto',
+      width: '100%',
+      minHeight: 44,
+      display: 'flex',
+      alignItems: 'center',
+      gap: 1,
+      mb: 1,
+      px: 1.25,
+      border: `1px solid ${palette.border}`,
+      borderRadius: `${radius}px`,
+      bgcolor: `${palette.surface}E8`,
+      backdropFilter: 'blur(14px)',
+      '&:hover': {
+        bgcolor: palette.elevated,
+        borderColor: palette.muted,
+      },
+      '&.Mui-focusVisible': {
+        outline: `2px solid ${palette.accent}`,
+        outlineOffset: 2,
+      },
+    }}
+  >
+    <AutoAwesomeRounded sx={{ fontSize: 15, color: palette.accent }} />
+    <Typography
+      sx={{
+        fontFamily: fonts.mono,
+        fontSize: 10,
+        letterSpacing: '0.12em',
+        textTransform: 'uppercase',
+        color: palette.text,
+      }}
+    >
+      Work in orbit
+    </Typography>
+    <Typography
+      sx={{
+        ml: 'auto',
+        fontFamily: fonts.mono,
+        fontSize: 9,
+        color: palette.muted,
+      }}
+    >
+      {workItemsCount} TASKS · {inFlightCount} LIVE
+    </Typography>
+    <ChevronLeftRounded
+      sx={{
+        fontSize: 18,
+        color: palette.muted,
+        rotate: isExpanded ? '90deg' : '-90deg',
+      }}
+    />
+  </Box>
+);
+
 export const GalaxyWorkFeed: FC<GalaxyWorkFeedProps> = ({
   nodes,
   palette,
@@ -249,130 +323,23 @@ export const GalaxyWorkFeed: FC<GalaxyWorkFeedProps> = ({
         bottom: { xs: 12, md: isExpanded ? 56 : 'auto' },
         left: { xs: 12, md: 20 },
         right: { xs: isExpanded ? 12 : 'auto', md: 'auto' },
-        width: { xs: isExpanded ? 'auto' : 52, md: isExpanded ? 320 : 52 },
+        width: { xs: 'auto', md: 320 },
         pointerEvents: 'none',
         display: 'flex',
         flexDirection: 'column',
         minHeight: 0,
       }}
     >
-      {!isExpanded && (
-        <ButtonBase
-          onClick={() => setIsExpanded(true)}
-          aria-label={`Expand work in orbit, ${workItems.length} tasks`}
-          aria-expanded={false}
-          sx={{
-            pointerEvents: 'auto',
-            width: 52,
-            minHeight: 52,
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 0.25,
-            border: `1px solid ${palette.border}`,
-            borderRadius: `${radius}px`,
-            bgcolor: `${palette.surface}E8`,
-            color: palette.text,
-            backdropFilter: 'blur(14px)',
-            boxShadow: `0 8px 32px ${palette.bg}80`,
-            '&:hover': {
-              bgcolor: palette.elevated,
-              borderColor: palette.muted,
-            },
-            '&.Mui-focusVisible': {
-              outline: `2px solid ${palette.accent}`,
-              outlineOffset: 2,
-            },
-          }}
-        >
-          <Box
-            sx={{ position: 'relative', display: 'grid', placeItems: 'center' }}
-          >
-            <AutoAwesomeRounded sx={{ fontSize: 18, color: palette.accent }} />
-            {inFlight > 0 && (
-              <Box
-                component="span"
-                sx={{
-                  position: 'absolute',
-                  top: -3,
-                  right: -5,
-                  width: 6,
-                  height: 6,
-                  borderRadius: '50%',
-                  bgcolor: palette.info,
-                  boxShadow: `0 0 8px ${palette.info}`,
-                }}
-              />
-            )}
-          </Box>
-          <Typography
-            sx={{ fontFamily: fonts.mono, fontSize: 9, color: palette.muted }}
-          >
-            {workItems.length}
-          </Typography>
-          <ChevronRightRounded
-            sx={{
-              display: { xs: 'none', md: 'block' },
-              fontSize: 14,
-              color: palette.muted,
-            }}
-          />
-        </ButtonBase>
-      )}
+      <ExpandableButton
+        palette={palette}
+        isExpanded={isExpanded}
+        toggleExpanded={() => setIsExpanded((prev) => !prev)}
+        workItemsCount={workItems.length}
+        inFlightCount={inFlight}
+      />
 
       {isExpanded && (
         <>
-          <Box
-            component={ButtonBase}
-            onClick={() => setIsExpanded(false)}
-            aria-label="Collapse work in orbit"
-            aria-expanded={true}
-            sx={{
-              pointerEvents: 'auto',
-              width: '100%',
-              minHeight: 44,
-              display: 'flex',
-              alignItems: 'center',
-              gap: 1,
-              mb: 1,
-              px: 1.25,
-              border: `1px solid ${palette.border}`,
-              borderRadius: `${radius}px`,
-              bgcolor: `${palette.surface}E8`,
-              backdropFilter: 'blur(14px)',
-              '&:hover': {
-                bgcolor: palette.elevated,
-                borderColor: palette.muted,
-              },
-              '&.Mui-focusVisible': {
-                outline: `2px solid ${palette.accent}`,
-                outlineOffset: 2,
-              },
-            }}
-          >
-            <AutoAwesomeRounded sx={{ fontSize: 15, color: palette.accent }} />
-            <Typography
-              sx={{
-                fontFamily: fonts.mono,
-                fontSize: 10,
-                letterSpacing: '0.12em',
-                textTransform: 'uppercase',
-                color: palette.text,
-              }}
-            >
-              Work in orbit
-            </Typography>
-            <Typography
-              sx={{
-                ml: 'auto',
-                fontFamily: fonts.mono,
-                fontSize: 9,
-                color: palette.muted,
-              }}
-            >
-              {workItems.length} TASKS · {inFlight} LIVE
-            </Typography>
-            <ChevronLeftRounded sx={{ fontSize: 18, color: palette.muted }} />
-          </Box>
           {workItems.length > 0 ? (
             <Box
               sx={{
