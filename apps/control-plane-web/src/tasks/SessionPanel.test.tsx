@@ -58,7 +58,7 @@ describe('SessionPanel', () => {
 
     // Agent tab is selected by default; with no container it shows the unavailable note.
     await waitFor(() => expect(screen.getByText(/agent terminal is unavailable/i)).toBeTruthy());
-    expect((screen.getByRole('tab', { name: 'Agent' }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole('button', { name: 'Agent' }) as HTMLButtonElement).disabled).toBe(true);
     // Stop appears once the (non-terminal) task has loaded; await its async render.
     expect(await screen.findByRole('button', { name: 'Stop' })).toBeTruthy();
   });
@@ -80,8 +80,8 @@ describe('SessionPanel', () => {
 
     render(<SessionPanel taskId="t1" />, { wrapper });
 
-    const logTab = await screen.findByRole('tab', { name: 'Log' });
-    await waitFor(() => expect(logTab.getAttribute('aria-selected')).toBe('true'));
+    const logTab = await screen.findByRole('button', { name: 'Log' });
+    await waitFor(() => expect(logTab.getAttribute('aria-pressed')).toBe('true'));
     expect(screen.queryByText(/agent terminal is unavailable/i)).toBeNull();
   });
 
@@ -136,7 +136,7 @@ describe('SessionPanel', () => {
 
     render(<SessionPanel taskId="t1" />, { wrapper });
 
-    await screen.findByRole('tab', { name: 'Agent' });
+    await screen.findByRole('button', { name: 'Agent' });
     expect(screen.queryByRole('button', { name: 'Stop' })).toBeNull();
   });
 
@@ -148,7 +148,7 @@ describe('SessionPanel', () => {
 
     render(<SessionPanel taskId="t1" compact />, { wrapper });
 
-    await screen.findByRole('tab', { name: 'Agent' });
+    await screen.findByRole('button', { name: 'Agent' });
     expect(screen.queryByRole('button', { name: 'Stop' })).toBeNull();
     // The verbose 'queued' status badge is gone; only the live/done/failed indicator remains.
     expect(screen.queryByText('queued')).toBeNull();
@@ -170,8 +170,8 @@ describe('SessionPanel', () => {
 
       render(<SessionPanel taskId="t1" />, { wrapper });
 
-      expect(await screen.findByRole('tab', { name: 'Transcript' })).toBeTruthy();
-      expect(screen.queryByRole('tab', { name: 'Agent' })).toBeNull();
+      expect(await screen.findByRole('button', { name: 'Transcript' })).toBeTruthy();
+      expect(screen.queryByRole('button', { name: 'Agent' })).toBeNull();
     },
   );
 
@@ -200,7 +200,7 @@ describe('SessionPanel', () => {
 
     render(<SessionPanel taskId="t1" compact />, { wrapper });
 
-    await screen.findByRole('tab', { name: 'Agent' });
+    await screen.findByRole('button', { name: 'Agent' });
     expect(screen.queryByRole('button', { name: /fullscreen/i })).toBeNull();
   });
 });
