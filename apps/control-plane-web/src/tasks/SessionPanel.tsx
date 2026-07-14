@@ -1,12 +1,11 @@
 import {
   Box,
   Button,
+  ButtonGroup,
   Chip,
   IconButton,
   Link as MuiLink,
   Stack,
-  Tab,
-  Tabs,
   Tooltip,
   Typography,
 } from '@mui/material';
@@ -38,22 +37,15 @@ const TERMINAL_DEAD_STATUSES: readonly SessionStatus[] = [
   SessionStatus.FAILED,
   SessionStatus.STOPPED,
 ];
-const sessionTabSx = {
+const sessionViewButtonSx = {
   minHeight: 32,
   minWidth: 64,
   px: 1.25,
-  borderRadius: 0.75,
-  color: 'text.secondary',
   fontSize: '0.8125rem',
   fontWeight: 600,
   letterSpacing: 0,
   lineHeight: 1,
   textTransform: 'none',
-  '&.Mui-selected': {
-    bgcolor: 'background.paper',
-    color: 'text.primary',
-    boxShadow: 1,
-  },
 };
 
 /**
@@ -141,12 +133,7 @@ export const SessionPanel: FC<{
         ? { label: 'failed', color: 'error' as const }
         : null;
 
-  // In compact widgets the header carries only the terminal-status chip and PR link, so a
-  // live session with no PR has an empty header — skip it entirely so the outer Stack's gap
-  // doesn't reserve dead space above the tabs.
-  const showHeader = compact
-    ? compactStatus != null || task?.prUrl != null
-    : true;
+  const showHeader = true;
 
   return (
     <Stack
@@ -166,7 +153,11 @@ export const SessionPanel: FC<{
       }}
     >
       {showHeader && (
-        <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+        <Stack
+          direction="row"
+          spacing={1}
+          sx={{ alignItems: 'center', flexWrap: 'wrap', rowGap: 1 }}
+        >
           {compact ? (
             compactStatus && (
               <Chip
@@ -183,6 +174,60 @@ export const SessionPanel: FC<{
               PR
             </MuiLink>
           ) : null}
+          <Box
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 1,
+              ml: { xs: 0, sm: 'auto' },
+              width: { xs: '100%', sm: 'auto' },
+              justifyContent: { xs: 'space-between', sm: 'flex-end' },
+            }}
+          >
+            <ButtonGroup
+              size="small"
+              color="secondary"
+              aria-label="Session view"
+              sx={{
+                '& .MuiButtonGroup-grouped': {
+                  ...sessionViewButtonSx,
+                },
+              }}
+            >
+              {headless ? (
+                <Button
+                  variant={current === TabValue.TRANSCRIPT ? 'contained' : 'outlined'}
+                  aria-pressed={current === TabValue.TRANSCRIPT}
+                  onClick={() => setTab(TabValue.TRANSCRIPT)}
+                >
+                  Transcript
+                </Button>
+              ) : (
+                <Button
+                  variant={current === TabValue.AGENT ? 'contained' : 'outlined'}
+                  disabled={!live}
+                  aria-pressed={current === TabValue.AGENT}
+                  onClick={() => setTab(TabValue.AGENT)}
+                >
+                  Agent
+                </Button>
+              )}
+              <Button
+                variant={current === TabValue.SHELL ? 'contained' : 'outlined'}
+                disabled={!live}
+                aria-pressed={current === TabValue.SHELL}
+                onClick={() => setTab(TabValue.SHELL)}
+              >
+                Shell
+              </Button>
+              <Button
+                variant={current === TabValue.LOG ? 'contained' : 'outlined'}
+                aria-pressed={current === TabValue.LOG}
+                onClick={() => setTab(TabValue.LOG)}
+              >
+                Log
+              </Button>
+            </ButtonGroup>
           {!compact &&
             task != null &&
             !TERMINAL_DEAD_STATUSES.includes(task.status) && (
@@ -202,7 +247,6 @@ export const SessionPanel: FC<{
                 color="secondary"
                 aria-label="Fullscreen"
                 onClick={() => setFullscreen((prev) => !prev)}
-                sx={{ ml: 'auto' }}
               >
                 {fullscreen ? (
                   <FullscreenExitRounded fontSize="small" />
@@ -212,40 +256,9 @@ export const SessionPanel: FC<{
               </IconButton>
             </Tooltip>
           )}
+          </Box>
         </Stack>
       )}
-
-      <Tabs
-        value={current}
-        onChange={(_, v: TabValue) => setTab(v)}
-        variant="scrollable"
-        scrollButtons={false}
-        sx={{
-          minHeight: 36,
-          maxWidth: '100%',
-          borderRadius: 1,
-          bgcolor: 'action.hover',
-          p: 0.25,
-          '& .MuiTabs-scroller': {
-            minHeight: 32,
-          },
-          '& .MuiTabs-flexContainer': {
-            gap: 0.5,
-          },
-          '& .MuiTabs-indicator': {
-            display: 'none',
-          },
-        }}
-      >
-        {headless && (
-          <Tab value={TabValue.TRANSCRIPT} label="Transcript" sx={sessionTabSx} />
-        )}
-        {!headless && (
-          <Tab value={TabValue.AGENT} label="Agent" disabled={!live} sx={sessionTabSx} />
-        )}
-        <Tab value={TabValue.SHELL} label="Shell" disabled={!live} sx={sessionTabSx} />
-        <Tab value={TabValue.LOG} label="Log" sx={sessionTabSx} />
-      </Tabs>
 
       {current === TabValue.TRANSCRIPT && (
         <TranscriptTerminal key={`${taskId}-transcript`} events={events} />
