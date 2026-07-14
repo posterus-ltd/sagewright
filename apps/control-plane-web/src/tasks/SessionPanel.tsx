@@ -174,7 +174,11 @@ export const SessionPanel: FC<{
           inset: 0,
           zIndex: (theme) => theme.zIndex.modal,
           bgcolor: 'background.default',
-          p: 0,
+          boxSizing: 'border-box',
+          pt: 'calc(env(safe-area-inset-top, 0px) + 8px)',
+          pr: 'calc(env(safe-area-inset-right, 0px) + 8px)',
+          pb: 'calc(env(safe-area-inset-bottom, 0px) + 8px)',
+          pl: 'calc(env(safe-area-inset-left, 0px) + 8px)',
         }),
       }}
     >
