@@ -1,4 +1,5 @@
 import type { GalaxyTimeWindow } from '../galaxy/galaxy-time-window';
+import type { SessionQuickAction } from '../tasks/session-quick-actions';
 import type { ThemeMode } from '../theme/theme';
 
 // User-facing preferences persisted on the client. Add new preferences here; the
@@ -18,6 +19,8 @@ export interface UserPreferences {
   // Activity window preselected on the Galaxy view; defaults to recent activity
   // at the call site so the view opens as "what's happening lately".
   galaxyTimeWindow: GalaxyTimeWindow;
+  // Which quick actions the session bar shows, in display order.
+  sessionQuickActions: SessionQuickAction[];
 }
 
 // localStorage key holding the serialised UserPreferences blob.

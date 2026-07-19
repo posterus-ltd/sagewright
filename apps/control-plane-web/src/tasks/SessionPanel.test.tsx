@@ -4,6 +4,7 @@ import { type ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ConfirmDialogProvider } from '../components/ConfirmDialogProvider';
+import { UserPreferencesProvider } from '../preferences/UserPreferencesProvider';
 import { SessionPanel } from './SessionPanel';
 
 // xterm needs a real renderer; stub the terminal components so live sessions
@@ -37,7 +38,9 @@ const wrapper = ({ children }: { children: ReactNode }) => {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false, refetchInterval: false } } });
   return (
     <QueryClientProvider client={qc}>
-      <ConfirmDialogProvider>{children}</ConfirmDialogProvider>
+      <UserPreferencesProvider>
+        <ConfirmDialogProvider>{children}</ConfirmDialogProvider>
+      </UserPreferencesProvider>
     </QueryClientProvider>
   );
 };
@@ -152,6 +155,9 @@ describe('SessionPanel', () => {
     expect(screen.queryByRole('button', { name: 'Stop' })).toBeNull();
     // The verbose 'queued' status badge is gone; only the live/done/failed indicator remains.
     expect(screen.queryByText('queued')).toBeNull();
+    // The quick actions bar is still there, inline next to the view switcher —
+    // CSS reveals the controls cluster on hover, which jsdom can't exercise.
+    expect(screen.getByRole('toolbar', { name: 'Quick actions' })).toBeTruthy();
   });
 
   it.each(['scheduled', 'workflow_step'])(
@@ -190,6 +196,39 @@ describe('SessionPanel', () => {
     fireEvent.click(stillFullscreen);
 
     expect(await screen.findByRole('button', { name: /^fullscreen$/i })).toBeTruthy();
+  });
+
+  it('shows the quick actions bar on the detail route, with input actions disabled while no PTY is live', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response(JSON.stringify(task), { status: 200, headers: { 'content-type': 'application/json' } })),
+    );
+
+    render(<SessionPanel taskId="t1" />, { wrapper });
+
+    await screen.findByRole('toolbar', { name: 'Quick actions' });
+    // No running container → nothing can be typed into the agent PTY.
+    expect((screen.getByRole('button', { name: 'Surprise me' }) as HTMLButtonElement).disabled).toBe(true);
+    // Customizing is not input, so it stays available.
+    expect((screen.getByRole('button', { name: 'Customize quick actions' }) as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it('hides the quick actions bar for headless sessions', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        async () =>
+          new Response(JSON.stringify({ ...task, kind: 'scheduled' }), {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          }),
+      ),
+    );
+
+    render(<SessionPanel taskId="t1" />, { wrapper });
+
+    await screen.findByRole('button', { name: 'Transcript' });
+    expect(screen.queryByRole('toolbar', { name: 'Quick actions' })).toBeNull();
   });
 
   it('hides the fullscreen control in compact (widget) mode', async () => {

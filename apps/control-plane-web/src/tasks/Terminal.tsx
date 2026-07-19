@@ -1,7 +1,7 @@
 import { Box } from '@mui/material';
 import { Terminal as Xterm } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
-import { useEffect, useRef, type FC } from 'react';
+import { useEffect, useRef, type FC, type RefObject } from 'react';
 import '@xterm/xterm/css/xterm.css';
 
 import { EventType, type StreamEvent, type TerminalKind } from '@sagewright/shared';
@@ -29,11 +29,14 @@ const wsUrl = (taskId: string, kind: TerminalKind, cols: number, rows: number): 
  * writing whatever output chunks arrive, then gets out of the way (just
  * advancing its cursor, not writing) so nothing is shown twice.
  */
-export const Terminal: FC<{ taskId: string; kind: TerminalKind; events?: StreamEvent[] }> = ({
-  taskId,
-  kind,
-  events = [],
-}) => {
+export const Terminal: FC<{
+  taskId: string;
+  kind: TerminalKind;
+  events?: StreamEvent[];
+  // While mounted, receives a sender that types programmatic input (quick
+  // actions, dictation) into the PTY exactly like keystrokes.
+  inputRef?: RefObject<((data: string) => void) | null>;
+}> = ({ taskId, kind, events = [], inputRef }) => {
   const hostRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<Xterm | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
@@ -98,11 +101,13 @@ export const Terminal: FC<{ taskId: string; kind: TerminalKind; events?: StreamE
     connect();
 
     const encoder = new TextEncoder();
-    const dataSub = term.onData((d) => {
+    const sendData = (d: string): void => {
       const ws = wsRef.current;
       if (ws && ws.readyState === WebSocket.OPEN) ws.send(encoder.encode(d));
-    });
+    };
+    const dataSub = term.onData(sendData);
     const resizeSub = term.onResize(() => sendResize());
+    if (inputRef) inputRef.current = sendData;
 
     const ro = new ResizeObserver(() => {
       try {
@@ -119,11 +124,12 @@ export const Terminal: FC<{ taskId: string; kind: TerminalKind; events?: StreamE
       ro.disconnect();
       dataSub.dispose();
       resizeSub.dispose();
+      if (inputRef) inputRef.current = null;
       wsRef.current?.close();
       termRef.current = null;
       term.dispose();
     };
-  }, [taskId, kind]);
+  }, [taskId, kind, inputRef]);
 
   useEffect(() => {
     const term = termRef.current;

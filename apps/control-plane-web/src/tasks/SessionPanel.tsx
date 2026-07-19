@@ -19,6 +19,7 @@ import {
   useConfirmation,
 } from '../components/ConfirmDialogProvider';
 import { StatusChip } from '../components/StatusChip';
+import { SessionQuickActionsBar } from './SessionQuickActionsBar';
 import { Terminal } from './Terminal';
 import { TranscriptTerminal } from './TranscriptTerminal';
 import { useTaskStream } from './useTaskStream';
@@ -91,6 +92,8 @@ export const SessionPanel: FC<{
   // display, and falls back to an in-app overlay when fullscreen APIs are unavailable.
   const [fullscreen, setFullscreen] = useState(false);
   const panelRef = useRef<HTMLDivElement | null>(null);
+  // Set by the agent Terminal while mounted; quick actions type through it.
+  const terminalInputRef = useRef<((data: string) => void) | null>(null);
   useEffect(() => {
     const onFullscreenChange = (): void => {
       setFullscreen(document.fullscreenElement === panelRef.current);
@@ -169,6 +172,20 @@ export const SessionPanel: FC<{
         width: '100%',
         minWidth: 0,
         minHeight: 0,
+        // Widget controls (view switcher + quick actions) stay out of the way
+        // until the widget is hovered or a keyboard user tabs into them.
+        // Hiding via opacity keeps their space reserved, so nothing jumps.
+        ...(compact && {
+          '& .session-controls': {
+            opacity: 0,
+            pointerEvents: 'none',
+            transition: 'opacity 120ms',
+          },
+          '&:hover .session-controls, & .session-controls:focus-within': {
+            opacity: 1,
+            pointerEvents: 'auto',
+          },
+        }),
         ...(fullscreen && {
           position: 'fixed',
           inset: 0,
@@ -205,10 +222,12 @@ export const SessionPanel: FC<{
             </MuiLink>
           ) : null}
           <Box
+            className="session-controls"
             sx={{
               display: 'flex',
               alignItems: 'center',
               gap: 1,
+              minWidth: 0,
               ml: { xs: 0, sm: 'auto' },
               width: { xs: '100%', sm: 'auto' },
               justifyContent: { xs: 'space-between', sm: 'flex-end' },
@@ -258,6 +277,17 @@ export const SessionPanel: FC<{
                 Log
               </Button>
             </ButtonGroup>
+          {/* Widgets host the quick actions inline next to the view switcher —
+              there's no room for a dedicated bottom row. No popover container:
+              canvas nodes sit in a transformed ancestor, which would break the
+              customize popover's positioning, so it portals to the body. */}
+          {compact && !headless && (
+            <SessionQuickActionsBar
+              dense
+              isTerminalInputAvailable={live && current === TabValue.AGENT}
+              onTerminalInput={(data) => terminalInputRef.current?.(data)}
+            />
+          )}
           {!compact &&
             task != null &&
             !TERMINAL_DEAD_STATUSES.includes(task.status) && (
@@ -303,6 +333,7 @@ export const SessionPanel: FC<{
             taskId={taskId}
             kind={TerminalKind.AGENT}
             events={events}
+            inputRef={terminalInputRef}
           />
         ) : (
           <Typography color="text.secondary">
@@ -338,6 +369,17 @@ export const SessionPanel: FC<{
             </div>
           ))}
         </Box>
+      )}
+
+      {/* Headless runs have no agent PTY to drive, so no quick actions bar;
+          widgets host it in their header instead of a bottom row. The popover
+          portals into the panel so it stays visible in native fullscreen. */}
+      {!compact && !headless && (
+        <SessionQuickActionsBar
+          isTerminalInputAvailable={live && current === TabValue.AGENT}
+          onTerminalInput={(data) => terminalInputRef.current?.(data)}
+          popoverContainer={() => panelRef.current}
+        />
       )}
     </Stack>
   );
