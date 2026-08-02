@@ -25,24 +25,6 @@ export const WRIGHT_BANNER = String.raw`
 /** Box-drawing frame used to wrap a "terminal window" section. */
 export const WINDOW_TITLE = '~/sagewright — fleet';
 
-/**
- * A padlock motif for the private-beta access gate — the control plane is
- * invite-only, so the `launch_control_plane` CTA lands on a locked door.
- */
-export const LOCK_BANNER = String.raw`
-        .--------.
-       / .------. \
-      / /        \ \
-      | |        | |
-   .--' '--------' '--.
-   |                  |
-   |        __        |
-   |       /  \       |
-   |      |    |      |
-   |       \__/       |
-   |         |        |
-   '------------------'`;
-
 /** The work → validate → reflect core loop, drawn as an ASCII cycle. */
 export const LOOP_DIAGRAM = String.raw`
    ┌───────────┐      ┌───────────────┐      ┌─────────────┐
@@ -78,6 +60,22 @@ export const SPECTRUM_SWEET =
   '             └───────────── the sweet spot ─────────────┘';
 export const SPECTRUM_LEGEND =
   ' █ sweet spot ①②③   ▓ multiplier —  especiallly if technical  ░ weak — broader enterprise';
+
+/**
+ * The workers/ directory tree — the extensibility story. A worker is just a
+ * folder holding a Dockerfile and two scripts; dropping in a new one extends
+ * the fleet with a new harness. Mirrors the real workers/ folder in this repo.
+ */
+export const WORKERS_TREE = String.raw`workers/
+├── claude-code/         built-in
+├── codex/               built-in
+├── opencode/            built-in
+├── pi/                  built-in
+└── your-harness/        ← add a folder, extend the fleet
+    ├── Dockerfile         installs + configures any CLI harness
+    ├── start-agent        how a task launches
+    ├── continue-agent     how a session resumes
+    └── SOUL.md            the worker's alignment`;
 
 /** A streaming audit-log motif — every agent action is a persisted event. */
 export const AUDIT_LOG = String.raw`

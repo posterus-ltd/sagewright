@@ -1,5 +1,4 @@
 import { type FC, useEffect, useRef, useState } from 'react';
-import { Link } from 'react-router';
 
 import { AsciiField } from './AsciiField';
 import { ThemeToggle } from './ThemeToggle';
@@ -16,6 +15,7 @@ import {
   SPECTRUM_SWEET,
   SPECTRUM_TICKS,
   WINDOW_TITLE,
+  WORKERS_TREE,
   WRIGHT_BANNER,
 } from './ascii';
 
@@ -174,10 +174,22 @@ const SHOTS: readonly Screenshot[] = [
     meta: 'the control plane · infinite canvas of live sessions',
   },
   {
+    addr: 'app.sagewright.dev/galaxy',
+    src: '/screenshots/work-galaxy.png',
+    alt: 'The Galaxy view: 76 tasks mapped as glowing dots on a dark star-field, clustered by agent — opencode, claude-code, and unassigned — with a legend tallying active, done, and failed tasks over the last 30 days.',
+    meta: 'the work galaxy · every task a star, clustered by agent',
+  },
+  {
     addr: 'app.sagewright.dev/session/opencode',
     src: '/screenshots/harness.png',
     alt: "A single agent session filling the screen: the opencode harness running inside a Sagewright worker, its 'ask anything' prompt set to Build with GPT-5.3, above a session path and MCP status line.",
     meta: '[byoh] · your own harness (opencode here), running inside a session',
+  },
+  {
+    addr: 'app.sagewright.dev/workflows',
+    src: '/screenshots/workflows.png',
+    alt: "The visual workflow builder showing an implementation example: a 'Plan (BDD+SDD)' step on Claude Code chained into 'Implement' and 'Validate' steps on Opencode, wired on a canvas with an on-failure edge between them.",
+    meta: 'custom workflows · mix harnesses per step, wire failure paths',
   },
   {
     addr: 'app.sagewright.dev/scheduled',
@@ -524,9 +536,9 @@ export const LandingPage: FC = () => (
           .
         </p>
 
-        <Link className="cta" to="/access">
-          ❯ launch_control_plane
-        </Link>
+        <a className="cta" href={GITHUB_URL} target="_blank" rel="noreferrer">
+          ❯ open source — try it now
+        </a>
 
         <HeroGallery />
       </Window>
@@ -654,6 +666,33 @@ export const LandingPage: FC = () => (
           This keeps the blast radius small: each task gets a bounded workspace
           with explicit inputs, clear audit logs, and no implicit access to the
           rest of your infrastructure.
+        </p>
+      </Window>
+
+      <Window title="workers/">
+        <p className="section-lead">
+          <span className="hl">Extensible by design.</span> The control plane
+          is harness-agnostic — a worker is just a Docker image it discovers
+          and orchestrates. Extend the fleet&rsquo;s capabilities by creating a
+          custom worker: one folder, a Dockerfile that installs any CLI
+          harness, and two small scripts. No plugin API to learn, no fork to
+          maintain — if it runs in a terminal, it can join the fleet.
+        </p>
+
+        <p className="prompt prompt--sm">
+          <span className="prompt__sigil">❯</span> tree workers/
+        </p>
+        <pre className="audit">{WORKERS_TREE}</pre>
+        <p className="diagram__caption">
+          Four harnesses ship built in — Claude Code, Codex, opencode, and Pi.
+          Yours is a folder away.
+        </p>
+
+        <p className="section-lead">
+          <span className="hl">Worker marketplace — coming soon.</span> Publish
+          your workers and pull ready-made ones from the community — new
+          harnesses, toolchains, and specialized agents, ready to drop into
+          your fleet.
         </p>
       </Window>
 
