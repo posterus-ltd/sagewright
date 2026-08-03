@@ -21,10 +21,10 @@ import type { EventStore } from '../events/event-store';
 import type { EventBus } from '../events/event-bus';
 import type { GithubCredentialService, ResolvedGithubCredential } from '../github/github-credential-service';
 import type { Volume } from '../git/volume';
-import type { SpawnInput } from '../tasks/worker-spawner';
+import type { SpawnInput } from '../tasks/runner-spawner';
 import type { UserEnvService } from '../user-env/user-env-service';
 import type { UserSettingsService } from '../user-settings/user-settings-service';
-import type { WorkerRegistry } from '../workers/worker-registry';
+import type { RunnerRegistry } from '../runners/runner-registry';
 
 interface SessionServiceDeps {
   db: Db;
@@ -35,8 +35,8 @@ interface SessionServiceDeps {
   config: AppConfig;
   userEnvService: Pick<UserEnvService, 'get'>;
   githubCredentialService: Pick<GithubCredentialService, 'resolve'>;
-  userSettingsService: Pick<UserSettingsService, 'getDefaultWorker'>;
-  workerRegistry: WorkerRegistry;
+  userSettingsService: Pick<UserSettingsService, 'getDefaultRunner'>;
+  runnerRegistry: RunnerRegistry;
 }
 
 export interface SpawnSessionInput {
@@ -44,7 +44,7 @@ export interface SpawnSessionInput {
   createdBy: string;
   prompt?: string | null;
   /** Explicit per-session image override; falls back to the user's stored default then the operator config. */
-  workerImage?: string;
+  runnerImage?: string;
   /** A workflow step's parent run/session id (persisted on the row for grouping). */
   parentSessionId?: string;
   scheduledPromptId?: string;
@@ -79,7 +79,7 @@ export interface SpawnSessionResult {
 }
 
 // Parse the requester's stored blob and drop operational keys so a user's `.env`
-// can't hijack the worker token or repoint the control plane.
+// can't hijack the runner token or repoint the control plane.
 const resolveUserEnv = async (
   userEnvService: Pick<UserEnvService, 'get'>,
   userKey: string,
@@ -90,7 +90,7 @@ const resolveUserEnv = async (
 };
 
 /**
- * The single seam every run path goes through to bring up a worker container for a
+ * The single seam every run path goes through to bring up a runner container for a
  * session. It owns the provisioning lifecycle — insert → provisioning+branch →
  * validate image → resolve env → materialise worktrees → spawn → persist container
  * id — and the FAILED-on-throw contract (emit ERROR+STATUS(failed), stamp the row,
@@ -108,9 +108,9 @@ export const createSessionService = (deps: SessionServiceDeps) => {
     const mode = modeForKind(input.kind);
     const prompt = input.prompt ?? null;
 
-    // Worker image precedence: explicit request → user's stored default → operator config fallback.
-    const stored = await deps.userSettingsService.getDefaultWorker(input.createdBy);
-    const workerImage = input.workerImage ?? stored ?? deps.config.workerImage;
+    // Runner image precedence: explicit request → user's stored default → operator config fallback.
+    const stored = await deps.userSettingsService.getDefaultRunner(input.createdBy);
+    const runnerImage = input.runnerImage ?? stored ?? deps.config.runnerImage;
 
     // Insert the row up front so every failure path below leaves a visible FAILED
     // session (with the reason in its transcript) rather than throwing before any
@@ -120,7 +120,7 @@ export const createSessionService = (deps: SessionServiceDeps) => {
       .values({
         kind: input.kind,
         prompt,
-        workerImage,
+        runnerImage,
         status: SessionStatus.QUEUED,
         createdBy: input.createdBy,
         branch: null,
@@ -139,16 +139,16 @@ export const createSessionService = (deps: SessionServiceDeps) => {
       // Reject an unknown user-chosen image (security: can't spawn an arbitrary image). The operator's
       // config default is trusted and skips this check so the default path never breaks when no images
       // are labeled yet. Inside the try so a bad image surfaces as a FAILED session.
-      if (workerImage !== deps.config.workerImage) {
-        const workers = await deps.workerRegistry.list();
-        if (!workers.some((w) => w.image === workerImage)) {
-          throw new Error(`unknown worker image: ${workerImage}`);
+      if (runnerImage !== deps.config.runnerImage) {
+        const runners = await deps.runnerRegistry.list();
+        if (!runners.some((w) => w.image === runnerImage)) {
+          throw new Error(`unknown runner image: ${runnerImage}`);
         }
       }
 
-      // The requester's stored env overrides the worker's baked secrets AND the
-      // worker image defaults. GitHub auth is resolved structurally so the same
-      // user credential drives control-plane git, worker git/gh, and PR commits.
+      // The requester's stored env overrides the runner's baked secrets AND the
+      // runner image defaults. GitHub auth is resolved structurally so the same
+      // user credential drives control-plane git, runner git/gh, and PR commits.
       const userEnv = await resolveUserEnv(deps.userEnvService, input.createdBy);
       const githubCredential = await deps.githubCredentialService.resolve(input.createdBy);
       if (githubCredential) userEnv.GITHUB_TOKEN = githubCredential.token;
@@ -177,7 +177,7 @@ export const createSessionService = (deps: SessionServiceDeps) => {
         manifest,
         sessionDir: dir,
         userEnv,
-        workerImage,
+        runnerImage,
       });
       // Adopt the container only if the session is still provisioning. A stop that
       // landed mid-spawn already settled the row terminal — adopting the box then

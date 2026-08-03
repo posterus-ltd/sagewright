@@ -58,12 +58,12 @@ export interface Tally {
   count: number;
 }
 
-/** Session counts per worker image over the trailing window, busiest first. */
-export const workerUtilization = (
+/** Session counts per runner image over the trailing window, busiest first. */
+export const runnerUtilization = (
   sessions: Session[],
   days: number,
   now: DateTime,
-): Tally[] => tally(sessions, days, now, (s) => s.workerImage);
+): Tally[] => tally(sessions, days, now, (s) => s.runnerImage);
 
 const tally = (
   sessions: Session[],

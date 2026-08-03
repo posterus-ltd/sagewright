@@ -5,7 +5,7 @@ import { loadConfig } from './config';
 const base = {
   DATABASE_URL: 'postgres://x', APP_PASSWORD: 'p', SESSION_SECRET: 's',
   SECRETS_KEY: '0123456789abcdef0123456789abcdef',
-  WORKER_IMAGE: 'w', CONTROL_PLANE_URL: 'http://c',
+  RUNNER_IMAGE: 'w', CONTROL_PLANE_URL: 'http://c',
 };
 
 describe('loadConfig', () => {

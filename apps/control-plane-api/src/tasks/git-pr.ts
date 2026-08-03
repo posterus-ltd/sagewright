@@ -20,8 +20,8 @@ interface PushArgs {
 /**
  * Commit + push every repo the agent actually changed and open a PR for each. Run by the
  * control plane (decision A) after the agent's start script exits, via `docker exec` of git/gh
- * inside the worker — so the git flow stays identical no matter which harness produced the diff.
- * gh/git authenticate with the resolved user's GITHUB_TOKEN injected into the worker env.
+ * inside the runner — so the git flow stays identical no matter which harness produced the diff.
+ * gh/git authenticate with the resolved user's GITHUB_TOKEN injected into the runner env.
  */
 export const pushAndOpenPrs = async ({ exec, containerId, taskId, manifest, identity, emit, branch = `task/${taskId}` }: PushArgs): Promise<void> => {
   for (const repo of manifest) {

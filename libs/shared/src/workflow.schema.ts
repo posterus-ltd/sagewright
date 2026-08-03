@@ -6,7 +6,7 @@ import { sessionSchema } from './session.schema';
 /**
  * A workflow is a JSON-configurable sequence of steps a non-interactive run goes
  * through (visualised like a GitHub Actions graph). Each step names a GOAL and the
- * WORKER image that executes it — the image implicitly selects the harness/LLM. A
+ * RUNNER image that executes it — the image implicitly selects the harness/LLM. A
  * run drives the steps sequentially on one shared worktree, passing a handoff
  * forward, looping on validation failure until it passes or maxIterations is hit.
  */
@@ -24,10 +24,10 @@ export const workflowStepSchema = z.object({
     .min(1)
     .regex(/^[a-z0-9][a-z0-9-]*$/i, 'key must be alphanumeric/hyphen'),
   name: z.string().min(1),
-  /** What this step should accomplish — injected into the worker's prompt. */
+  /** What this step should accomplish — injected into the runner's prompt. */
   goal: z.string().min(1),
   /** Docker image of the harness that runs this step (implies the model). */
-  workerImage: z.string().min(1),
+  runnerImage: z.string().min(1),
   kind: z.enum(WorkflowStepKind),
   /** On validation failure, jump back to this step key for another iteration. */
   onFailureGoTo: z.string().min(1).optional(),

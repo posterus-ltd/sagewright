@@ -49,7 +49,7 @@ describe('createStep', () => {
     expect(step.kind).toBe('work');
     expect(step.key).not.toBe('plan');
     expect(step.goal).toBe('');
-    expect(step.workerImage).toBe('img:latest');
+    expect(step.runnerImage).toBe('img:latest');
     expect(step.validateCommands).toBeUndefined();
     expect(step.onFailureGoTo).toBeUndefined();
   });

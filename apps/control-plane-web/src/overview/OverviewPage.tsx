@@ -4,16 +4,16 @@ import { DateTime } from 'luxon';
 import { useMemo, type FC, type ReactNode } from 'react';
 import { useNavigate } from 'react-router';
 
-import { useTasks, useWorkers } from '../api/hooks';
+import { useTasks, useRunners } from '../api/hooks';
 import { Header } from '../components/Header';
 import { MainContainer } from '../components/MainContainer';
 import { StatusChip } from '../components/StatusChip';
-import { WorkerChip } from '../components/WorkerChip';
+import { RunnerChip } from '../components/RunnerChip';
 import {
   METRICS_WINDOW_DAYS,
   recentlyShipped,
   throughputStats,
-  workerUtilization,
+  runnerUtilization,
 } from './metrics';
 import {
   groupCounts,
@@ -83,7 +83,7 @@ const AttentionRow: FC<{ session: Session; onClick: () => void }> = ({
         {session.createdBy}
       </Typography>
     </Box>
-    <WorkerChip image={session.workerImage} />
+    <RunnerChip image={session.runnerImage} />
     <StatusChip status={session.status} />
   </Stack>
 );
@@ -119,7 +119,7 @@ const ShippedRow: FC<{ session: Session; onClick: () => void }> = ({
         {session.createdBy}
       </Typography>
     </Box>
-    <WorkerChip image={session.workerImage} />
+    <RunnerChip image={session.runnerImage} />
     {session.prUrl && (
       <MuiLink href={session.prUrl} target="_blank" rel="noreferrer">
         View PR
@@ -128,7 +128,7 @@ const ShippedRow: FC<{ session: Session; onClick: () => void }> = ({
   </Stack>
 );
 
-// Inline count chips shared by the worker-utilization and busiest-teammates
+// Inline count chips shared by the runner-utilization and busiest-teammates
 // sections — same "label · count" bordered pill in both places.
 const CountChips: FC<{ items: { label: string; count: number }[] }> = ({
   items,
@@ -178,7 +178,7 @@ const Section: FC<{
 export const OverviewPage: FC = () => {
   // No `mine` filter — this page is a fleet-wide view across every user.
   const { data: sessions = [] } = useTasks(false);
-  const { data: workersData } = useWorkers();
+  const { data: runnersData } = useRunners();
   const navigate = useNavigate();
   const now = DateTime.now();
 
@@ -210,19 +210,19 @@ export const OverviewPage: FC = () => {
     [sessions],
   );
 
-  const workerName = (image: string): string =>
-    workersData?.workers.find((w) => w.image === image)?.name ?? image;
+  const runnerName = (image: string): string =>
+    runnersData?.runners.find((w) => w.image === image)?.name ?? image;
 
-  const workerTally = useMemo(
+  const runnerTally = useMemo(
     () =>
-      workerUtilization(sessions, METRICS_WINDOW_DAYS, now).map(
+      runnerUtilization(sessions, METRICS_WINDOW_DAYS, now).map(
         ({ key, count }) => ({
-          label: workerName(key),
+          label: runnerName(key),
           count,
         }),
       ),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [sessions, workersData],
+    [sessions, runnersData],
   );
 
   return (
@@ -301,11 +301,11 @@ export const OverviewPage: FC = () => {
         </Section>
 
         <Section
-          title="Worker utilization"
-          empty={workerTally.length === 0}
+          title="Runner utilization"
+          empty={runnerTally.length === 0}
           emptyMessage="No sessions in the last week."
         >
-          <CountChips items={workerTally} />
+          <CountChips items={runnerTally} />
         </Section>
       </Stack>
     </MainContainer>

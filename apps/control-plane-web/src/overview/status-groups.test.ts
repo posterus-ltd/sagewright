@@ -8,7 +8,7 @@ const task = (status: SessionStatus): Session => ({
   kind: 'interactive',
   name: null,
   prompt: null,
-  workerImage: null,
+  runnerImage: null,
   status,
   branch: null,
   prUrl: null,

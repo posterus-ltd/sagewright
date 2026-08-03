@@ -20,7 +20,7 @@ import { registerScheduledPromptRoutes } from './scheduled-prompts/scheduled-pro
 import { registerTaskRoutes } from './tasks/task-routes';
 import { registerUserEnvRoutes } from './user-env/user-env-routes';
 import { registerUserSettingsRoutes } from './user-settings/user-settings-routes';
-import { registerWorkerRoutes } from './workers/worker-routes';
+import { registerRunnerRoutes } from './runners/runner-routes';
 import { registerCanvasLayoutRoutes } from './canvas-layout/canvas-layout-routes';
 import { registerWorkflowRoutes } from './workflows/workflow-routes';
 import { registerGithubRoutes } from './github/github-routes';
@@ -29,12 +29,12 @@ import type { SessionRuntime } from './sessions/session-runtime';
 import type { SessionService } from './sessions/session-service';
 import type { TaskService } from './tasks/task-service';
 import type { WorkflowService } from './workflows/workflow-service';
-import type { WorkflowRunner } from './workflows/workflow-runner';
+import type { WorkflowDriver } from './workflows/workflow-driver';
 import type { UserEnvService } from './user-env/user-env-service';
 import type { UserSettingsService } from './user-settings/user-settings-service';
 import type { CanvasLayoutService } from './canvas-layout/canvas-layout-service';
 import type { ContainerTerminal } from './tasks/docker-client';
-import type { WorkerRegistry } from './workers/worker-registry';
+import type { RunnerRegistry } from './runners/runner-registry';
 import type { GithubCredentialService } from './github/github-credential-service';
 
 export interface AppDeps {
@@ -51,11 +51,11 @@ export interface AppDeps {
   userSettingsService: UserSettingsService;
   canvasLayoutService: CanvasLayoutService;
   workflowService: WorkflowService;
-  workflowRunner: WorkflowRunner;
+  workflowDriver: WorkflowDriver;
   containerTerminal: ContainerTerminal;
   volume: Volume;
   scheduler: Scheduler;
-  workerRegistry: WorkerRegistry;
+  runnerRegistry: RunnerRegistry;
   webDistPath?: string;
 }
 
@@ -88,7 +88,7 @@ export const buildApp = (deps: AppDeps): FastifyInstance => {
   registerUserEnvRoutes(app, deps);
   registerGithubRoutes(app, deps);
   registerUserSettingsRoutes(app, deps);
-  registerWorkerRoutes(app, deps);
+  registerRunnerRoutes(app, deps);
   registerCanvasLayoutRoutes(app, deps);
   registerWorkflowRoutes(app, deps);
 

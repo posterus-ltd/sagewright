@@ -62,11 +62,11 @@ export const SPECTRUM_LEGEND =
   ' █ sweet spot ①②③   ▓ multiplier —  especiallly if technical  ░ weak — broader enterprise';
 
 /**
- * The workers/ directory tree — the extensibility story. A worker is just a
+ * The runners/ directory tree — the extensibility story. A runner is just a
  * folder holding a Dockerfile and two scripts; dropping in a new one extends
- * the fleet with a new harness. Mirrors the real workers/ folder in this repo.
+ * the fleet with a new harness. Mirrors the real runners/ folder in this repo.
  */
-export const WORKERS_TREE = String.raw`workers/
+export const RUNNERS_TREE = String.raw`runners/
 ├── claude-code/         built-in
 ├── codex/               built-in
 ├── opencode/            built-in
@@ -75,11 +75,11 @@ export const WORKERS_TREE = String.raw`workers/
     ├── Dockerfile         installs + configures any CLI harness
     ├── start-agent        how a task launches
     ├── continue-agent     how a session resumes
-    └── SOUL.md            the worker's alignment`;
+    └── SOUL.md            the runner's alignment`;
 
 /** A streaming audit-log motif — every agent action is a persisted event. */
 export const AUDIT_LOG = String.raw`
-│ 14:02:31  spawn      worker#a1c   · repo:web
+│ 14:02:31  spawn      runner#a1c   · repo:web
 │ 14:02:48  tool.call  edit         · src/app.tsx
 │ 14:03:10  validate   ok           · 142 tests pass
 │ 14:03:55  git.push   branch       · fix/login-redirect

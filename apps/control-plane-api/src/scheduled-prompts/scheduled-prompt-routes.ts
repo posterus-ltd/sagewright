@@ -10,7 +10,7 @@ const rowToScheduled = (r: typeof scheduledPrompts.$inferSelect): ScheduledPromp
   cron: r.cron,
   prompt: r.prompt,
   enabled: r.enabled,
-  workerImage: r.workerImage,
+  runnerImage: r.runnerImage,
   lastRunAt: r.lastRunAt ? r.lastRunAt.toISOString() : null,
   createdAt: r.createdAt.toISOString(),
 });
@@ -21,23 +21,23 @@ export const registerScheduledPromptRoutes = (app: FastifyInstance, deps: AppDep
     return rows.map(rowToScheduled);
   });
 
-  // Reject a worker image that isn't a built/registered image, mirroring the task and
-  // default-worker routes. Skipped when unset (the run inherits the creator's default).
-  const validWorkerImage = async (image: string | null | undefined): Promise<boolean> => {
+  // Reject a runner image that isn't a built/registered image, mirroring the task and
+  // default-runner routes. Skipped when unset (the run inherits the creator's default).
+  const validRunnerImage = async (image: string | null | undefined): Promise<boolean> => {
     if (!image) return true;
-    const workers = await deps.workerRegistry.list();
-    return workers.some((w) => w.image === image);
+    const runners = await deps.runnerRegistry.list();
+    return runners.some((w) => w.image === image);
   };
 
   app.post('/api/scheduled-prompts', { preHandler: app.requireUser }, async (req, reply) => {
     const body = createScheduledPromptSchema.parse(req.body);
     if (!deps.scheduler.isValidCron(body.cron)) return reply.code(400).send({ error: 'invalid cron' });
-    if (!(await validWorkerImage(body.workerImage))) {
-      return reply.code(400).send({ error: 'unknown worker image' });
+    if (!(await validRunnerImage(body.runnerImage))) {
+      return reply.code(400).send({ error: 'unknown runner image' });
     }
     const [row] = await deps.db
       .insert(scheduledPrompts)
-      .values({ cron: body.cron, prompt: body.prompt, enabled: body.enabled, workerImage: body.workerImage ?? null, createdBy: req.displayName! })
+      .values({ cron: body.cron, prompt: body.prompt, enabled: body.enabled, runnerImage: body.runnerImage ?? null, createdBy: req.displayName! })
       .returning();
     await deps.scheduler.sync();
     return reply.code(201).send(rowToScheduled(row!));
@@ -49,8 +49,8 @@ export const registerScheduledPromptRoutes = (app: FastifyInstance, deps: AppDep
     if (body.cron !== undefined && !deps.scheduler.isValidCron(body.cron)) {
       return reply.code(400).send({ error: 'invalid cron' });
     }
-    if (body.workerImage !== undefined && !(await validWorkerImage(body.workerImage))) {
-      return reply.code(400).send({ error: 'unknown worker image' });
+    if (body.runnerImage !== undefined && !(await validRunnerImage(body.runnerImage))) {
+      return reply.code(400).send({ error: 'unknown runner image' });
     }
     // Re-enabling resets the catch-up basis: a stale lastRunAt from before the pause
     // would read as a missed tick and fire the prompt the moment it's re-enabled.

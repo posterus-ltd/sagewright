@@ -7,8 +7,8 @@ import type { EventStore } from '../events/event-store';
 import type { EventBus } from '../events/event-bus';
 import type { SessionRuntime } from '../sessions/session-runtime';
 import type { SessionService } from '../sessions/session-service';
-import type { AgentRunner } from './agent-runner';
-import type { SpawnInput } from './worker-spawner';
+import type { AgentDriver } from './agent-driver';
+import type { SpawnInput } from './runner-spawner';
 import type { Volume } from '../git/volume';
 
 interface TaskServiceDeps {
@@ -16,7 +16,7 @@ interface TaskServiceDeps {
   eventStore: EventStore;
   eventBus: EventBus;
   spawner: { spawn: (i: SpawnInput) => Promise<{ containerId: string }>; retire: (id: string) => Promise<void> };
-  agentRunner: AgentRunner;
+  agentDriver: AgentDriver;
   volume: Volume;
   sessionService: SessionService;
   sessionRuntime: SessionRuntime;
@@ -31,7 +31,7 @@ export const rowToSession = (r: typeof sessions.$inferSelect): Session => ({
   kind: r.kind as Session['kind'],
   name: r.name,
   prompt: r.prompt,
-  workerImage: r.workerImage,
+  runnerImage: r.runnerImage,
   status: r.status as SessionStatus,
   branch: r.branch,
   prUrl: r.prUrl,
@@ -70,7 +70,7 @@ export const createTaskService = (deps: TaskServiceDeps) => {
       kind,
       createdBy,
       prompt: input.prompt ?? null,
-      workerImage: input.workerImage,
+      runnerImage: input.runnerImage,
       scheduledPromptId: opts.scheduledPromptId,
     });
     const [row] = await deps.db.select().from(sessions).where(eq(sessions.id, id)).limit(1);
@@ -78,7 +78,7 @@ export const createTaskService = (deps: TaskServiceDeps) => {
     if (mode === SessionMode.HEADLESS) {
       // The box is up; drive the agent over `docker exec` and stream it as the transcript.
       // Fire-and-forget: the run owns its own status/PR events; surface a crash as FAILED.
-      void deps.agentRunner
+      void deps.agentDriver
         .run({ taskId: id, containerId, manifest, sessionDir: dir, githubIdentity: githubCredential })
         .catch(async (err) => {
           await emit(id, [

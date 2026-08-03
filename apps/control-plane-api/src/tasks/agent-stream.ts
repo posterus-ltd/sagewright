@@ -7,7 +7,7 @@ import type { EventStore } from '../events/event-store';
 import type { EventBus } from '../events/event-bus';
 import type { AgentExecSession, ContainerExec } from './docker-client';
 
-/** Fixed path the worker image installs its harness launcher to (see worker/Dockerfile). */
+/** Fixed path the runner image installs its harness launcher to (see runner/Dockerfile). */
 export const START_SCRIPT = '/usr/local/bin/start-agent';
 
 // How often we look for queued interjections to forward into the agent's PTY.
@@ -53,7 +53,7 @@ const agentCwd = (sessionDir: string, manifest: RepoManifestEntry[]): string =>
  * The shared engine for driving an agent over `docker exec`: a serialized event
  * emitter (so appends never race on the unique `(task_id, seq)` index) and the PTY
  * stream pump that emits OUTPUT events (the durable transcript) and optionally tees
- * raw bytes to live sockets. Both the headless runner and the interactive runtime
+ * raw bytes to live sockets. Both the headless driver and the interactive runtime
  * build on this so output is persisted once and fanned everywhere.
  */
 export const createAgentStreaming = (deps: AgentStreamingDeps) => {

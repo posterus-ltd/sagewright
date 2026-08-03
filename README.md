@@ -1,14 +1,14 @@
 # Sagewright
 
 A control plane for running coding agents inside Docker containers. You give it a repo and a task;
-it spins up a worker, streams the agent's live transcript, lets you interject mid-run, and opens a
+it spins up a runner, streams the agent's live transcript, lets you interject mid-run, and opens a
 PR on GitHub when it's done.
 
-It ships with an [opencode](https://opencode.ai) harness, but the worker is just a box you connect
+It ships with an [opencode](https://opencode.ai) harness, but the runner is just a box you connect
 to: the control plane spawns it, runs a predefined start script over a terminal (`docker exec`),
 streams that terminal back as the live transcript, and opens the PR when the run finishes. The
-harness is whatever you install and configure in the **worker image** — swap it by editing one
-block of `workers/opencode/Dockerfile` (see [Use a different harness](#use-a-different-harness)). And because
+harness is whatever you install and configure in the **runner image** — swap it by editing one
+block of `runners/opencode/Dockerfile` (see [Use a different harness](#use-a-different-harness)). And because
 opencode supports every major provider, you can drive sessions with **any inference model** —
 OpenAI, Anthropic, Google, local models via Ollama, or anything else opencode reaches (see
 [Use a different model](#use-a-different-model)).
@@ -24,10 +24,10 @@ You need these installed and working before you start. Each line has a quick com
 
 | Requirement             | Why                                                                  | Check                                                                                           |
 | ----------------------- | -------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| **Docker** + Compose v2 | Runs the whole stack and spawns agent workers                        | `docker compose version`                                                                        |
+| **Docker** + Compose v2 | Runs the whole stack and spawns agent runners                        | `docker compose version`                                                                        |
 | **Node.js 22+**         | Local builds, tests, and helper scripts                              | `node --version`                                                                                |
-| **A GitHub token**      | Lets workers clone repos, push branches, and open PRs                | [Create one →](https://github.com/settings/tokens) (scope: `repo`)                              |
-| **A model API key**     | The agent's inference provider — without one the worker does nothing | OpenAI is the default ([get a key →](https://platform.openai.com/api-keys)); any provider works |
+| **A GitHub token**      | Lets runners clone repos, push branches, and open PRs                | [Create one →](https://github.com/settings/tokens) (scope: `repo`)                              |
+| **A model API key**     | The agent's inference provider — without one the runner does nothing | OpenAI is the default ([get a key →](https://platform.openai.com/api-keys)); any provider works |
 
 > No Docker experience? You only need to run the handful of `docker compose` commands below —
 > you don't have to understand Docker internals to get this running.
@@ -62,7 +62,7 @@ OPENAI_API_KEY=
 
 > `LINEAR_API_KEY` is optional — only fill it in if you want to pull tasks from Linear.
 
-### 2. Build the agent worker image
+### 2. Build the agent runner image
 
 This bakes your `GITHUB_TOKEN` and `OPENAI_API_KEY` into a Docker image the agents run inside.
 Re-run this whenever you change those tokens.
@@ -71,8 +71,8 @@ Re-run this whenever you change those tokens.
 docker compose --profile build build
 ```
 
-> **Tip:** `scripts/build-workers.sh` is a convenience wrapper for this — see
-> [Rebuilding the worker images](#rebuilding-the-worker-images).
+> **Tip:** `scripts/build-runners.sh` is a convenience wrapper for this — see
+> [Rebuilding the runner images](#rebuilding-the-runner-images).
 
 ### 3. Start everything
 
@@ -127,44 +127,44 @@ The install prompt becomes available once you do. The generated cert/key live in
 
 ---
 
-## Advanced: customizing the worker image
+## Advanced: customizing the runner image
 
-Everything an agent can see and do lives inside the **worker image** (`workers/opencode/Dockerfile`). It has
+Everything an agent can see and do lives inside the **runner image** (`runners/opencode/Dockerfile`). It has
 one clearly-marked **`YOUR HARNESS`** block — the single place you install and authenticate your
 harness, configure its MCP servers / skills / plugins / alignment, and point the start script at it.
 The control plane is harness-agnostic: it only knows to run `start-agent` and stream the result. Bake
 in your organization's defaults here, then rebuild with `docker compose --profile build build`.
 
-Each active session runs in its own `sagewright-worker` container spawned by the control plane
+Each active session runs in its own `sagewright-runner` container spawned by the control plane
 alongside the long-lived `control-plane` and `postgres` services — `docker ps` shows them all:
 
-![docker ps — control plane, spawned workers, and postgres](./screenshots/docker-ps.png)
+![docker ps — control plane, spawned runners, and postgres](./screenshots/docker-ps.png)
 
-### Rebuilding the worker images
+### Rebuilding the runner images
 
-Worker images bake the host `.env` auth tokens in as build args, so you must rebuild after
-**any** of: rotating a token in `.env`, editing a worker `Dockerfile`, or changing a harness
+Runner images bake the host `.env` auth tokens in as build args, so you must rebuild after
+**any** of: rotating a token in `.env`, editing a runner `Dockerfile`, or changing a harness
 config (e.g. `opencode.config.json`, `SOUL.md`). The images sit behind the `build` compose
 profile because the control plane spawns them on demand — so `docker compose up --build` alone
 **skips** them, and you must build them explicitly.
 
 ```bash
-scripts/build-workers.sh                 # rebuild every worker image
-scripts/build-workers.sh --no-cache      # force-rebuild (re-bake stale/rotated tokens)
-scripts/build-workers.sh worker-opencode # rebuild a single worker image
+scripts/build-runners.sh                 # rebuild every runner image
+scripts/build-runners.sh --no-cache      # force-rebuild (re-bake stale/rotated tokens)
+scripts/build-runners.sh runner-opencode # rebuild a single runner image
 ```
 
 The script is a thin wrapper around `docker compose --profile build build` that runs from the
 repo root and passes its arguments straight through. Use `--no-cache` when you've only changed a
 token: Docker caches the `ARG`/`ENV` layers, so a plain rebuild can keep an old key baked in.
 
-> Rebuilding only affects **new** sessions. Already-running worker containers keep the image they
+> Rebuilding only affects **new** sessions. Already-running runner containers keep the image they
 > were spawned from until they're replaced.
 
 ### Override the opencode config (models & MCP servers)
 
-The worker bakes a global opencode config into every session. Edit
-[`workers/opencode/opencode.config.json`](./workers/opencode/opencode.config.json)
+The runner bakes a global opencode config into every session. Edit
+[`runners/opencode/opencode.config.json`](./runners/opencode/opencode.config.json)
 to change the default model, add providers, or register MCP servers org-wide:
 
 ```jsonc
@@ -192,8 +192,8 @@ You are **not tied to OpenAI**. opencode supports every major provider — Anthr
 OpenRouter, Groq, local models via Ollama, and more. To switch providers:
 
 1. Set the provider's credentials in `.env` (e.g. `ANTHROPIC_API_KEY=…` instead of, or alongside,
-   `OPENAI_API_KEY`) and forward them into the worker image as a build arg in
-   [`workers/opencode/Dockerfile`](./workers/opencode/Dockerfile) (see how `OPENAI_API_KEY` is wired up).
+   `OPENAI_API_KEY`) and forward them into the runner image as a build arg in
+   [`runners/opencode/Dockerfile`](./runners/opencode/Dockerfile) (see how `OPENAI_API_KEY` is wired up).
 2. Pin the default model in the opencode config above, e.g.:
 
    ```jsonc
@@ -209,32 +209,32 @@ model, so for common providers just supplying the key is enough. See the
 
 ### Use a different harness
 
-opencode is just the default. The control plane never hardcodes a harness — it spawns the worker
-box, runs the predefined start script ([`workers/opencode/start-agent`](./workers/opencode/start-agent)) over a terminal,
+opencode is just the default. The control plane never hardcodes a harness — it spawns the runner
+box, runs the predefined start script ([`runners/opencode/start-agent`](./runners/opencode/start-agent)) over a terminal,
 streams that terminal as the transcript, and runs git push + PR when the script exits. **Any agent
 CLI** that runs in a terminal (Claude Code, Aider, a custom runner, etc.) works.
 
-To swap it in, edit only the **`YOUR HARNESS`** block of [`workers/opencode/Dockerfile`](./workers/opencode/Dockerfile)
+To swap it in, edit only the **`YOUR HARNESS`** block of [`runners/opencode/Dockerfile`](./runners/opencode/Dockerfile)
 and the start script — nothing outside the image changes:
 
 1. Replace the install step (`npm install -g opencode-ai`) with your harness's install + auth.
-2. Update [`workers/opencode/start-agent`](./workers/opencode/start-agent) to launch your harness against `"$PROMPT"` in
+2. Update [`runners/opencode/start-agent`](./runners/opencode/start-agent) to launch your harness against `"$PROMPT"` in
    the current directory, in the foreground, exiting when done (its exit code decides DONE/FAILED).
 3. Rebuild: `docker compose --profile build build`.
 
 The transcript is the agent's raw terminal output, so a chatty CLI gives a rich transcript. Mid-run
 interjections are written to the agent's stdin — they take effect only if your harness reads stdin.
 
-Each worker's `Dockerfile` also sets `LABEL sagewright.worker.name="..."` — the label shown in the
-New Session / Settings pickers. Shipped workers name it after the harness (`Codex`, `Pi`, `Opencode`,
+Each runner's `Dockerfile` also sets `LABEL sagewright.runner.name="..."` — the label shown in the
+New Session / Settings pickers. Shipped runners name it after the harness (`Codex`, `Pi`, `Opencode`,
 `Claude Code`), but that's just a convention: the label is a free-form string, so you can just as
-well name a worker after a role or persona instead — e.g. `Bob the CTO`, `Alice the Reviewer` — if
+well name a runner after a role or persona instead — e.g. `Bob the CTO`, `Alice the Reviewer` — if
 that reads better for your team. Keep the folder/`id`/image tag tied to the underlying harness so
 the mapping stays traceable.
 
 ### Override the agent's system prompt / alignment ("soul")
 
-The agent's base instructions live in [`workers/opencode/SOUL.md`](./workers/opencode/SOUL.md), baked into the image and
+The agent's base instructions live in [`runners/opencode/SOUL.md`](./runners/opencode/SOUL.md), baked into the image and
 prepended to every task's prompt by `start-agent`. Edit it to set your org's engineering standards,
 tone, or guardrails — or configure alignment through your harness's own config (e.g. opencode's
 `instructions`) inside the `YOUR HARNESS` block.
@@ -242,7 +242,7 @@ tone, or guardrails — or configure alignment through your harness's own config
 ### Bake in extra tooling or org configuration
 
 To add CLIs, linters, language runtimes, or pre-seeded config files your agents should always have,
-edit [`workers/opencode/Dockerfile`](./workers/opencode/Dockerfile):
+edit [`runners/opencode/Dockerfile`](./runners/opencode/Dockerfile):
 
 ```dockerfile
 # Install extra tooling
@@ -253,41 +253,41 @@ COPY my-org/.npmrc /root/.npmrc
 COPY my-org/lint-rules.json /root/.config/my-tool/config.json
 ```
 
-Anything you `COPY` or `RUN` here becomes part of the image, so every spawned worker starts with it
+Anything you `COPY` or `RUN` here becomes part of the image, so every spawned runner starts with it
 already in place. Rebuild the image after any change.
 
-> **Security:** `GITHUB_TOKEN`, `NODE_AUTH_TOKEN`, and `OPENAI_API_KEY` are baked into the worker
+> **Security:** `GITHUB_TOKEN`, `NODE_AUTH_TOKEN`, and `OPENAI_API_KEY` are baked into the runner
 > image as build args, so they're visible via `docker history`. Rotating a token means rebuilding
-> the image. This is fine for a single-user local setup — **do not push the worker image to a shared
+> the image. This is fine for a single-user local setup — **do not push the runner image to a shared
 > registry** with real tokens baked in.
 
 ---
 
 ## Global defaults vs per-user settings
 
-Two layers decide what a worker session can see and which repos it works on. **Global defaults**
+Two layers decide what a runner session can see and which repos it works on. **Global defaults**
 come from the host `.env` and apply to everyone; **per-user settings** are managed by each user in
 the web UI (**Settings**) and only affect that user's own sessions.
 
 ### Environment variables
 
-**Rule of thumb:** configure **org-wide environment variables in the worker `Dockerfile`** (baked
+**Rule of thumb:** configure **org-wide environment variables in the runner `Dockerfile`** (baked
 into the image so every session, for every user, gets them); let each user add **personal overrides
 in the control plane** (**Settings → Environment**), which apply only to their own sessions and take
 effect at runtime with no rebuild.
 
 | Layer                    | Where it's set                                          | Scope                     | When it applies                                 |
 | ------------------------ | ------------------------------------------------------- | ------------------------- | ----------------------------------------------- |
-| **Global / org default** | Host `.env`, baked into the worker image as a build arg | Every session, every user | Build time — rebuild the image to change it     |
+| **Global / org default** | Host `.env`, baked into the runner image as a build arg | Every session, every user | Build time — rebuild the image to change it     |
 | **Per-user override**    | **Settings → Environment** in the web UI                | Only that user's sessions | Runtime — takes effect next session, no rebuild |
 
-To add a **global** variable, put it in `.env` and wire it into the worker image as an `ARG`/`ENV`
+To add a **global** variable, put it in `.env` and wire it into the runner image as an `ARG`/`ENV`
 in the Dockerfile (see how `OPENAI_API_KEY` is forwarded in
-[`workers/opencode/Dockerfile`](./workers/opencode/Dockerfile)), then rebuild with
+[`runners/opencode/Dockerfile`](./runners/opencode/Dockerfile)), then rebuild with
 `docker compose --profile build build`.
 
 A **per-user** `.env` is entered in the web UI, stored **encrypted at rest** (aes-256-gcm, keyed by
-`SECRETS_KEY`) and injected into that user's worker containers **at runtime**. It **overrides** the
+`SECRETS_KEY`) and injected into that user's runner containers **at runtime**. It **overrides** the
 image's baked defaults — e.g. a user can set their own `GITHUB_TOKEN` so commits and PRs are
 attributed to them instead of the org token, with no rebuild. Operational keys the control plane
 sets itself (`TASK_ID`, `PROMPT`, `SESSION_DIR`, …) are reserved and can't be overridden.
@@ -307,7 +307,7 @@ who add the same repo share a single clone) and gives every session a worktree p
 
 ## Architecture note: the Docker socket mount
 
-The control-plane container mounts the host's Docker socket so it can spawn worker containers:
+The control-plane container mounts the host's Docker socket so it can spawn runner containers:
 
 ```yaml
 volumes:
@@ -386,11 +386,11 @@ apps/
   control-plane-web/   React SPA — task list, canvas, transcript viewer, settings
 libs/
   shared/              Shared types (TaskStatus, EventType, etc.)
-workers/               Per-worker agent boxes (workers/<name>/) — each a Dockerfile + start-agent + baked harness config
+runners/               Per-runner agent boxes (runners/<name>/) — each a Dockerfile + start-agent + baked harness config
 scripts/               Spike/verification scripts
 ```
 
-The control plane drives a headless run from `apps/control-plane-api/src/tasks/agent-runner.ts`:
+The control plane drives a headless run from `apps/control-plane-api/src/tasks/agent-driver.ts`:
 it execs `start-agent` over a PTY (`docker exec`), streams the terminal as `OUTPUT` events,
 forwards interjections to stdin, and runs `git-pr.ts` on a clean exit.
 

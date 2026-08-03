@@ -12,7 +12,7 @@ interface UserEnvServiceDeps {
 
 /** Stores one encrypted custom `.env` blob per user, keyed by `userKey`
  *  (the caller's displayName today). Blobs are decrypted on read and used by
- *  the task service to override the worker image's baked-in env at spawn. */
+ *  the task service to override the runner image's baked-in env at spawn. */
 export const createUserEnvService = (deps: UserEnvServiceDeps) => {
   /** The user's decrypted blob, or '' if none stored. */
   const get = async (userKey: string): Promise<string> => {

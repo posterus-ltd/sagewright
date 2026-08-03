@@ -2,8 +2,8 @@ import { z } from 'zod';
 
 /**
  * Shared volume root, mounted at the SAME absolute path into the control-plane
- * and every worker. Git worktree gitdir links use absolute paths, so the mount
- * point must be identical on both sides for worktrees to resolve in the worker.
+ * and every runner. Git worktree gitdir links use absolute paths, so the mount
+ * point must be identical on both sides for worktrees to resolve in the runner.
  */
 export const VOLUME_ROOT = '/sagewright-volume';
 
@@ -65,7 +65,7 @@ export const parseTerminalSize = (q: {
   return parsed.success ? parsed.data : undefined;
 };
 
-/** Worker session lifecycle mode, passed to the worker via SESSION_MODE. */
+/** Runner session lifecycle mode, passed to the runner via SESSION_MODE. */
 export enum SessionMode {
   INTERACTIVE = 'interactive',
   HEADLESS = 'headless',
@@ -74,7 +74,7 @@ export enum SessionMode {
 /**
  * What a session is *for*. The single spawn path branches on this; every run path
  * (interactive UI, headless one-shot, scheduled prompt, workflow step, workflow
- * parent) maps to one kind. The worker only ever sees the derived `SessionMode`
+ * parent) maps to one kind. The runner only ever sees the derived `SessionMode`
  * (see `modeForKind`) — `kind` stays control-plane side.
  */
 
@@ -86,7 +86,7 @@ export enum SessionKind {
   WORKFLOW = 'workflow',
 }
 
-/** Derive the worker-facing lifecycle mode from a session kind. Only an interactive
+/** Derive the runner-facing lifecycle mode from a session kind. Only an interactive
  *  session keeps a human at the PTY; everything else is driven headless. */
 export const modeForKind = (kind: SessionKind): SessionMode =>
   kind === SessionKind.INTERACTIVE ? SessionMode.INTERACTIVE : SessionMode.HEADLESS;

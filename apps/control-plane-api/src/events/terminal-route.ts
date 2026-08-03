@@ -18,7 +18,7 @@ import type { TerminalSession } from '../tasks/docker-client';
  *
  * `agent` resumes the harness interactively. The resume command is harness-specific
  * (opencode vs claude vs codex), so — like `start-agent` — it lives in a stable
- * per-worker script (`continue-agent`) baked into each image, keeping the control
+ * per-runner script (`continue-agent`) baked into each image, keeping the control
  * plane harness-agnostic.
  */
 export const cmdForKind = (kind: TerminalKind): string[] =>

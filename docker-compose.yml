@@ -44,15 +44,15 @@ services:
       # Used by the control-plane's Linear integration (task source=linear).
       LINEAR_API_KEY: ${LINEAR_API_KEY:-}
       CONTROL_PLANE_URL: http://control-plane:3000
-      WORKER_IMAGE: sagewright-worker-opencode:latest
+      RUNNER_IMAGE: sagewright-runner-opencode:latest
       # Full compose network name (the network's `name:` below is fixed so this is
-      # stable regardless of the project directory). Worker containers are attached
+      # stable regardless of the project directory). Runner containers are attached
       # to this network so the `control-plane` hostname resolves for /internal/* calls.
-      WORKER_NETWORK: sagewright
+      RUNNER_NETWORK: sagewright
       # Named volume holding the repo clones + per-session worktrees. The spawner
-      # binds this into each worker at the SAME path (/sagewright-volume) the control-plane
-      # uses, so worktree gitdir links (absolute paths) resolve inside the worker.
-      WORKER_VOLUME: sagewright-repos
+      # binds this into each runner at the SAME path (/sagewright-volume) the control-plane
+      # uses, so worktree gitdir links (absolute paths) resolve inside the runner.
+      RUNNER_VOLUME: sagewright-repos
       PORT: 3000
       # Set to 'false' on deployments that must retain session history for
       # auditing: archiving keeps working, permanent deletion is refused.
@@ -117,53 +117,53 @@ services:
     networks:
       - sagewright
 
-  # Build-only services for worker images. Worker containers are spawned
+  # Build-only services for runner images. Runner containers are spawned
   # dynamically by the control-plane via the Docker socket (not run by compose),
   # so these services exist solely so `docker compose --profile build build`
   # bakes the host .env auth tokens into each image as build args. The `build`
   # profile keeps `docker compose up` from trying to run them.
-  # To add a new worker, copy an existing workers/<name>/ folder, update the
+  # To add a new runner, copy an existing runners/<name>/ folder, update the
   # YOUR HARNESS block + start script, set the LABEL name/description, add a
   # matching service here, then run `docker compose --profile build build`.
-  worker-opencode:
+  runner-opencode:
     profiles: ["build"]
-    image: sagewright-worker-opencode:latest
+    image: sagewright-runner-opencode:latest
     build:
       context: .
-      dockerfile: workers/opencode/Dockerfile
+      dockerfile: runners/opencode/Dockerfile
       args:
         GITHUB_TOKEN: ${GITHUB_TOKEN:-}
         NODE_AUTH_TOKEN: ${NODE_AUTH_TOKEN:-}
         OPENAI_API_KEY: ${OPENAI_API_KEY:-}
 
-  worker-claude-code:
+  runner-claude-code:
     profiles: ["build"]
-    image: sagewright-worker-claude-code:latest
+    image: sagewright-runner-claude-code:latest
     build:
       context: .
-      dockerfile: workers/claude-code/Dockerfile
+      dockerfile: runners/claude-code/Dockerfile
       args:
         GITHUB_TOKEN: ${GITHUB_TOKEN:-}
         NODE_AUTH_TOKEN: ${NODE_AUTH_TOKEN:-}
         ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
 
-  worker-codex:
+  runner-codex:
     profiles: ["build"]
-    image: sagewright-worker-codex:latest
+    image: sagewright-runner-codex:latest
     build:
       context: .
-      dockerfile: workers/codex/Dockerfile
+      dockerfile: runners/codex/Dockerfile
       args:
         GITHUB_TOKEN: ${GITHUB_TOKEN:-}
         NODE_AUTH_TOKEN: ${NODE_AUTH_TOKEN:-}
         OPENAI_API_KEY: ${OPENAI_API_KEY:-}
 
-  worker-pi:
+  runner-pi:
     profiles: ["build"]
-    image: sagewright-worker-pi:latest
+    image: sagewright-runner-pi:latest
     build:
       context: .
-      dockerfile: workers/pi/Dockerfile
+      dockerfile: runners/pi/Dockerfile
       args:
         GITHUB_TOKEN: ${GITHUB_TOKEN:-}
         NODE_AUTH_TOKEN: ${NODE_AUTH_TOKEN:-}
@@ -175,7 +175,7 @@ networks:
 
 volumes:
   pgdata: {}
-  # Shared across the control-plane and every worker. Workers attach it via the
-  # spawner's HostConfig.Binds (compose can't, since workers aren't compose services).
+  # Shared across the control-plane and every runner. Runners attach it via the
+  # spawner's HostConfig.Binds (compose can't, since runners aren't compose services).
   sagewright-repos:
     name: sagewright-repos

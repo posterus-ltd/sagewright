@@ -18,7 +18,7 @@ export const scheduledPrompts = pgTable('scheduled_prompts', {
   prompt: text('prompt').notNull(),
   enabled: boolean('enabled').notNull().default(true),
   createdBy: text('created_by').notNull(),
-  workerImage: text('worker_image'),
+  runnerImage: text('runner_image'),
   lastRunAt: timestamp('last_run_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
@@ -63,7 +63,7 @@ export const sessions = pgTable('sessions', {
   // Trigger payload (e.g. a workflow run's seed input). JSON, nullable.
   triggerContext: jsonb('trigger_context'),
   archivedAt: timestamp('archived_at', { withTimezone: true }),
-  workerImage: text('worker_image'),
+  runnerImage: text('runner_image'),
   startedAt: timestamp('started_at', { withTimezone: true }),
   endedAt: timestamp('ended_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -114,7 +114,7 @@ export const canvasLayouts = pgTable('canvas_layouts', {
 export const userSettings = pgTable('user_settings', {
   id: uuid('id').primaryKey().defaultRandom(),
   userKey: text('user_key').notNull().unique(),
-  defaultWorkerImage: text('default_worker_image'),
+  defaultRunnerImage: text('default_runner_image'),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
 

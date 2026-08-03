@@ -104,22 +104,22 @@ describe('LandingPage', () => {
     expect(getByText(/put routine work on a cron/i)).toBeTruthy();
   });
 
-  it('explains the worker-container security model', () => {
+  it('explains the runner-container security model', () => {
     const { getByText } = renderPage();
     expect(getByText(/security by isolation/i)).toBeTruthy();
-    expect(getByText(/sandboxed worker container/i)).toBeTruthy();
+    expect(getByText(/sandboxed runner container/i)).toBeTruthy();
     expect(getByText(/only sees whatever you mount as its work tree/i)).toBeTruthy();
   });
 
-  it('pitches extensibility through custom workers and the coming marketplace', () => {
+  it('pitches extensibility through custom runners and the coming marketplace', () => {
     const { getByText } = renderPage();
     expect(getByText(/extensible by design/i)).toBeTruthy();
     expect(
-      getByText(/creating a\s+custom worker/i),
+      getByText(/creating a\s+custom runner/i),
     ).toBeTruthy();
-    // The workers/ tree shows the built-in harnesses plus the extension slot.
+    // The runners/ tree shows the built-in harnesses plus the extension slot.
     expect(getByText(/your-harness\//)).toBeTruthy();
-    expect(getByText(/worker marketplace — coming soon/i)).toBeTruthy();
+    expect(getByText(/runner marketplace — coming soon/i)).toBeTruthy();
   });
 
   it('promises no vendor lock-in', () => {

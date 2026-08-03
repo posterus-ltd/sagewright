@@ -2,12 +2,12 @@ import type { RepoManifestEntry, TerminalSize } from '@sagewright/shared';
 
 import type { GithubIdentity } from '../github/github-credential-service';
 import type { AgentExecSession } from '../tasks/docker-client';
-import type { AgentRunner } from '../tasks/agent-runner';
+import type { AgentDriver } from '../tasks/agent-driver';
 
 /** A consumer of live PTY bytes (an attached browser socket). */
 export type Sink = (chunk: Buffer) => void;
 
-/** The continue command each worker image bakes in to resume its harness (see Dockerfile). */
+/** The continue command each runner image bakes in to resume its harness (see Dockerfile). */
 const CONTINUE_AGENT = ['continue-agent'];
 
 interface RuntimeEntry {
@@ -36,7 +36,7 @@ export interface StartSessionInput {
 }
 
 interface SessionRuntimeDeps {
-  agentRunner: Pick<AgentRunner, 'runInteractive' | 'complete'>;
+  agentDriver: Pick<AgentDriver, 'runInteractive' | 'complete'>;
 }
 
 /**
@@ -58,7 +58,7 @@ export const createSessionRuntime = (deps: SessionRuntimeDeps) => {
   // the live exec once the turn ends (runInteractive has already stamped DETACHED).
   const driveTurn = (sessionId: string, entry: RuntimeEntry, cmd?: string[]): void => {
     entry.live = true; // claim the lock before any await so a racing resume is refused
-    const turn = deps.agentRunner
+    const turn = deps.agentDriver
       .runInteractive(
         {
           taskId: sessionId,
@@ -139,7 +139,7 @@ export const createSessionRuntime = (deps: SessionRuntimeDeps) => {
     complete: async (sessionId: string): Promise<void> => {
       const entry = registry.get(sessionId);
       if (!entry) return;
-      await deps.agentRunner.complete({
+      await deps.agentDriver.complete({
         taskId: sessionId,
         containerId: entry.containerId,
         manifest: entry.manifest,

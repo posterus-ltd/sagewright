@@ -6,13 +6,13 @@ import { loadConfig } from '../config';
 import { inboundMessages, scheduledPrompts, sessions } from '../db/schema';
 import { createSessionRuntime } from '../sessions/session-runtime';
 import { createSessionService } from '../sessions/session-service';
-import { fakeVolume, fakeWorkerRegistry, makeTestApp } from '../test/make-test-app';
+import { fakeVolume, fakeRunnerRegistry, makeTestApp } from '../test/make-test-app';
 import { createTaskService } from './task-service';
-import type { SpawnInput } from './worker-spawner';
+import type { SpawnInput } from './runner-spawner';
 
 const fakeUserSettingsService = () => ({
-  getDefaultWorker: async () => null as string | null,
-  setDefaultWorker: async () => {},
+  getDefaultRunner: async () => null as string | null,
+  setDefaultRunner: async () => {},
 });
 
 const fakeGithubCredentialService = (token?: string) => ({
@@ -30,11 +30,11 @@ interface BuildServiceDeps {
   volume: unknown;
   eventStore?: unknown;
   eventBus?: unknown;
-  agentRunner?: unknown;
+  agentDriver?: unknown;
   userEnvService?: unknown;
   githubCredentialService?: unknown;
   userSettingsService?: unknown;
-  workerRegistry?: unknown;
+  runnerRegistry?: unknown;
   config?: unknown;
 }
 
@@ -51,18 +51,18 @@ const buildService = (deps: BuildServiceDeps) => {
     userEnvService: (deps.userEnvService ?? { get: async () => '' }) as never,
     githubCredentialService: (deps.githubCredentialService ?? fakeGithubCredentialService()) as never,
     userSettingsService: (deps.userSettingsService ?? fakeUserSettingsService()) as never,
-    workerRegistry: (deps.workerRegistry ?? fakeWorkerRegistry()) as never,
+    runnerRegistry: (deps.runnerRegistry ?? fakeRunnerRegistry()) as never,
   });
-  const agentRunner = deps.agentRunner ?? { run: vi.fn(async () => {}), runInteractive: vi.fn(async () => 0), complete: vi.fn(async () => {}) };
+  const agentDriver = deps.agentDriver ?? { run: vi.fn(async () => {}), runInteractive: vi.fn(async () => 0), complete: vi.fn(async () => {}) };
   return createTaskService({
     db: deps.db as never,
     eventStore: eventStore as never,
     eventBus: eventBus as never,
     spawner: deps.spawner as never,
-    agentRunner: agentRunner as never,
+    agentDriver: agentDriver as never,
     volume: deps.volume as never,
     sessionService,
-    sessionRuntime: createSessionRuntime({ agentRunner: agentRunner as never }),
+    sessionRuntime: createSessionRuntime({ agentDriver: agentDriver as never }),
   });
 };
 
@@ -70,7 +70,7 @@ describe('task routes', () => {
   it('resumes a detached interactive session when a message arrives for it', async () => {
     const runInteractive = vi.fn(async () => 0);
     const sessionRuntime = createSessionRuntime({
-      agentRunner: { runInteractive, complete: async () => {} } as never,
+      agentDriver: { runInteractive, complete: async () => {} } as never,
     });
     const { app, db } = await makeTestApp({ sessionRuntime });
     const login = await app.inject({ method: 'POST', url: '/api/login', payload: { displayName: 'al', password: 'pw' } });
@@ -103,7 +103,7 @@ describe('task routes', () => {
   it('does not resume for a message when a turn is already live', async () => {
     const runInteractive = vi.fn(() => new Promise<number>(() => undefined)); // never settles → stays live
     const sessionRuntime = createSessionRuntime({
-      agentRunner: { runInteractive, complete: async () => {} } as never,
+      agentDriver: { runInteractive, complete: async () => {} } as never,
     });
     const { app, db } = await makeTestApp({ sessionRuntime });
     const login = await app.inject({ method: 'POST', url: '/api/login', payload: { displayName: 'al', password: 'pw' } });
@@ -170,7 +170,7 @@ describe('task routes', () => {
     expect(after!.endedAt).not.toBeNull();
   });
 
-  it('creates an interactive session and spawns a worker', async () => {
+  it('creates an interactive session and spawns a runner', async () => {
     const spawn = vi.fn(async () => ({ containerId: 'c1' }));
     const addSessionWorktrees = vi.fn(async () => []);
     const { db } = await makeTestApp();
@@ -189,7 +189,7 @@ describe('task routes', () => {
     expect(spawn).toHaveBeenCalledOnce();
   });
 
-  it('uses the resolved GitHub credential for worktrees and worker env', async () => {
+  it('uses the resolved GitHub credential for worktrees and runner env', async () => {
     const spawn = vi.fn(async (_i: SpawnInput) => ({ containerId: 'c1' }));
     const addSessionWorktrees = vi.fn(async () => []);
     const { db } = await makeTestApp();
@@ -222,7 +222,7 @@ describe('task routes', () => {
     });
 
     const task = await service.create({ prompt: 'nightly' }, 'scheduler', { scheduledPromptId: sp!.id });
-    // A scheduled fire records kind='scheduled' (its worker mode is still headless).
+    // A scheduled fire records kind='scheduled' (its runner mode is still headless).
     expect(task.kind).toBe('scheduled');
     expect(task.prompt).toBe('nightly');
     expect(task.scheduledPromptId).toBe(sp!.id);
@@ -319,7 +319,7 @@ describe('task routes', () => {
     // Same env makeTestApp uses, with deletion switched off — the audit-retention deployment.
     const config = loadConfig({
       DATABASE_URL: 'postgres://x', APP_PASSWORD: 'pw', SESSION_SECRET: 'sec',
-      SECRETS_KEY: '0123456789abcdef0123456789abcdef', WORKER_IMAGE: 'w',
+      SECRETS_KEY: '0123456789abcdef0123456789abcdef', RUNNER_IMAGE: 'w',
       CONTROL_PLANE_URL: 'http://c', ALLOW_SESSION_DELETION: 'false',
     });
     const { app, db } = await makeTestApp({ config });
@@ -354,10 +354,10 @@ describe('task routes', () => {
     expect(task.status).toBe(SessionStatus.RUNNING);
   });
 
-  it('explicit workerImage in request wins and is persisted on the task', async () => {
-    const spawnCalls: import('../tasks/worker-spawner').SpawnInput[] = [];
+  it('explicit runnerImage in request wins and is persisted on the task', async () => {
+    const spawnCalls: import('../tasks/runner-spawner').SpawnInput[] = [];
     const capturingSpawner = {
-      spawn: async (i: import('../tasks/worker-spawner').SpawnInput) => { spawnCalls.push(i); return { containerId: 'cap-c1' }; },
+      spawn: async (i: import('../tasks/runner-spawner').SpawnInput) => { spawnCalls.push(i); return { containerId: 'cap-c1' }; },
       retire: async () => {},
     };
     const { app } = await makeTestApp({}, { spawner: capturingSpawner });
@@ -366,23 +366,23 @@ describe('task routes', () => {
     ).cookies[0];
     const headers = { cookie: `${cookie!.name}=${cookie!.value}` };
 
-    const res = await app.inject({ method: 'POST', url: '/api/tasks', headers, payload: { workerImage: 'w' } });
+    const res = await app.inject({ method: 'POST', url: '/api/tasks', headers, payload: { runnerImage: 'w' } });
 
     expect(res.statusCode).toBe(201);
     const task = res.json();
-    expect(task.workerImage).toBe('w');
-    expect(spawnCalls[0]?.workerImage).toBe('w');
+    expect(task.runnerImage).toBe('w');
+    expect(spawnCalls[0]?.runnerImage).toBe('w');
   });
 
-  it('uses stored default worker when no workerImage in request', async () => {
-    const spawnCalls: import('../tasks/worker-spawner').SpawnInput[] = [];
+  it('uses stored default runner when no runnerImage in request', async () => {
+    const spawnCalls: import('../tasks/runner-spawner').SpawnInput[] = [];
     const capturingSpawner = {
-      spawn: async (i: import('../tasks/worker-spawner').SpawnInput) => { spawnCalls.push(i); return { containerId: 'cap-c2' }; },
+      spawn: async (i: import('../tasks/runner-spawner').SpawnInput) => { spawnCalls.push(i); return { containerId: 'cap-c2' }; },
       retire: async () => {},
     };
     // Registry with TWO images so the stored default ('w2') is distinct from config fallback ('w')
     const { app } = await makeTestApp({
-      workerRegistry: fakeWorkerRegistry({
+      runnerRegistry: fakeRunnerRegistry({
         list: async () => [
           { id: 'w', image: 'w', name: 'W', description: '' },
           { id: 'w2', image: 'w2', name: 'W2', description: '' },
@@ -394,20 +394,20 @@ describe('task routes', () => {
     ).cookies[0];
     const headers = { cookie: `${cookie!.name}=${cookie!.value}` };
 
-    // Seed the stored default to 'w2' — distinct from config WORKER_IMAGE='w'
-    await app.inject({ method: 'PUT', url: '/api/settings/default-worker', headers, payload: { image: 'w2' } });
+    // Seed the stored default to 'w2' — distinct from config RUNNER_IMAGE='w'
+    await app.inject({ method: 'PUT', url: '/api/settings/default-runner', headers, payload: { image: 'w2' } });
 
     const res = await app.inject({ method: 'POST', url: '/api/tasks', headers, payload: {} });
 
     expect(res.statusCode).toBe(201);
-    expect(spawnCalls[0]?.workerImage).toBe('w2');
-    expect(res.json().workerImage).toBe('w2');
+    expect(spawnCalls[0]?.runnerImage).toBe('w2');
+    expect(res.json().runnerImage).toBe('w2');
   });
 
-  it('falls back to config workerImage when no request or stored default', async () => {
-    const spawnCalls: import('../tasks/worker-spawner').SpawnInput[] = [];
+  it('falls back to config runnerImage when no request or stored default', async () => {
+    const spawnCalls: import('../tasks/runner-spawner').SpawnInput[] = [];
     const capturingSpawner = {
-      spawn: async (i: import('../tasks/worker-spawner').SpawnInput) => { spawnCalls.push(i); return { containerId: 'cap-c3' }; },
+      spawn: async (i: import('../tasks/runner-spawner').SpawnInput) => { spawnCalls.push(i); return { containerId: 'cap-c3' }; },
       retire: async () => {},
     };
     const { app } = await makeTestApp({}, { spawner: capturingSpawner });
@@ -419,15 +419,15 @@ describe('task routes', () => {
     const res = await app.inject({ method: 'POST', url: '/api/tasks', headers, payload: {} });
 
     expect(res.statusCode).toBe(201);
-    // config WORKER_IMAGE='w' is the fallback in makeTestApp
-    expect(spawnCalls[0]?.workerImage).toBe('w');
-    expect(res.json().workerImage).toBe('w');
+    // config RUNNER_IMAGE='w' is the fallback in makeTestApp
+    expect(spawnCalls[0]?.runnerImage).toBe('w');
+    expect(res.json().runnerImage).toBe('w');
   });
 
-  it('rejects an unknown workerImage and does not call spawn', async () => {
-    const spawnCalls: import('../tasks/worker-spawner').SpawnInput[] = [];
+  it('rejects an unknown runnerImage and does not call spawn', async () => {
+    const spawnCalls: import('../tasks/runner-spawner').SpawnInput[] = [];
     const capturingSpawner = {
-      spawn: async (i: import('../tasks/worker-spawner').SpawnInput) => { spawnCalls.push(i); return { containerId: 'cap-c4' }; },
+      spawn: async (i: import('../tasks/runner-spawner').SpawnInput) => { spawnCalls.push(i); return { containerId: 'cap-c4' }; },
       retire: async () => {},
     };
     const { app, db } = await makeTestApp({}, { spawner: capturingSpawner });
@@ -436,7 +436,7 @@ describe('task routes', () => {
     ).cookies[0];
     const headers = { cookie: `${cookie!.name}=${cookie!.value}` };
 
-    const res = await app.inject({ method: 'POST', url: '/api/tasks', headers, payload: { workerImage: 'evil:latest' } });
+    const res = await app.inject({ method: 'POST', url: '/api/tasks', headers, payload: { runnerImage: 'evil:latest' } });
 
     // create() throws → Fastify surfaces as 500
     expect(res.statusCode).toBe(500);
@@ -447,7 +447,7 @@ describe('task routes', () => {
     const [taskRow] = await (db as never as import('drizzle-orm/node-postgres').NodePgDatabase<typeof import('../db/schema')>)
       .select().from(sessions).orderBy(sessions.createdAt);
     expect(taskRow!.status).toBe(SessionStatus.FAILED);
-    expect(taskRow!.workerImage).toBe('evil:latest');
+    expect(taskRow!.runnerImage).toBe('evil:latest');
   });
 
   it('listGraph returns every session including workflow parents and steps', async () => {

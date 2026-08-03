@@ -66,7 +66,7 @@ describe('maskEnvBlob', () => {
 
 describe('RESERVED_ENV_KEYS', () => {
   it('contains the operational keys the spawner controls', () => {
-    for (const k of ['WORKER_TOKEN', 'TASK_ID', 'CONTROL_PLANE_URL', 'SESSION_DIR', 'REPO_MANIFEST', 'PROMPT', 'SESSION_MODE']) {
+    for (const k of ['RUNNER_TOKEN', 'TASK_ID', 'CONTROL_PLANE_URL', 'SESSION_DIR', 'REPO_MANIFEST', 'PROMPT', 'SESSION_MODE']) {
       expect(RESERVED_ENV_KEYS.has(k)).toBe(true);
     }
   });

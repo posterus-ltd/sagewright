@@ -121,7 +121,7 @@ describe('terminal route (live websocket)', () => {
     // in-process runtime registry has no entry for it.
     const runInteractive = vi.fn(async () => 0);
     const sessionRuntime = createSessionRuntime({
-      agentRunner: { runInteractive, complete: async () => {} } as never,
+      agentDriver: { runInteractive, complete: async () => {} } as never,
     });
     const stream = new PassThrough();
     const exec = vi.fn(async () => ({ stream, resize: vi.fn(async () => {}), close: () => stream.destroy() }));

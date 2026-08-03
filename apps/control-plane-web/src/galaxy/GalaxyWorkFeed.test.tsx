@@ -11,7 +11,7 @@ const session = (id: string): Session => ({
   kind: SessionKind.HEADLESS,
   name: `Task ${id}`,
   prompt: `Work on task ${id}`,
-  workerImage: 'sagewright-worker-codex:latest',
+  runnerImage: 'sagewright-runner-codex:latest',
   status: SessionStatus.RUNNING,
   branch: null,
   prUrl: null,

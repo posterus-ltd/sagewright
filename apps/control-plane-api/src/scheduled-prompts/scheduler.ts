@@ -6,7 +6,7 @@ import type { Db } from '../db/client';
 import { scheduledPrompts, sessions } from '../db/schema';
 import type { TaskService } from '../tasks/task-service';
 import type { WorkflowService } from '../workflows/workflow-service';
-import type { WorkflowRunner } from '../workflows/workflow-runner';
+import type { WorkflowDriver } from '../workflows/workflow-driver';
 
 // Minimal logging surface so the scheduler can run with the Fastify logger in prod
 // and fall back to `console` in tests without pulling in a logger dependency.
@@ -29,7 +29,7 @@ interface SchedulerDeps {
   taskService: TaskService;
   // Optional so existing task-only tests construct the scheduler without workflows.
   workflowService?: WorkflowService;
-  workflowRunner?: WorkflowRunner;
+  workflowDriver?: WorkflowDriver;
   logger?: SchedulerLogger;
   // Defaults to always-leader (single-instance dev) when not injected.
   leadership?: Leadership;
@@ -43,8 +43,8 @@ export interface SchedulableRow {
   prompt: string;
   enabled: boolean;
   createdBy: string;
-  // Pins which worker harness runs the task; null inherits the creator's default.
-  workerImage: string | null;
+  // Pins which runner harness runs the task; null inherits the creator's default.
+  runnerImage: string | null;
 }
 
 /**
@@ -90,7 +90,7 @@ export const createScheduler = (deps: SchedulerDeps) => {
       }
       // create() now persists a FAILED session even on bad input, but it still
       // re-throws — catch here so a failed run is logged, not silently dropped.
-      await deps.taskService.create({ prompt: row.prompt, workerImage: row.workerImage ?? undefined }, row.createdBy, {
+      await deps.taskService.create({ prompt: row.prompt, runnerImage: row.runnerImage ?? undefined }, row.createdBy, {
         scheduledPromptId: row.id,
       });
     } catch (err) {
@@ -124,8 +124,8 @@ export const createScheduler = (deps: SchedulerDeps) => {
   // so their ids never collide with scheduled-prompt ids in the jobs map. On fire
   // they start a workflow run (the agent picks repos via the creator's config).
   const registerWorkflowCrons = async (): Promise<void> => {
-    if (!deps.workflowService || !deps.workflowRunner) return;
-    const runner = deps.workflowRunner;
+    if (!deps.workflowService || !deps.workflowDriver) return;
+    const driver = deps.workflowDriver;
     const workflows = await deps.workflowService.list();
     for (const wf of workflows) {
       if (!wf.enabled || wf.definition.trigger.type !== TriggerType.CRON || !wf.definition.trigger.cron) continue;
@@ -147,7 +147,7 @@ export const createScheduler = (deps: SchedulerDeps) => {
               ) {
                 return;
               }
-              await runner.start(wf.id, wf.createdBy);
+              await driver.start(wf.id, wf.createdBy);
             })().catch((err) => logger.error(err, `workflow ${wf.id} cron failed`));
           }),
         );

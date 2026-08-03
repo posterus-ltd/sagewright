@@ -25,7 +25,7 @@ import {
 } from 'react';
 import { useNavigate } from 'react-router';
 
-import { useCreateSession, useTasks, useWorkers } from '../../api/hooks';
+import { useCreateSession, useTasks, useRunners } from '../../api/hooks';
 
 enum Mode {
   ROOT = 'root',
@@ -54,16 +54,16 @@ export const CommandPalette: FC<CommandPaletteProps> = ({
   const navigate = useNavigate();
   const createSession = useCreateSession();
   const { data: tasks = [] } = useTasks(true);
-  const { data: workerData } = useWorkers();
-  const workers = workerData?.workers ?? [];
-  const defaultImage = workerData?.defaultImage ?? null;
+  const { data: runnerData } = useRunners();
+  const runners = runnerData?.runners ?? [];
+  const defaultImage = runnerData?.defaultImage ?? null;
   const [mode, setMode] = useState<Mode>(Mode.ROOT);
   const [query, setQuery] = useState('');
   const [active, setActive] = useState(0);
 
-  const startSession = async (workerImage?: string): Promise<void> => {
+  const startSession = async (runnerImage?: string): Promise<void> => {
     const task = await createSession.mutateAsync(
-      workerImage ? { workerImage } : {},
+      runnerImage ? { runnerImage } : {},
     );
     onClose();
     navigate(`/tasks/${task.id}`);
@@ -92,9 +92,9 @@ export const CommandPalette: FC<CommandPaletteProps> = ({
           },
         }));
     }
-    const nonDefaultWorkers = defaultImage
-      ? workers.filter((w) => w.image !== defaultImage)
-      : workers;
+    const nonDefaultRunners = defaultImage
+      ? runners.filter((w) => w.image !== defaultImage)
+      : runners;
     const actions: Item[] = [
       {
         id: 'new-session',
@@ -102,7 +102,7 @@ export const CommandPalette: FC<CommandPaletteProps> = ({
         icon: <AddRounded fontSize="small" />,
         run: () => startSession(),
       },
-      ...nonDefaultWorkers.map((w) => ({
+      ...nonDefaultRunners.map((w) => ({
         id: `new-session-${w.image}`,
         label: `New session (${w.name})`,
         icon: <AddRounded fontSize="small" />,
@@ -125,7 +125,7 @@ export const CommandPalette: FC<CommandPaletteProps> = ({
     // startSession/enterSessions/onNewScheduledTask are stable enough for the
     // palette's lifetime; the list only needs to recompute on input changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode, query, tasks, workers, defaultImage]);
+  }, [mode, query, tasks, runners, defaultImage]);
 
   const highlighted = Math.min(active, Math.max(items.length - 1, 0));
 

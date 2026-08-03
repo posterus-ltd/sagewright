@@ -2,7 +2,7 @@ import { eq } from 'drizzle-orm';
 import { describe, expect, it, vi } from 'vitest';
 
 import { scheduledPrompts, sessions } from '../db/schema';
-import { fakeScheduler, fakeWorkerRegistry, makeTestApp } from '../test/make-test-app';
+import { fakeScheduler, fakeRunnerRegistry, makeTestApp } from '../test/make-test-app';
 
 const login = async (app: Awaited<ReturnType<typeof makeTestApp>>['app']) => {
   const res = await app.inject({ method: 'POST', url: '/api/login', payload: { displayName: 'al', password: 'pw' } });
@@ -35,11 +35,11 @@ describe('scheduled-prompt routes', () => {
     expect(after.json()).toHaveLength(0);
   });
 
-  it('persists and returns the chosen workerImage', async () => {
+  it('persists and returns the chosen runnerImage', async () => {
     const { app } = await makeTestApp({
       scheduler: fakeScheduler(),
-      workerRegistry: fakeWorkerRegistry({
-        list: async () => [{ id: 'codex', image: 'sagewright-worker-codex:latest', name: 'Codex', description: '' }],
+      runnerRegistry: fakeRunnerRegistry({
+        list: async () => [{ id: 'codex', image: 'sagewright-runner-codex:latest', name: 'Codex', description: '' }],
       }),
     });
     const headers = await login(app);
@@ -48,16 +48,16 @@ describe('scheduled-prompt routes', () => {
       method: 'POST',
       url: '/api/scheduled-prompts',
       headers,
-      payload: { cron: '0 9 * * *', prompt: 'daily triage', workerImage: 'sagewright-worker-codex:latest' },
+      payload: { cron: '0 9 * * *', prompt: 'daily triage', runnerImage: 'sagewright-runner-codex:latest' },
     });
     expect(created.statusCode).toBe(201);
-    expect((created.json() as { workerImage: string }).workerImage).toBe('sagewright-worker-codex:latest');
+    expect((created.json() as { runnerImage: string }).runnerImage).toBe('sagewright-runner-codex:latest');
 
     const list = await app.inject({ method: 'GET', url: '/api/scheduled-prompts', headers });
-    expect((list.json() as { workerImage: string }[])[0]!.workerImage).toBe('sagewright-worker-codex:latest');
+    expect((list.json() as { runnerImage: string }[])[0]!.runnerImage).toBe('sagewright-runner-codex:latest');
   });
 
-  it('defaults workerImage to null when none is chosen', async () => {
+  it('defaults runnerImage to null when none is chosen', async () => {
     const { app } = await makeTestApp({ scheduler: fakeScheduler() });
     const headers = await login(app);
 
@@ -67,7 +67,7 @@ describe('scheduled-prompt routes', () => {
       headers,
       payload: { cron: '0 9 * * *', prompt: 'daily triage' },
     });
-    expect((created.json() as { workerImage: string | null }).workerImage).toBeNull();
+    expect((created.json() as { runnerImage: string | null }).runnerImage).toBeNull();
   });
 
   it('deletes a scheduled prompt that has already spawned sessions', async () => {
@@ -96,7 +96,7 @@ describe('scheduled-prompt routes', () => {
     expect(after!.scheduledPromptId).toBeNull();
   });
 
-  it('rejects an unknown workerImage on create', async () => {
+  it('rejects an unknown runnerImage on create', async () => {
     const { app } = await makeTestApp({ scheduler: fakeScheduler() });
     const headers = await login(app);
     const res = await app.inject({
@@ -104,12 +104,12 @@ describe('scheduled-prompt routes', () => {
       url: '/api/scheduled-prompts',
       headers,
       // Default fake registry only knows image 'w'.
-      payload: { cron: '0 9 * * *', prompt: 'x', workerImage: 'gone:latest' },
+      payload: { cron: '0 9 * * *', prompt: 'x', runnerImage: 'gone:latest' },
     });
     expect(res.statusCode).toBe(400);
   });
 
-  it('rejects an unknown workerImage on update', async () => {
+  it('rejects an unknown runnerImage on update', async () => {
     const { app } = await makeTestApp({ scheduler: fakeScheduler() });
     const headers = await login(app);
     const created = await app.inject({
@@ -124,7 +124,7 @@ describe('scheduled-prompt routes', () => {
       method: 'PUT',
       url: `/api/scheduled-prompts/${id}`,
       headers,
-      payload: { workerImage: 'gone:latest' },
+      payload: { runnerImage: 'gone:latest' },
     });
     expect(res.statusCode).toBe(400);
   });

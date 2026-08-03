@@ -1,12 +1,12 @@
 // Parsing and masking for the per-user custom `.env` blob that the control-plane
-// injects into a worker container at spawn time. The blob is authored by a user in
+// injects into a runner container at spawn time. The blob is authored by a user in
 // Settings, persisted encrypted, and overrides the org secrets baked into the image.
 
 // Operational vars the spawner owns. These must never be overridable by a user's
-// blob (a malicious value could hijack the worker token or repoint the control plane),
+// blob (a malicious value could hijack the runner token or repoint the control plane),
 // so the spawner strips them from the parsed user env before merging.
 export const RESERVED_ENV_KEYS = new Set<string>([
-  'WORKER_TOKEN',
+  'RUNNER_TOKEN',
   'TASK_ID',
   'CONTROL_PLANE_URL',
   'SESSION_DIR',

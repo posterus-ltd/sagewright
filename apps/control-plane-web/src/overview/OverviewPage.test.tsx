@@ -22,7 +22,7 @@ const task = (overrides: Partial<Session> = {}): Session => ({
   kind: 'interactive',
   name: 'A session',
   prompt: null,
-  workerImage: null,
+  runnerImage: null,
   status: SessionStatus.RUNNING,
   branch: null,
   prUrl: null,
@@ -49,12 +49,12 @@ const jsonResponse = (body: unknown) =>
     headers: { 'content-type': 'application/json' },
   });
 
-const stubApi = (tasks: Session[], workers: { id: string; image: string; name: string; description: string }[] = []) => {
+const stubApi = (tasks: Session[], runners: { id: string; image: string; name: string; description: string }[] = []) => {
   vi.stubGlobal(
     'fetch',
     vi.fn(async (url: string) => {
-      if (url.startsWith('/api/workers'))
-        return jsonResponse({ workers, defaultImage: null });
+      if (url.startsWith('/api/runners'))
+        return jsonResponse({ runners, defaultImage: null });
       return jsonResponse(tasks);
     }),
   );
@@ -165,16 +165,16 @@ describe('OverviewPage', () => {
     );
   });
 
-  it('tallies worker utilization and teammate activity over the last week', async () => {
+  it('tallies runner utilization and teammate activity over the last week', async () => {
     stubApi(
       [
-        task({ id: 't1', createdBy: 'alice', workerImage: 'sagewright-worker-claude-code' }),
-        task({ id: 't2', createdBy: 'alice', workerImage: 'sagewright-worker-claude-code' }),
-        task({ id: 't3', createdBy: 'bob', workerImage: 'sagewright-worker-codex' }),
+        task({ id: 't1', createdBy: 'alice', runnerImage: 'sagewright-runner-claude-code' }),
+        task({ id: 't2', createdBy: 'alice', runnerImage: 'sagewright-runner-claude-code' }),
+        task({ id: 't3', createdBy: 'bob', runnerImage: 'sagewright-runner-codex' }),
       ],
       [
-        { id: 'claude-code', image: 'sagewright-worker-claude-code', name: 'Claude Code', description: '' },
-        { id: 'codex', image: 'sagewright-worker-codex', name: 'Codex', description: '' },
+        { id: 'claude-code', image: 'sagewright-runner-claude-code', name: 'Claude Code', description: '' },
+        { id: 'codex', image: 'sagewright-runner-codex', name: 'Codex', description: '' },
       ],
     );
     renderPage();

@@ -24,7 +24,7 @@ const rowFor = (r: typeof scheduledPrompts.$inferSelect) => ({
   prompt: r.prompt,
   enabled: r.enabled,
   createdBy: r.createdBy,
-  workerImage: r.workerImage,
+  runnerImage: r.runnerImage,
 });
 
 describe('createScheduler', () => {
@@ -45,7 +45,7 @@ describe('createScheduler', () => {
     scheduler.stopAll();
 
     // Runs as the prompt's creator — not a synthetic 'scheduler' user — so the
-    // task gets that user's repos, default worker, and env.
+    // task gets that user's repos, default runner, and env.
     expect(create).toHaveBeenCalledWith({ prompt: 'do it' }, 'alice', { scheduledPromptId: row.id });
     await vi.waitFor(async () => {
       const [after] = await db.select().from(scheduledPrompts).where(eq(scheduledPrompts.id, row.id));
@@ -53,9 +53,9 @@ describe('createScheduler', () => {
     });
   });
 
-  it('forwards the prompt-pinned workerImage to the task', async () => {
+  it('forwards the prompt-pinned runnerImage to the task', async () => {
     const { db } = await makeTestApp();
-    const row = await insertPrompt(db, { workerImage: 'sagewright-worker-codex:latest' });
+    const row = await insertPrompt(db, { runnerImage: 'sagewright-runner-codex:latest' });
     const create = vi.fn(async () => ({}) as never);
 
     const scheduler = createScheduler({ db: db as never, taskService: { create } as never });
@@ -64,7 +64,7 @@ describe('createScheduler', () => {
     scheduler.stopAll();
 
     expect(create).toHaveBeenCalledWith(
-      { prompt: 'do it', workerImage: 'sagewright-worker-codex:latest' },
+      { prompt: 'do it', runnerImage: 'sagewright-runner-codex:latest' },
       'alice',
       { scheduledPromptId: row.id },
     );
@@ -72,9 +72,9 @@ describe('createScheduler', () => {
 
   it('logs the error and still stamps lastRunAt when a run fails to start', async () => {
     const { db } = await makeTestApp();
-    const row = await insertPrompt(db, { workerImage: 'gone:latest' });
+    const row = await insertPrompt(db, { runnerImage: 'gone:latest' });
     const create = vi.fn(async () => {
-      throw new Error('unknown worker image: gone:latest');
+      throw new Error('unknown runner image: gone:latest');
     });
     const logger = { error: vi.fn() };
 
@@ -133,7 +133,7 @@ describe('createScheduler', () => {
   it('does not register a disabled prompt', () => {
     const create = vi.fn();
     const scheduler = createScheduler({ db: {} as never, taskService: { create } as never });
-    scheduler.register({ id: 'sp2', cron: '* * * * * *', prompt: 'x', enabled: false, createdBy: 'alice', workerImage: null });
+    scheduler.register({ id: 'sp2', cron: '* * * * * *', prompt: 'x', enabled: false, createdBy: 'alice', runnerImage: null });
     scheduler.stopAll();
     expect(create).not.toHaveBeenCalled();
   });
@@ -209,8 +209,8 @@ describe('createScheduler', () => {
           trigger: { type: TriggerType.CRON, cron: '* * * * * *' },
           maxIterations: 1,
           steps: [
-            { key: 'work', name: 'Work', kind: WorkflowStepKind.WORK, workerImage: 'w', goal: 'g' },
-            { key: 'check', name: 'Check', kind: WorkflowStepKind.VALIDATION, workerImage: 'w', goal: 'v' },
+            { key: 'work', name: 'Work', kind: WorkflowStepKind.WORK, runnerImage: 'w', goal: 'g' },
+            { key: 'check', name: 'Check', kind: WorkflowStepKind.VALIDATION, runnerImage: 'w', goal: 'v' },
           ],
         },
         enabled: true,
@@ -224,7 +224,7 @@ describe('createScheduler', () => {
       db: db as never,
       taskService: { create: vi.fn() } as never,
       workflowService,
-      workflowRunner: { start } as never,
+      workflowDriver: { start } as never,
     });
     await scheduler.start();
     await new Promise((r) => setTimeout(r, 2200)); // ≥2 ticks
@@ -243,8 +243,8 @@ describe('createScheduler', () => {
           trigger: { type: TriggerType.CRON, cron: '* * * * * *' },
           maxIterations: 1,
           steps: [
-            { key: 'work', name: 'Work', kind: WorkflowStepKind.WORK, workerImage: 'w', goal: 'g' },
-            { key: 'check', name: 'Check', kind: WorkflowStepKind.VALIDATION, workerImage: 'w', goal: 'v' },
+            { key: 'work', name: 'Work', kind: WorkflowStepKind.WORK, runnerImage: 'w', goal: 'g' },
+            { key: 'check', name: 'Check', kind: WorkflowStepKind.VALIDATION, runnerImage: 'w', goal: 'v' },
           ],
         },
         enabled: true,
@@ -257,7 +257,7 @@ describe('createScheduler', () => {
       db: db as never,
       taskService: { create: vi.fn() } as never,
       workflowService,
-      workflowRunner: { start } as never,
+      workflowDriver: { start } as never,
     });
     await scheduler.start();
     await vi.waitFor(() => expect(start).toHaveBeenCalledWith(wf.id, 'al'), { timeout: 2000 });
