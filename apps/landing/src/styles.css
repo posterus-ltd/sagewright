@@ -327,7 +327,7 @@ body {
 
 /* ---- global error boundary ---- */
 
-/* Centre the single fault window in the viewport, mirroring the access gate. */
+/* Centre the single fault window in the viewport. */
 .error {
   min-height: 100vh;
   justify-content: center;
@@ -425,62 +425,6 @@ body {
   color: var(--muted);
   white-space: pre-wrap;
   word-break: break-word;
-}
-
-/* ---- private-beta access gate ---- */
-
-/* Vertically centre the single locked window in the viewport. */
-.access {
-  min-height: 100vh;
-  justify-content: center;
-}
-
-.access__body {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
-}
-
-.access__lock {
-  margin: 0;
-  font-family: var(--font-mono);
-  font-size: clamp(8px, 2.4vw, 12px);
-  line-height: 1.15;
-  color: var(--accent);
-  text-shadow: 0 0 18px var(--accent-glow);
-  white-space: pre;
-}
-
-.access__prompt {
-  margin-top: 24px;
-}
-
-/* The terminal gag: launching the control plane is "permission denied". */
-.access__denied {
-  display: inline-block;
-  margin-top: 4px;
-  color: var(--muted);
-}
-
-.access__title {
-  margin: 20px 0 0;
-  font-family: var(--font-mono);
-  font-size: clamp(20px, 5vw, 32px);
-  font-weight: 700;
-  letter-spacing: 0.18em;
-  color: var(--text);
-}
-
-.access__lead {
-  margin-top: 12px;
-  max-width: 52ch;
-}
-
-.access__back {
-  margin: 24px 0 0;
-  font-family: var(--font-mono);
-  font-size: 12px;
 }
 
 /* ---- features ---- */

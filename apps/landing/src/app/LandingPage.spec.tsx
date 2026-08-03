@@ -1,16 +1,9 @@
 import { fireEvent, render, within } from '@testing-library/react';
-import { MemoryRouter } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { LandingPage } from './LandingPage';
 
-// The CTA is a react-router <Link>, so the page needs a router ancestor.
-const renderPage = () =>
-  render(
-    <MemoryRouter>
-      <LandingPage />
-    </MemoryRouter>,
-  );
+const renderPage = () => render(<LandingPage />);
 
 describe('LandingPage', () => {
   // The decorative AsciiField mounts a <canvas>; jsdom has no 2D context, so we
@@ -36,6 +29,8 @@ describe('LandingPage', () => {
     expect(hero.tagName).toBe('IMG');
     expect(hero.getAttribute('src')).toBe('/screenshots/canvas.png');
     expect(getByAltText(/opencode harness/i)).toBeTruthy();
+    expect(getByAltText(/Galaxy view/i)).toBeTruthy();
+    expect(getByAltText(/visual workflow builder/i)).toBeTruthy();
     expect(getByAltText(/Edit scheduled task/i)).toBeTruthy();
     expect(
       getByAltText(/docker ps listing the running Sagewright fleet/i),
@@ -48,11 +43,13 @@ describe('LandingPage', () => {
     expect(getByText(/a harness that\s+orchestrates harnesses/i)).toBeTruthy();
   });
 
-  it('routes the CTA to the private-beta access gate', () => {
+  it('points the CTA at the open-source repo', () => {
     const { getByText } = renderPage();
-    const cta = getByText('❯ launch_control_plane') as HTMLAnchorElement;
+    const cta = getByText('❯ open source — try it now') as HTMLAnchorElement;
     expect(cta.tagName).toBe('A');
-    expect(cta.getAttribute('href')).toBe('/access');
+    expect(cta.getAttribute('href')).toBe(
+      'https://github.com/posterus-ltd/sagewright',
+    );
   });
 
   it('describes the work → validate → reflect loop', () => {
@@ -114,6 +111,17 @@ describe('LandingPage', () => {
     expect(getByText(/only sees whatever you mount as its work tree/i)).toBeTruthy();
   });
 
+  it('pitches extensibility through custom workers and the coming marketplace', () => {
+    const { getByText } = renderPage();
+    expect(getByText(/extensible by design/i)).toBeTruthy();
+    expect(
+      getByText(/creating a\s+custom worker/i),
+    ).toBeTruthy();
+    // The workers/ tree shows the built-in harnesses plus the extension slot.
+    expect(getByText(/your-harness\//)).toBeTruthy();
+    expect(getByText(/worker marketplace — coming soon/i)).toBeTruthy();
+  });
+
   it('promises no vendor lock-in', () => {
     const { getByText } = renderPage();
     expect(getByText(/no vendor lock-in/i)).toBeTruthy();
@@ -159,8 +167,8 @@ describe('LandingPage', () => {
     it('steps to the next screenshot and wraps past the ends', () => {
       const result = openFirst();
       fireEvent.click(result.getByRole('button', { name: /next screenshot/i }));
-      expect(enlargedSrc(result)).toBe('/screenshots/harness.png');
-      // Two steps back from harness.png wraps around to the last shot.
+      expect(enlargedSrc(result)).toBe('/screenshots/work-galaxy.png');
+      // Two steps back from work-galaxy.png wraps around to the last shot.
       const prev = () =>
         fireEvent.click(
           result.getByRole('button', { name: /previous screenshot/i }),
@@ -173,7 +181,7 @@ describe('LandingPage', () => {
     it('navigates with the arrow keys', () => {
       const result = openFirst();
       fireEvent.keyDown(window, { key: 'ArrowRight' });
-      expect(enlargedSrc(result)).toBe('/screenshots/harness.png');
+      expect(enlargedSrc(result)).toBe('/screenshots/work-galaxy.png');
       fireEvent.keyDown(window, { key: 'ArrowLeft' });
       expect(enlargedSrc(result)).toBe('/screenshots/canvas.png');
     });
