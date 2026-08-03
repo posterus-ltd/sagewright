@@ -17,7 +17,7 @@ import type { FC } from 'react';
 import { Link as RouterLink } from 'react-router';
 
 import { StatusChip } from '../components/StatusChip';
-import { WorkerChip } from '../components/WorkerChip';
+import { RunnerChip } from '../components/RunnerChip';
 import type { StarNode } from './galaxy-graph-data';
 
 interface TaskDetailPanelProps {
@@ -124,7 +124,7 @@ export const TaskDetailPanel: FC<TaskDetailPanelProps> = ({
             </Box>
             <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
               <StatusChip status={node.status} />
-              <WorkerChip image={node.workerImage} />
+              <RunnerChip image={node.runnerImage} />
             </Box>
             {node.prompt && (
               <Box

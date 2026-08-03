@@ -33,7 +33,7 @@ export const saveReposSchema = z.object({
 });
 export type SaveReposInput = z.infer<typeof saveReposSchema>;
 
-/** One repo's worktree handed to a worker via REPO_MANIFEST. */
+/** One repo's worktree handed to a runner via REPO_MANIFEST. */
 export const repoManifestEntrySchema = z.object({
   slug: z.string(),
   url: z.string(),
@@ -45,7 +45,7 @@ export type RepoManifestEntry = z.infer<typeof repoManifestEntrySchema>;
 /** Starting a session takes no input; an optional prompt seeds the agent. */
 export const createSessionSchema = z.object({
   prompt: z.string().min(1).optional(),
-  workerImage: z.string().optional(),
+  runnerImage: z.string().optional(),
 });
 export type CreateSessionInput = z.infer<typeof createSessionSchema>;
 
@@ -54,7 +54,7 @@ export const sessionSchema = z.object({
   kind: z.enum(SessionKind),
   name: z.string().nullable(),
   prompt: z.string().nullable(),
-  workerImage: z.string().nullable(),
+  runnerImage: z.string().nullable(),
   status: z.enum(SessionStatus),
   branch: z.string().nullable(),
   prUrl: z.string().nullable(),
@@ -101,8 +101,8 @@ export const scheduledPromptSchema = z.object({
   cron: z.string().min(1),
   prompt: z.string().min(1),
   enabled: z.boolean(),
-  // Pins which worker harness runs this task; null inherits the creator's default.
-  workerImage: z.string().nullable(),
+  // Pins which runner harness runs this task; null inherits the creator's default.
+  runnerImage: z.string().nullable(),
   lastRunAt: z.string().nullable(),
   createdAt: z.string(),
 });
@@ -112,7 +112,7 @@ export const createScheduledPromptSchema = z.object({
   cron: z.string().min(1),
   prompt: z.string().min(1),
   enabled: z.boolean().default(true),
-  workerImage: z.string().optional(),
+  runnerImage: z.string().optional(),
 });
 export type CreateScheduledPromptInput = z.infer<
   typeof createScheduledPromptSchema

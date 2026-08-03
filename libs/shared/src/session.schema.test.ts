@@ -31,12 +31,12 @@ describe('createScheduledPromptSchema', () => {
     expect(() => createScheduledPromptSchema.parse({ cron: '', prompt: 'x' })).toThrow();
   });
 
-  it('accepts an optional workerImage to pin which harness runs the task', () => {
-    const parsed = createScheduledPromptSchema.parse({ cron: '* * * * *', prompt: 'do it', workerImage: 'sagewright-worker-codex:latest' });
-    expect(parsed.workerImage).toBe('sagewright-worker-codex:latest');
+  it('accepts an optional runnerImage to pin which harness runs the task', () => {
+    const parsed = createScheduledPromptSchema.parse({ cron: '* * * * *', prompt: 'do it', runnerImage: 'sagewright-runner-codex:latest' });
+    expect(parsed.runnerImage).toBe('sagewright-runner-codex:latest');
   });
 
-  it('omits workerImage when not provided (inherit the creator default)', () => {
-    expect(createScheduledPromptSchema.parse({ cron: '* * * * *', prompt: 'do it' }).workerImage).toBeUndefined();
+  it('omits runnerImage when not provided (inherit the creator default)', () => {
+    expect(createScheduledPromptSchema.parse({ cron: '* * * * *', prompt: 'do it' }).runnerImage).toBeUndefined();
   });
 });

@@ -14,13 +14,13 @@ import { createRepoService } from '../repos/repo-service';
 import { createSessionRuntime } from '../sessions/session-runtime';
 import { createSessionService } from '../sessions/session-service';
 import { createTaskService } from '../tasks/task-service';
-import type { SpawnInput } from '../tasks/worker-spawner';
+import type { SpawnInput } from '../tasks/runner-spawner';
 import { createUserEnvService } from '../user-env/user-env-service';
 import { createGithubCredentialService } from '../github/github-credential-service';
 import { createUserSettingsService } from '../user-settings/user-settings-service';
 import { createCanvasLayoutService } from '../canvas-layout/canvas-layout-service';
 import { createWorkflowService } from '../workflows/workflow-service';
-import type { WorkerRegistry } from '../workers/worker-registry';
+import type { RunnerRegistry } from '../runners/runner-registry';
 
 // Final-state schema (post-0003) for pg-mem. Adaptations:
 //   1. gen_random_uuid() registered manually (not built-in to pg-mem).
@@ -42,7 +42,7 @@ const TABLE_STMTS = [
     "prompt" text NOT NULL,
     "enabled" boolean DEFAULT true NOT NULL,
     "created_by" text NOT NULL,
-    "worker_image" text,
+    "runner_image" text,
     "last_run_at" timestamp with time zone,
     "created_at" timestamp with time zone DEFAULT now() NOT NULL
   )`,
@@ -65,7 +65,7 @@ const TABLE_STMTS = [
     "error" text,
     "trigger_context" jsonb,
     "archived_at" timestamp with time zone,
-    "worker_image" text,
+    "runner_image" text,
     "started_at" timestamp with time zone,
     "ended_at" timestamp with time zone,
     "created_at" timestamp with time zone DEFAULT now() NOT NULL,
@@ -112,7 +112,7 @@ const TABLE_STMTS = [
   `CREATE TABLE "user_settings" (
     "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
     "user_key" text NOT NULL UNIQUE,
-    "default_worker_image" text,
+    "default_runner_image" text,
     "updated_at" timestamp with time zone DEFAULT now() NOT NULL
   )`,
   `CREATE TABLE "workflows" (
@@ -132,8 +132,8 @@ const TABLE_STMTS = [
   `CREATE INDEX "events_session_created_idx" ON "events" USING btree ("session_id","created_at")`,
 ];
 
-/** Fake worker registry for tests; returns one worker by default. */
-export const fakeWorkerRegistry = (over: Partial<WorkerRegistry> = {}): WorkerRegistry => ({
+/** Fake runner registry for tests; returns one runner by default. */
+export const fakeRunnerRegistry = (over: Partial<RunnerRegistry> = {}): RunnerRegistry => ({
   list: async () => [{ id: 'w', image: 'w', name: 'W', description: '' }],
   ...over,
 });
@@ -236,7 +236,7 @@ export const makeTestApp = async (
     APP_PASSWORD: 'pw',
     SESSION_SECRET: 'sec',
     SECRETS_KEY: '0123456789abcdef0123456789abcdef',
-    WORKER_IMAGE: 'w',
+    RUNNER_IMAGE: 'w',
     CONTROL_PLANE_URL: 'http://c',
   });
 
@@ -251,7 +251,7 @@ export const makeTestApp = async (
 
   const spawner = opts.spawner ?? defaultSpawner;
 
-  const workerRegistry = overrides.workerRegistry ?? fakeWorkerRegistry();
+  const runnerRegistry = overrides.runnerRegistry ?? fakeRunnerRegistry();
   const defaultVolume = fakeVolume();
   const defaultScheduler = fakeScheduler();
 
@@ -278,14 +278,14 @@ export const makeTestApp = async (
     githubCredentialService,
   });
 
-  // No-op agent runner — headless drive is exercised in agent-runner's own unit tests.
-  const defaultAgentRunner = {
+  // No-op agent driver — headless drive is exercised in agent-driver's own unit tests.
+  const defaultAgentDriver = {
     run: async () => {},
     execStep: async () => ({ exitCode: 0 }),
     runInteractive: async () => 0,
     complete: async () => {},
   };
-  const sessionRuntime = createSessionRuntime({ agentRunner: defaultAgentRunner as never });
+  const sessionRuntime = createSessionRuntime({ agentDriver: defaultAgentDriver as never });
 
   // The single provisioning seam; the task service delegates spawning to it.
   const sessionService = createSessionService({
@@ -298,7 +298,7 @@ export const makeTestApp = async (
     userEnvService,
     githubCredentialService,
     userSettingsService,
-    workerRegistry,
+    runnerRegistry,
   });
 
   // Default task service wired to the test db
@@ -307,7 +307,7 @@ export const makeTestApp = async (
     eventStore,
     eventBus,
     spawner: spawner as never,
-    agentRunner: defaultAgentRunner as never,
+    agentDriver: defaultAgentDriver as never,
     volume: defaultVolume,
     sessionService,
     sessionRuntime,
@@ -321,8 +321,8 @@ export const makeTestApp = async (
   };
 
   const workflowService = overrides.workflowService ?? createWorkflowService({ db: db as never });
-  // No-op runner by default — the orchestrator loop has its own unit tests.
-  const defaultWorkflowRunner = { start: async () => null, resume: async () => undefined };
+  // No-op driver by default — the orchestrator loop has its own unit tests.
+  const defaultWorkflowDriver = { start: async () => null, resume: async () => undefined };
 
   const app = buildApp({
     config,
@@ -338,11 +338,11 @@ export const makeTestApp = async (
     userSettingsService,
     canvasLayoutService,
     workflowService,
-    workflowRunner: defaultWorkflowRunner,
+    workflowDriver: defaultWorkflowDriver,
     containerTerminal: defaultContainerTerminal,
     volume: defaultVolume,
     scheduler: defaultScheduler,
-    workerRegistry,
+    runnerRegistry,
     ...overrides,
   });
 

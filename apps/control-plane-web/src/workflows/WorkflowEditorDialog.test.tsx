@@ -13,28 +13,28 @@ const jsonResponse = (body: unknown) =>
     headers: { 'content-type': 'application/json' },
   });
 
-const WORKERS_RESPONSE = {
-  workers: [
+const RUNNERS_RESPONSE = {
+  runners: [
     {
       id: 'claude-code',
-      image: 'sagewright-worker-claude-code:latest',
+      image: 'sagewright-runner-claude-code:latest',
       name: 'Claude Code',
       description: '',
     },
     {
       id: 'opencode',
-      image: 'sagewright-worker-opencode:latest',
+      image: 'sagewright-runner-opencode:latest',
       name: 'opencode',
       description: '',
     },
     {
       id: 'codex',
-      image: 'sagewright-worker-codex:latest',
+      image: 'sagewright-runner-codex:latest',
       name: 'Codex',
       description: '',
     },
   ],
-  defaultImage: 'sagewright-worker-claude-code:latest',
+  defaultImage: 'sagewright-runner-claude-code:latest',
 };
 
 const stubFetch = (
@@ -43,7 +43,7 @@ const stubFetch = (
   const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
     const custom = overrides(url, init);
     if (custom) return custom;
-    if (url === '/api/workers') return jsonResponse(WORKERS_RESPONSE);
+    if (url === '/api/runners') return jsonResponse(RUNNERS_RESPONSE);
     return jsonResponse({});
   });
   vi.stubGlobal('fetch', fetchMock);
@@ -169,7 +169,7 @@ describe('WorkflowEditorDialog', () => {
     expect(within(stepCard(0)).queryByLabelText('Prompt')).toBeNull();
     expect(within(stepCard(0)).getByText('Plan (BDD+SDD)')).toBeTruthy();
     expect(within(stepCard(0)).getByTestId('step-kind-icon')).toBeTruthy();
-    expect(within(stepCard(0)).getByTestId('step-worker-icon')).toBeTruthy();
+    expect(within(stepCard(0)).getByTestId('step-runner-icon')).toBeTruthy();
 
     expandStep(0);
     await waitFor(() =>
@@ -196,11 +196,11 @@ describe('WorkflowEditorDialog', () => {
     renderDialog();
     await waitFor(() => expect(stepCard(2)).toBeTruthy());
     expandStep(0);
-    // Wait for the worker list to load so a newly added step gets a real
-    // default workerImage instead of the empty-string fallback.
+    // Wait for the runner list to load so a newly added step gets a real
+    // default runnerImage instead of the empty-string fallback.
     await waitFor(() =>
       expect(
-        within(stepCard(0)).getByRole('combobox', { name: 'Worker' })
+        within(stepCard(0)).getByRole('combobox', { name: 'Runner' })
           .textContent,
       ).toBe('Claude Code'),
     );
@@ -262,7 +262,7 @@ describe('WorkflowEditorDialog', () => {
     ).toBe(true);
   });
 
-  it('creates a workflow with an added step and a chosen worker', async () => {
+  it('creates a workflow with an added step and a chosen runner', async () => {
     const fetchMock = stubFetch((url, init) => {
       if (init?.method === 'POST' && url === '/api/workflows') {
         return jsonResponse({
@@ -285,7 +285,7 @@ describe('WorkflowEditorDialog', () => {
       target: { value: 'Do the codex thing' },
     });
     fireEvent.mouseDown(
-      within(stepCard(3)).getByRole('combobox', { name: 'Worker' }),
+      within(stepCard(3)).getByRole('combobox', { name: 'Runner' }),
     );
     fireEvent.click(await screen.findByRole('option', { name: 'Codex' }));
 
@@ -306,7 +306,7 @@ describe('WorkflowEditorDialog', () => {
       key: 'new-step',
       name: 'New step',
       goal: 'Do the codex thing',
-      workerImage: 'sagewright-worker-codex:latest',
+      runnerImage: 'sagewright-runner-codex:latest',
       kind: 'work',
     });
     expect(body.enabled).toBe(true);

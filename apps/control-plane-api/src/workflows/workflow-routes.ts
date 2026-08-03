@@ -3,12 +3,12 @@ import type { FastifyInstance } from 'fastify';
 
 import type { AppDeps } from '../app';
 
-/** Validate every step's worker image against the built/registered images. */
-const assertWorkerImages = async (deps: AppDeps, images: string[]): Promise<string | null> => {
-  const workers = await deps.workerRegistry.list();
-  const known = new Set(workers.map((w) => w.image));
+/** Validate every step's runner image against the built/registered images. */
+const assertRunnerImages = async (deps: AppDeps, images: string[]): Promise<string | null> => {
+  const runners = await deps.runnerRegistry.list();
+  const known = new Set(runners.map((w) => w.image));
   const missing = images.find((image) => !known.has(image));
-  return missing ? `unknown worker image: ${missing}` : null;
+  return missing ? `unknown runner image: ${missing}` : null;
 };
 
 /** Validate a cron trigger's expression — the scheduler silently skips a cron it
@@ -36,7 +36,7 @@ export const registerWorkflowRoutes = (app: FastifyInstance, deps: AppDeps): voi
     const parsed = workflowInputSchema.safeParse(req.body);
     if (!parsed.success) return reply.code(400).send({ error: 'invalid workflow', details: parsed.error.issues });
     const err =
-      (await assertWorkerImages(deps, parsed.data.definition.steps.map((s) => s.workerImage))) ??
+      (await assertRunnerImages(deps, parsed.data.definition.steps.map((s) => s.runnerImage))) ??
       assertCronTrigger(deps, parsed.data.definition.trigger);
     if (err) return reply.code(400).send({ error: err });
     const wf = await deps.workflowService.create(parsed.data, req.displayName!);
@@ -50,7 +50,7 @@ export const registerWorkflowRoutes = (app: FastifyInstance, deps: AppDeps): voi
     if (!parsed.success) return reply.code(400).send({ error: 'invalid workflow', details: parsed.error.issues });
     if (parsed.data.definition) {
       const err =
-        (await assertWorkerImages(deps, parsed.data.definition.steps.map((s) => s.workerImage))) ??
+        (await assertRunnerImages(deps, parsed.data.definition.steps.map((s) => s.runnerImage))) ??
         assertCronTrigger(deps, parsed.data.definition.trigger);
       if (err) return reply.code(400).send({ error: err });
     }
@@ -72,7 +72,7 @@ export const registerWorkflowRoutes = (app: FastifyInstance, deps: AppDeps): voi
     const { id } = req.params as { id: string };
     const parsed = runWorkflowSchema.safeParse(req.body ?? {});
     if (!parsed.success) return reply.code(400).send({ error: 'invalid run input' });
-    const run = await deps.workflowRunner.start(id, req.displayName!, parsed.data.input);
+    const run = await deps.workflowDriver.start(id, req.displayName!, parsed.data.input);
     if (!run) return reply.code(404).send({ error: 'workflow not found' });
     return reply.code(201).send(run);
   });

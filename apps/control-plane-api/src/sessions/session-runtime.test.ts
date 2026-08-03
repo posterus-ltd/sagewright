@@ -4,7 +4,7 @@ import { createSessionRuntime, type StartSessionInput } from './session-runtime'
 
 const tick = (): Promise<void> => new Promise((r) => setTimeout(r, 0));
 
-// A controllable fake AgentRunner: runInteractive hands over a live exec via onSession
+// A controllable fake AgentDriver: runInteractive hands over a live exec via onSession
 // and stays pending until endTurn() resolves it (mirroring a turn ending). It exposes
 // the onData tee so the test can push PTY bytes through the runtime's fan-out.
 const fakeRunner = () => {
@@ -24,7 +24,7 @@ const fakeRunner = () => {
   };
   const complete = vi.fn(async () => undefined);
   return {
-    runner: { runInteractive, complete } as never,
+    driver: { runInteractive, complete } as never,
     endTurn: () => resolveTurn?.(0),
     feed: (b: Buffer) => onData?.(b),
     sessions,
@@ -43,7 +43,7 @@ const startInput = (sessionId: string): StartSessionInput => ({
 describe('session-runtime', () => {
   it('starts one live exec per session and refuses resume while live (the attach lock)', () => {
     const f = fakeRunner();
-    const rt = createSessionRuntime({ agentRunner: f.runner });
+    const rt = createSessionRuntime({ agentDriver: f.driver });
 
     rt.start(startInput('s1'));
 
@@ -53,7 +53,7 @@ describe('session-runtime', () => {
   });
 
   it('refuses a racing resume during the exec spawn window and starts only one turn', async () => {
-    // A runner whose exec lands LATE (next tick), mirroring docker exec taking time to
+    // A driver whose exec lands LATE (next tick), mirroring docker exec taking time to
     // resolve. The lock must be the synchronous `live` flag, not the async `exec` handle:
     // if it were exec-bound, two resumes firing inside the spawn window would both pass
     // the guard and start two concurrent turns on the same container.
@@ -67,7 +67,7 @@ describe('session-runtime', () => {
         if (isFirst) endFirst = res;
       });
     };
-    const rt = createSessionRuntime({ agentRunner: { runInteractive, complete: vi.fn() } as never });
+    const rt = createSessionRuntime({ agentDriver: { runInteractive, complete: vi.fn() } as never });
 
     rt.start(startInput('s1'));
     expect(rt.isLive('s1')).toBe(true); // live the instant the turn is claimed, before exec resolves
@@ -84,7 +84,7 @@ describe('session-runtime', () => {
 
   it('goes not-live after the turn ends; resume re-establishes with continue-agent', async () => {
     const f = fakeRunner();
-    const rt = createSessionRuntime({ agentRunner: f.runner });
+    const rt = createSessionRuntime({ agentDriver: f.driver });
 
     rt.start(startInput('s1'));
     f.endTurn();
@@ -98,7 +98,7 @@ describe('session-runtime', () => {
 
   it('fans live PTY bytes to attached sinks; detaching one stops its feed but keeps the exec alive', () => {
     const f = fakeRunner();
-    const rt = createSessionRuntime({ agentRunner: f.runner });
+    const rt = createSessionRuntime({ agentDriver: f.driver });
 
     rt.start(startInput('s1'));
     const got: Buffer[] = [];
@@ -115,7 +115,7 @@ describe('session-runtime', () => {
 
   it('routes write and resize to the live exec', () => {
     const f = fakeRunner();
-    const rt = createSessionRuntime({ agentRunner: f.runner });
+    const rt = createSessionRuntime({ agentDriver: f.driver });
 
     rt.start(startInput('s1'));
     rt.write('s1', 'ls\n');
@@ -127,7 +127,7 @@ describe('session-runtime', () => {
 
   it('ensure rebuilds a resting entry (post-restart) that attach and resume can use', () => {
     const f = fakeRunner();
-    const rt = createSessionRuntime({ agentRunner: f.runner });
+    const rt = createSessionRuntime({ agentDriver: f.driver });
 
     expect(rt.has('s1')).toBe(false);
     rt.ensure(startInput('s1'));
@@ -144,7 +144,7 @@ describe('session-runtime', () => {
 
   it('ensure never clobbers an existing entry (idempotent under racing attaches)', () => {
     const f = fakeRunner();
-    const rt = createSessionRuntime({ agentRunner: f.runner });
+    const rt = createSessionRuntime({ agentDriver: f.driver });
 
     rt.start(startInput('s1'));
     rt.ensure({ ...startInput('s1'), containerId: 'other' });
@@ -154,9 +154,9 @@ describe('session-runtime', () => {
     expect(f.sessions[0]!.write).toHaveBeenCalledWith('x');
   });
 
-  it('complete delegates to the agent runner with the session context and drops the entry', async () => {
+  it('complete delegates to the agent driver with the session context and drops the entry', async () => {
     const f = fakeRunner();
-    const rt = createSessionRuntime({ agentRunner: f.runner });
+    const rt = createSessionRuntime({ agentDriver: f.driver });
 
     rt.start({
       sessionId: 's1',

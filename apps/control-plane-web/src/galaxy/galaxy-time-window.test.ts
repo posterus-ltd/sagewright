@@ -11,7 +11,7 @@ const session = (over: Partial<Session>): Session => ({
   kind: SessionKind.HEADLESS,
   name: null,
   prompt: null,
-  workerImage: 'claude-code',
+  runnerImage: 'claude-code',
   status: SessionStatus.DONE,
   branch: null,
   prUrl: null,

@@ -10,9 +10,9 @@
 //   node scripts/dev-control-plane.mjs   (or: npm run dev:control-plane)
 //
 // Notes:
-// - Worker images are NOT rebuilt here (they're spawned on demand, not part of
+// - Runner images are NOT rebuilt here (they're spawned on demand, not part of
 //   the control plane). Run ./start.sh or `docker compose --profile build build`
-//   when you change anything under workers/.
+//   when you change anything under runners/.
 // - The first run rebuilds once so the container reflects your current tree,
 //   then it watches. Ctrl-C to stop.
 

@@ -15,7 +15,7 @@ import {
   SPECTRUM_SWEET,
   SPECTRUM_TICKS,
   WINDOW_TITLE,
-  WORKERS_TREE,
+  RUNNERS_TREE,
   WRIGHT_BANNER,
 } from './ascii';
 
@@ -40,7 +40,7 @@ const FEATURES: readonly Feature[] = [
     icon: '▶',
     tag: 'fleet',
     title: 'many agents, one control plane',
-    body: 'Fan out routine work across repos. A fresh worker container spawns per task — credentials never leave the control plane.',
+    body: 'Fan out routine work across repos. A fresh runner container spawns per task — credentials never leave the control plane.',
   },
   {
     icon: '⚙',
@@ -58,7 +58,7 @@ const FEATURES: readonly Feature[] = [
     icon: '↺',
     tag: 'loop',
     title: 'self-correcting agents',
-    body: 'Each worker loops work → validate → reflect up to three times before eskalating to a human.',
+    body: 'Each runner loops work → validate → reflect up to three times before eskalating to a human.',
   },
   {
     icon: '⎋',
@@ -182,7 +182,7 @@ const SHOTS: readonly Screenshot[] = [
   {
     addr: 'app.sagewright.dev/session/opencode',
     src: '/screenshots/harness.png',
-    alt: "A single agent session filling the screen: the opencode harness running inside a Sagewright worker, its 'ask anything' prompt set to Build with GPT-5.3, above a session path and MCP status line.",
+    alt: "A single agent session filling the screen: the opencode harness running inside a Sagewright runner, its 'ask anything' prompt set to Build with GPT-5.3, above a session path and MCP status line.",
     meta: '[byoh] · your own harness (opencode here), running inside a session',
   },
   {
@@ -200,8 +200,8 @@ const SHOTS: readonly Screenshot[] = [
   {
     addr: 'root@fleet:~ ❯ docker ps',
     src: '/screenshots/docker-ps.png',
-    alt: 'Output of docker ps listing the running Sagewright fleet: an agentic-control-plane container, two sagewright-worker containers, and a postgres:16 container — each up and healthy with their ports.',
-    meta: 'the running fleet · control plane, workers & postgres — each within a container',
+    alt: 'Output of docker ps listing the running Sagewright fleet: an agentic-control-plane container, two sagewright-runner containers, and a postgres:16 container — each up and healthy with their ports.',
+    meta: 'the running fleet · control plane, runners & postgres — each within a container',
   },
 ];
 
@@ -609,7 +609,7 @@ export const LandingPage: FC = () => (
         <p className="section-lead">
           <span className="hl">Scheduled, recurring agents.</span> Put routine
           work on a cron and forget it — triage, dependency bumps, weekly
-          reports, cleanups. Each run spins up a fresh worker and lands as a PR
+          reports, cleanups. Each run spins up a fresh runner and lands as a PR
           or an update while you&rsquo;re away.
         </p>
 
@@ -654,11 +654,11 @@ export const LandingPage: FC = () => (
       <Window title="security.model">
         <p className="section-lead">
           <span className="hl">Security by isolation.</span> Every agent runs
-          in its own sandboxed worker container, separated from other agents and
+          in its own sandboxed runner container, separated from other agents and
           from the control plane runtime.
         </p>
         <p className="section-lead">
-          A worker only sees whatever you mount as its work tree. If a repo,
+          A runner only sees whatever you mount as its work tree. If a repo,
           file path, or secret is not mounted into that sandbox, the agent
           cannot access it.
         </p>
@@ -669,28 +669,28 @@ export const LandingPage: FC = () => (
         </p>
       </Window>
 
-      <Window title="workers/">
+      <Window title="runners/">
         <p className="section-lead">
           <span className="hl">Extensible by design.</span> The control plane
-          is harness-agnostic — a worker is just a Docker image it discovers
+          is harness-agnostic — a runner is just a Docker image it discovers
           and orchestrates. Extend the fleet&rsquo;s capabilities by creating a
-          custom worker: one folder, a Dockerfile that installs any CLI
+          custom runner: one folder, a Dockerfile that installs any CLI
           harness, and two small scripts. No plugin API to learn, no fork to
           maintain — if it runs in a terminal, it can join the fleet.
         </p>
 
         <p className="prompt prompt--sm">
-          <span className="prompt__sigil">❯</span> tree workers/
+          <span className="prompt__sigil">❯</span> tree runners/
         </p>
-        <pre className="audit">{WORKERS_TREE}</pre>
+        <pre className="audit">{RUNNERS_TREE}</pre>
         <p className="diagram__caption">
           Four harnesses ship built in — Claude Code, Codex, opencode, and Pi.
           Yours is a folder away.
         </p>
 
         <p className="section-lead">
-          <span className="hl">Worker marketplace — coming soon.</span> Publish
-          your workers and pull ready-made ones from the community — new
+          <span className="hl">Runner marketplace — coming soon.</span> Publish
+          your runners and pull ready-made ones from the community — new
           harnesses, toolchains, and specialized agents, ready to drop into
           your fleet.
         </p>
@@ -698,7 +698,7 @@ export const LandingPage: FC = () => (
 
       <Window title="quickstart.sh">
         <p className="section-lead">
-          <span className="hl">Powered by Docker.</span> Control plane, workers,
+          <span className="hl">Powered by Docker.</span> Control plane, runners,
           and Postgres all ship as containers — nothing to install on your
           machine.
         </p>

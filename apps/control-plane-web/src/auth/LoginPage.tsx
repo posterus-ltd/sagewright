@@ -42,7 +42,7 @@ const highlights: Highlight[] = [
   {
     icon: <HubRounded fontSize="small" />,
     title: 'Many agents, one control plane',
-    body: 'A fresh worker per task; secrets never leave the control plane.',
+    body: 'A fresh runner per task; secrets never leave the control plane.',
   },
   {
     icon: <PhoneIphoneRounded fontSize="small" />,

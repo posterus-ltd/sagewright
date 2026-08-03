@@ -2,7 +2,7 @@ import { Button, Stack } from '@mui/material';
 import { WorkflowStepKind, type WorkflowStep } from '@sagewright/shared';
 import type { FC } from 'react';
 
-import { useWorkers } from '../api/hooks';
+import { useRunners } from '../api/hooks';
 import { createStep, stepFieldIssues, type WorkflowIssue } from './workflow-builder';
 import { WorkflowStepCard } from './WorkflowStepCard';
 
@@ -17,9 +17,9 @@ export const WorkflowStepList: FC<WorkflowStepListProps> = ({
   issues,
   onChange,
 }) => {
-  const { data } = useWorkers();
-  const workers = data?.workers ?? [];
-  const defaultWorkerImage = data?.defaultImage ?? workers[0]?.image ?? '';
+  const { data } = useRunners();
+  const runners = data?.runners ?? [];
+  const defaultRunnerImage = data?.defaultImage ?? runners[0]?.image ?? '';
 
   const updateStep = (index: number, patch: Partial<WorkflowStep>): void => {
     onChange(steps.map((s, i) => (i === index ? { ...s, ...patch } : s)));
@@ -36,7 +36,7 @@ export const WorkflowStepList: FC<WorkflowStepListProps> = ({
   const addStep = (kind: WorkflowStepKind): void => {
     onChange([
       ...steps,
-      createStep(kind, steps.map((s) => s.key), defaultWorkerImage),
+      createStep(kind, steps.map((s) => s.key), defaultRunnerImage),
     ]);
   };
 
@@ -60,7 +60,7 @@ export const WorkflowStepList: FC<WorkflowStepListProps> = ({
           step={step}
           index={index}
           otherSteps={steps.filter((_, i) => i !== index)}
-          workers={workers}
+          runners={runners}
           fieldErrors={stepFieldIssues(issues, index)}
           onChange={(patch) => updateStep(index, patch)}
           onKindChange={(kind) => updateStep(index, kindPatch(step, kind))}

@@ -12,7 +12,7 @@ export interface StepNodeData {
   stepKey: string;
   name: string;
   kind: WorkflowStepKind;
-  workerImage: string;
+  runnerImage: string;
   status: StepNodeStatus;
   iteration: number | null;
   taskId: string | null;
@@ -56,7 +56,7 @@ export const buildWorkflowGraph = (
         stepKey: s.key,
         name: s.name,
         kind: s.kind,
-        workerImage: s.workerImage,
+        runnerImage: s.runnerImage,
         status: toStatus(task),
         iteration: task?.iteration ?? null,
         taskId: task?.id ?? null,

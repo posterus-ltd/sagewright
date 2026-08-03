@@ -41,7 +41,7 @@ const authenticatedUrl = (url: string, token: string | undefined): string => {
 /**
  * Owns every write to the shared volume's git state: clone/pull of the main
  * clones at `<vol>/repos/<slug>` and the per-session worktrees at
- * `<vol>/sessions/<taskId>/<slug>`. Workers only read/write inside their own
+ * `<vol>/sessions/<taskId>/<slug>`. Runners only read/write inside their own
  * worktree dirs — they never clone, pull, or run worktree commands — so all
  * shared-`.git` writes are funnelled through here and serialized per-slug.
  */
@@ -129,7 +129,7 @@ export const createVolume = (deps: VolumeDeps = {}) => {
     };
 
   /** Ensure each repo is present, then add a fresh worktree per repo on `branch`
-   *  (defaults to `task/<id>`). Returns the manifest handed to the worker. `token`
+   *  (defaults to `task/<id>`). Returns the manifest handed to the runner. `token`
    *  (the requester's own GITHUB_TOKEN override) authenticates the clone/pull when
    *  provided. `id` keys the worktree dir (a taskId for sessions, a runId for runs). */
   const addSessionWorktrees = async (
@@ -140,7 +140,7 @@ export const createVolume = (deps: VolumeDeps = {}) => {
   ): Promise<RepoManifestEntry[]> => {
     const manifest: RepoManifestEntry[] = [];
     // Always materialise the session dir up front so a repo-less session still
-    // has a valid cwd for the worker and the terminal's `docker exec --workdir`.
+    // has a valid cwd for the runner and the terminal's `docker exec --workdir`.
     await makeDir(sessionDir(id));
     for (const repo of repos) {
       const { defaultBranch } = await cloneOrPull(repo, token);

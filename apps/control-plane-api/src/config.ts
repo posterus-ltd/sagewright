@@ -9,9 +9,9 @@ const configSchema = z.object({
   LINEAR_API_KEY: z.string().optional(),
   GITHUB_TOKEN: z.string().optional(),
   CONTROL_PLANE_URL: z.string().min(1),
-  WORKER_IMAGE: z.string().min(1),
-  WORKER_NETWORK: z.string().min(1).default('sage_default'),
-  WORKER_VOLUME: z.string().min(1).default('sagewright-repos'),
+  RUNNER_IMAGE: z.string().min(1),
+  RUNNER_NETWORK: z.string().min(1).default('sage_default'),
+  RUNNER_VOLUME: z.string().min(1).default('sagewright-repos'),
   PORT: z.coerce.number().default(3000),
   // Whether sessions may be permanently deleted after archiving. Deployments that
   // must retain session history for auditing set 'false' — archiving keeps working,
@@ -41,7 +41,7 @@ const configSchema = z.object({
 export interface AppConfig {
   databaseUrl: string; appPassword: string; sessionSecret: string; secretsKey: string;
   linearApiKey?: string; githubToken?: string; controlPlaneUrl: string;
-  workerImage: string; workerNetwork: string; workerVolume: string; port: number;
+  runnerImage: string; runnerNetwork: string; runnerVolume: string; port: number;
   allowSessionDeletion: boolean;
   schedulerTimezone?: string;
 }
@@ -52,7 +52,7 @@ export const loadConfig = (env: NodeJS.ProcessEnv): AppConfig => {
     databaseUrl: c.DATABASE_URL, appPassword: c.APP_PASSWORD, sessionSecret: c.SESSION_SECRET,
     secretsKey: c.SECRETS_KEY,
     linearApiKey: c.LINEAR_API_KEY, githubToken: c.GITHUB_TOKEN, controlPlaneUrl: c.CONTROL_PLANE_URL,
-    workerImage: c.WORKER_IMAGE, workerNetwork: c.WORKER_NETWORK, workerVolume: c.WORKER_VOLUME, port: c.PORT,
+    runnerImage: c.RUNNER_IMAGE, runnerNetwork: c.RUNNER_NETWORK, runnerVolume: c.RUNNER_VOLUME, port: c.PORT,
     allowSessionDeletion: c.ALLOW_SESSION_DELETION === 'true',
     schedulerTimezone: c.SCHEDULER_TIMEZONE,
   };

@@ -4,7 +4,7 @@ import type { FC } from 'react';
 import { useNavigate } from 'react-router';
 import { WorkflowStepKind } from '@sagewright/shared';
 
-import { WorkerChip } from '../components/WorkerChip';
+import { RunnerChip } from '../components/RunnerChip';
 import { NODE_H, NODE_W, StepNodeStatus, type StepNodeData } from './workflow-graph';
 
 const STATUS_COLOR: Record<StepNodeStatus, 'default' | 'info' | 'success' | 'error'> = {
@@ -59,7 +59,7 @@ export const WorkflowStepNode: FC<NodeProps<Node<StepNodeData>>> = ({ data }) =>
           variant="outlined"
           color={data.kind === WorkflowStepKind.VALIDATION ? 'warning' : 'default'}
         />
-        <WorkerChip image={data.workerImage} />
+        <RunnerChip image={data.runnerImage} />
         {data.iteration != null && data.iteration > 0 && (
           <Chip label={`iter ${data.iteration}`} size="small" variant="outlined" />
         )}

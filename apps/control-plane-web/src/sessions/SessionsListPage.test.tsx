@@ -22,7 +22,7 @@ const task = (overrides: Partial<Session>): Session => ({
   kind: 'interactive',
   name: 'My session',
   prompt: null,
-  workerImage: null,
+  runnerImage: null,
   status: SessionStatus.RUNNING,
   branch: null,
   prUrl: null,
@@ -40,7 +40,7 @@ const jsonResponse = (body: unknown) =>
     headers: { 'content-type': 'application/json' },
   });
 
-// Serves the tasks list plus the workers lookup the WorkerChip needs; mutations
+// Serves the tasks list plus the runners lookup the RunnerChip needs; mutations
 // echo a task back. Pass a recorder to assert on specific calls.
 const stubApi = (
   tasks: Session[],
@@ -48,8 +48,8 @@ const stubApi = (
 ) => {
   const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
     onCall?.(url, init);
-    if (url.startsWith('/api/workers'))
-      return jsonResponse({ workers: [], defaultImage: null });
+    if (url.startsWith('/api/runners'))
+      return jsonResponse({ runners: [], defaultImage: null });
     if (init && init.method && init.method !== 'GET')
       return jsonResponse(tasks[0]);
     return jsonResponse(tasks);

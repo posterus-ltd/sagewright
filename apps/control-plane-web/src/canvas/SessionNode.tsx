@@ -10,7 +10,7 @@ import { useState, type FC, type KeyboardEvent, type MouseEvent } from 'react';
 
 import { useTask, useUpdateTask } from '../api/hooks';
 import { StatusChip } from '../components/StatusChip';
-import { WorkerChip } from '../components/WorkerChip';
+import { RunnerChip } from '../components/RunnerChip';
 import { SessionPanel } from '../tasks/SessionPanel';
 import { effectiveBorderColor, glowColor } from './border-colors';
 import { useCanvasActions, type SessionNodeData } from './canvas-actions';
@@ -117,14 +117,14 @@ export const SessionNode: FC<NodeProps> = ({ id, data, selected }) => {
             </Typography>
           </Tooltip>
         )}
-        {/* Reveal-on-hover cluster: session state, worker label, and actions. Kept visible while the color popover
+        {/* Reveal-on-hover cluster: session state, runner label, and actions. Kept visible while the color popover
             is open, since it portals outside the widget and would otherwise drop the hover/focus-within state. */}
         <Box
           className="session-node__actions"
           sx={{ display: 'flex', alignItems: 'center', gap: 0.5, opacity: colorAnchor ? 1 : undefined }}
         >
           {task != null && <StatusChip status={task.status} />}
-          {task?.workerImage != null && <WorkerChip image={task.workerImage} />}
+          {task?.runnerImage != null && <RunnerChip image={task.runnerImage} />}
           <Tooltip title="Rename">
             <IconButton className="nodrag" size="small" aria-label="Rename session" onClick={startEditing}>
               <EditRounded fontSize="small" />

@@ -26,7 +26,7 @@ export default defineConfig(() => ({
   plugins: [
     react(),
     // Make the control plane installable as a PWA. Generates a web manifest +
-    // a Workbox service worker that precaches the static app shell only. There
+    // a Workbox service runner that precaches the static app shell only. There
     // is deliberately no runtime/API caching (no `runtimeCaching`) and `/api` +
     // `/internal` are excluded from navigation fallback, so the SW never serves
     // stale live data or interferes with cookie auth / the dev proxy.
@@ -73,8 +73,8 @@ export default defineConfig(() => ({
       apply: 'build',
     },
   ],
-  // Uncomment this if you are using workers.
-  // worker: {
+  // Uncomment this if you are using runners.
+  // runner: {
   //   plugins: () => [ nxViteTsPaths() ],
   // },
   build: {

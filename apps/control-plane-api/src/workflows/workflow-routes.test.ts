@@ -10,19 +10,19 @@ const login = async (app: App, displayName = 'al') => {
   return { cookie: `${cookie!.name}=${cookie!.value}` };
 };
 
-// The fake worker registry exposes a single image, 'w'.
+// The fake runner registry exposes a single image, 'w'.
 const definition = {
   name: 'Implementation',
   trigger: { type: 'manual' as const },
   maxIterations: 3,
   steps: [
-    { key: 'plan', name: 'Plan', kind: 'work' as const, workerImage: 'w', goal: 'Plan it.' },
-    { key: 'implement', name: 'Implement', kind: 'work' as const, workerImage: 'w', goal: 'Build it.' },
+    { key: 'plan', name: 'Plan', kind: 'work' as const, runnerImage: 'w', goal: 'Plan it.' },
+    { key: 'implement', name: 'Implement', kind: 'work' as const, runnerImage: 'w', goal: 'Build it.' },
     {
       key: 'validate',
       name: 'Validate',
       kind: 'validation' as const,
-      workerImage: 'w',
+      runnerImage: 'w',
       goal: 'Check it.',
       onFailureGoTo: 'implement',
       validateCommands: ['echo ok'],
@@ -48,10 +48,10 @@ describe('workflow routes', () => {
     expect(got.json().definition.steps).toHaveLength(3);
   });
 
-  it('rejects a definition with an unknown worker image', async () => {
+  it('rejects a definition with an unknown runner image', async () => {
     const { app } = await makeTestApp();
     const headers = await login(app);
-    const bad = { ...definition, steps: [{ ...definition.steps[0], workerImage: 'ghost' }, definition.steps[2]] };
+    const bad = { ...definition, steps: [{ ...definition.steps[0], runnerImage: 'ghost' }, definition.steps[2]] };
     const res = await app.inject({ method: 'POST', url: '/api/workflows', headers, payload: { definition: bad } });
     expect(res.statusCode).toBe(400);
   });
@@ -59,7 +59,7 @@ describe('workflow routes', () => {
   it('rejects a definition with no validation step', async () => {
     const { app } = await makeTestApp();
     const headers = await login(app);
-    const bad = { ...definition, steps: [{ key: 'plan', name: 'Plan', kind: 'work', workerImage: 'w', goal: 'g' }] };
+    const bad = { ...definition, steps: [{ key: 'plan', name: 'Plan', kind: 'work', runnerImage: 'w', goal: 'g' }] };
     const res = await app.inject({ method: 'POST', url: '/api/workflows', headers, payload: { definition: bad } });
     expect(res.statusCode).toBe(400);
   });
@@ -110,10 +110,10 @@ describe('workflow routes', () => {
     expect((await app.inject({ method: 'GET', url: `/api/workflows/${wf.id}`, headers })).statusCode).toBe(404);
   });
 
-  it('triggers a run via the runner and returns it', async () => {
+  it('triggers a run via the driver and returns it', async () => {
     let startedWith: { id: string; input?: string } | null = null;
     const { app } = await makeTestApp({
-      workflowRunner: {
+      workflowDriver: {
         start: async (id: string, _createdBy: string, input?: string) => {
           startedWith = { id, input };
           return {

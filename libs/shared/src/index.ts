@@ -2,7 +2,7 @@ export * from './enums';
 export * from './dotenv-blob';
 export * from './session.schema';
 export * from './workflow.schema';
-export * from './worker.schema';
+export * from './runner.schema';
 export * from './canvas-layout.schema';
 export * from './event.schema';
 export * from './message.schema';

@@ -6,10 +6,10 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { loadConfig } from '../config';
 import { events, repos, sessions } from '../db/schema';
-import type { SpawnInput } from '../tasks/worker-spawner';
+import type { SpawnInput } from '../tasks/runner-spawner';
 import { createEventBus } from '../events/event-bus';
 import { createEventStore } from '../events/event-store';
-import { fakeVolume, fakeWorkerRegistry, makeTestApp } from '../test/make-test-app';
+import { fakeVolume, fakeRunnerRegistry, makeTestApp } from '../test/make-test-app';
 import { createSessionService } from './session-service';
 
 const config = loadConfig({
@@ -17,7 +17,7 @@ const config = loadConfig({
   APP_PASSWORD: 'pw',
   SESSION_SECRET: 'sec',
   SECRETS_KEY: '0123456789abcdef0123456789abcdef',
-  WORKER_IMAGE: 'w',
+  RUNNER_IMAGE: 'w',
   CONTROL_PLANE_URL: 'http://c',
 });
 
@@ -25,7 +25,7 @@ interface SetupOpts {
   envBlob?: string;
   credential?: { token: string; login: string; name: string | null; email: string };
   spawn?: (i: SpawnInput) => Promise<{ containerId: string }>;
-  defaultWorker?: string | null;
+  defaultRunner?: string | null;
   volume?: Partial<ReturnType<typeof fakeVolume>>;
 }
 
@@ -55,8 +55,8 @@ const setup = async (opts: SetupOpts = {}) => {
     config,
     userEnvService: { get: async () => opts.envBlob ?? '' } as never,
     githubCredentialService: { resolve: async () => opts.credential } as never,
-    userSettingsService: { getDefaultWorker: async () => opts.defaultWorker ?? null } as never,
-    workerRegistry: fakeWorkerRegistry(),
+    userSettingsService: { getDefaultRunner: async () => opts.defaultRunner ?? null } as never,
+    runnerRegistry: fakeRunnerRegistry(),
   });
 
   return { db, service, spawns, removeSessionWorktrees, retire: spawner.retire };
@@ -73,7 +73,7 @@ const eventsFor = async (db: Awaited<ReturnType<typeof makeTestApp>>['db'], id: 
 describe('session-service spawnSession', () => {
   it('injects GITHUB_TOKEN and strips reserved env keys before spawning', async () => {
     const { service, spawns } = await setup({
-      envBlob: 'FOO=bar\nWORKER_TOKEN=leak\n',
+      envBlob: 'FOO=bar\nRUNNER_TOKEN=leak\n',
       credential: { token: 'ght', login: 'u', name: 'u', email: 'e' },
     });
 
@@ -81,7 +81,7 @@ describe('session-service spawnSession', () => {
 
     expect(spawns).toHaveLength(1);
     expect(spawns[0]!.userEnv.FOO).toBe('bar');
-    expect(spawns[0]!.userEnv.WORKER_TOKEN).toBeUndefined();
+    expect(spawns[0]!.userEnv.RUNNER_TOKEN).toBeUndefined();
     expect(spawns[0]!.userEnv.GITHUB_TOKEN).toBe('ght');
   });
 
@@ -143,12 +143,12 @@ describe('session-service spawnSession', () => {
     ).toBe(false);
   });
 
-  it('rejects an unknown worker image with a FAILED session', async () => {
+  it('rejects an unknown runner image with a FAILED session', async () => {
     const { db, service } = await setup();
 
     await expect(
-      service.spawnSession({ kind: SessionKind.HEADLESS, createdBy: 'al', workerImage: 'not-registered' }),
-    ).rejects.toThrow(/unknown worker image/);
+      service.spawnSession({ kind: SessionKind.HEADLESS, createdBy: 'al', runnerImage: 'not-registered' }),
+    ).rejects.toThrow(/unknown runner image/);
 
     const [row] = await db.select().from(sessions).orderBy(sessions.createdAt).limit(1);
     expect(row!.status).toBe(SessionStatus.FAILED);

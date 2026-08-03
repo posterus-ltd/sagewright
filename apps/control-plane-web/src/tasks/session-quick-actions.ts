@@ -39,7 +39,7 @@ export interface SessionQuickActionDescriptor {
   input?: string;
 }
 
-// Workers run different agent TUIs (claude-code, codex, opencode, pi), so
+// Runners run different agent TUIs (claude-code, codex, opencode, pi), so
 // actions speak the common denominator: natural-language prompts submitted with
 // Enter, plus the Enter/Esc keys every TUI uses for confirm/dismiss.
 const ENTER = '\r';

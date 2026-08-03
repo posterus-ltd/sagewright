@@ -50,9 +50,9 @@ describe('CommandPalette', () => {
     expect(screen.getByText('Schedule a task')).toBeTruthy();
   });
 
-  it('lists a "New session (Name)" action per non-default worker; the default is the plain entry', async () => {
-    const workers = {
-      workers: [
+  it('lists a "New session (Name)" action per non-default runner; the default is the plain entry', async () => {
+    const runners = {
+      runners: [
         { id: 'opencode', image: 'opencode:latest', name: 'Opencode', description: '' },
         { id: 'codex', image: 'codex:latest', name: 'Codex', description: '' },
       ],
@@ -60,13 +60,13 @@ describe('CommandPalette', () => {
     };
     vi.stubGlobal(
       'fetch',
-      vi.fn(async (url: string) => (url.includes('/api/workers') ? json(workers) : json([]))),
+      vi.fn(async (url: string) => (url.includes('/api/runners') ? json(runners) : json([]))),
     );
     renderPalette();
 
     expect(await screen.findByText('New session')).toBeTruthy();
     expect(await screen.findByText('New session (Codex)')).toBeTruthy();
-    // The default worker is represented by the plain "New session", not a parenthesized entry.
+    // The default runner is represented by the plain "New session", not a parenthesized entry.
     expect(screen.queryByText('New session (Opencode)')).toBeNull();
   });
 
