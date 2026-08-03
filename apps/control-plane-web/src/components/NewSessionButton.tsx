@@ -2,7 +2,7 @@ import { type ButtonProps } from '@mui/material';
 import { type Session } from '@sagewright/shared';
 import { type FC, type ReactNode } from 'react';
 
-import { useCreateSession, useWorkers } from '../api/hooks';
+import { useCreateSession, useRunners } from '../api/hooks';
 import { SplitButton } from './SplitButton';
 
 interface Props {
@@ -20,22 +20,22 @@ export const NewSessionButton: FC<Props> = ({
   variant,
   startIcon = undefined,
 }) => {
-  const { data } = useWorkers();
-  const workers = data?.workers ?? [];
+  const { data } = useRunners();
+  const runners = data?.runners ?? [];
   const defaultImage = data?.defaultImage ?? null;
 
   const createSession = useCreateSession();
 
-  const create = async (workerImage: string): Promise<void> => {
-    const task = await createSession.mutateAsync({ workerImage });
+  const create = async (runnerImage: string): Promise<void> => {
+    const task = await createSession.mutateAsync({ runnerImage });
     onCreated(task);
   };
 
   // The configured default only applies if it maps to a real, available image; otherwise the
-  // first available worker leads. This avoids ever launching the operator fallback blindly when
+  // first available runner leads. This avoids ever launching the operator fallback blindly when
   // its image isn't built (which would 404 at container create).
-  const primary = workers.find((w) => w.image === defaultImage) ?? workers[0] ?? null;
-  const rest = workers.filter((w) => w.image !== primary?.image);
+  const primary = runners.find((w) => w.image === defaultImage) ?? runners[0] ?? null;
+  const rest = runners.filter((w) => w.image !== primary?.image);
 
   const options = (primary ? [primary, ...rest] : []).map((w) => ({
     id: w.image,
@@ -54,7 +54,7 @@ export const NewSessionButton: FC<Props> = ({
       options={options}
       onSelect={(id) => void create(id)}
       startIcon={startIcon}
-      disabled={createSession.isPending || workers.length === 0}
+      disabled={createSession.isPending || runners.length === 0}
       size={size}
       variant={variant}
     />

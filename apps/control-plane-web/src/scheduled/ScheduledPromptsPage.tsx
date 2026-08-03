@@ -18,7 +18,7 @@ import { useEffect, useMemo, useState, type FC } from 'react';
 import { describeCron } from '../components/CronEditor';
 import { Header } from '../components/Header';
 import { MainContainer } from '../components/MainContainer';
-import { WorkerChip } from '../components/WorkerChip';
+import { RunnerChip } from '../components/RunnerChip';
 import {
   useDeleteScheduledPrompt,
   useScheduledPrompts,
@@ -130,12 +130,12 @@ export const ScheduledPromptsPage: FC = () => {
       { field: 'cron', headerName: 'Cron', width: 140 },
       { field: 'prompt', headerName: 'Prompt', flex: 2, minWidth: 220 },
       {
-        field: 'worker',
-        headerName: 'Worker',
+        field: 'runner',
+        headerName: 'Runner',
         width: 140,
         sortable: false,
-        // Empty when inheriting the creator's default worker.
-        renderCell: (params) => <WorkerChip image={params.row.workerImage} />,
+        // Empty when inheriting the creator's default runner.
+        renderCell: (params) => <RunnerChip image={params.row.runnerImage} />,
       },
       {
         field: 'nextRun',

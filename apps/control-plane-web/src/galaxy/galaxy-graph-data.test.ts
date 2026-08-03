@@ -15,7 +15,7 @@ const session = (over: Partial<Session>): Session => ({
   kind: 'headless',
   name: null,
   prompt: null,
-  workerImage: 'claude-code',
+  runnerImage: 'claude-code',
   status: SessionStatus.RUNNING,
   branch: null,
   prUrl: null,
@@ -37,14 +37,14 @@ const session = (over: Partial<Session>): Session => ({
 });
 
 describe('buildGalaxyGraph', () => {
-  it('creates one node per session, labeled and clustered by workerImage', () => {
-    const { nodes } = buildGalaxyGraph([session({ id: 'a', workerImage: 'claude-code', name: 'Fix bug' })]);
+  it('creates one node per session, labeled and clustered by runnerImage', () => {
+    const { nodes } = buildGalaxyGraph([session({ id: 'a', runnerImage: 'claude-code', name: 'Fix bug' })]);
     expect(nodes).toHaveLength(1);
     expect(nodes[0]).toMatchObject({ id: 'a', name: 'Fix bug', clusterId: 'claude-code', isHub: false });
   });
 
-  it('falls back to an "unassigned" cluster when a session has no workerImage', () => {
-    const { nodes } = buildGalaxyGraph([session({ id: 'a', workerImage: null })]);
+  it('falls back to an "unassigned" cluster when a session has no runnerImage', () => {
+    const { nodes } = buildGalaxyGraph([session({ id: 'a', runnerImage: null })]);
     expect(nodes[0]!.clusterId).toBe('unassigned');
   });
 
@@ -76,9 +76,9 @@ describe('buildGalaxyGraph', () => {
 
   it('gives every session in the same cluster the same anchor point, and different clusters different anchors', () => {
     const sessions = [
-      session({ id: 'a', workerImage: 'claude-code' }),
-      session({ id: 'b', workerImage: 'claude-code' }),
-      session({ id: 'c', workerImage: 'codex' }),
+      session({ id: 'a', runnerImage: 'claude-code' }),
+      session({ id: 'b', runnerImage: 'claude-code' }),
+      session({ id: 'c', runnerImage: 'codex' }),
     ];
     const { nodes } = buildGalaxyGraph(sessions);
     const [a, b, c] = nodes;
@@ -87,8 +87,8 @@ describe('buildGalaxyGraph', () => {
   });
 
   it('anchor positions are stable regardless of input order (sorted by cluster id)', () => {
-    const forward = buildGalaxyGraph([session({ id: 'a', workerImage: 'claude-code' }), session({ id: 'b', workerImage: 'codex' })]);
-    const reversed = buildGalaxyGraph([session({ id: 'b', workerImage: 'codex' }), session({ id: 'a', workerImage: 'claude-code' })]);
+    const forward = buildGalaxyGraph([session({ id: 'a', runnerImage: 'claude-code' }), session({ id: 'b', runnerImage: 'codex' })]);
+    const reversed = buildGalaxyGraph([session({ id: 'b', runnerImage: 'codex' }), session({ id: 'a', runnerImage: 'claude-code' })]);
     const anchorFor = (graph: typeof forward, clusterId: string) => graph.nodes.find((n) => n.clusterId === clusterId)!.anchor;
     expect(anchorFor(forward, 'claude-code')).toEqual(anchorFor(reversed, 'claude-code'));
     expect(anchorFor(forward, 'codex')).toEqual(anchorFor(reversed, 'codex'));
@@ -96,9 +96,9 @@ describe('buildGalaxyGraph', () => {
 });
 
 describe('clusterDisplayName', () => {
-  it('strips the registry path, worker-image prefix, and tag down to the agent name', () => {
-    expect(clusterDisplayName('sagewright-worker-opencode:latest')).toBe('opencode');
-    expect(clusterDisplayName('ghcr.io/acme/sagewright-worker-codex:v2')).toBe('codex');
+  it('strips the registry path, runner-image prefix, and tag down to the agent name', () => {
+    expect(clusterDisplayName('sagewright-runner-opencode:latest')).toBe('opencode');
+    expect(clusterDisplayName('ghcr.io/acme/sagewright-runner-codex:v2')).toBe('codex');
   });
 
   it('leaves names without image decoration untouched', () => {
@@ -110,10 +110,10 @@ describe('clusterDisplayName', () => {
 describe('clusterSummaries', () => {
   it('summarizes each cluster with totals and live (in-flight or needs-assistance) counts, sorted by id', () => {
     const { nodes } = buildGalaxyGraph([
-      session({ id: 'a', workerImage: 'codex', status: SessionStatus.DONE }),
-      session({ id: 'b', workerImage: 'claude-code', status: SessionStatus.RUNNING }),
-      session({ id: 'c', workerImage: 'claude-code', status: SessionStatus.NEEDS_ASSISTANCE }),
-      session({ id: 'd', workerImage: 'claude-code', status: SessionStatus.FAILED }),
+      session({ id: 'a', runnerImage: 'codex', status: SessionStatus.DONE }),
+      session({ id: 'b', runnerImage: 'claude-code', status: SessionStatus.RUNNING }),
+      session({ id: 'c', runnerImage: 'claude-code', status: SessionStatus.NEEDS_ASSISTANCE }),
+      session({ id: 'd', runnerImage: 'claude-code', status: SessionStatus.FAILED }),
     ]);
     const summaries = clusterSummaries(nodes);
     expect(summaries.map((s) => s.clusterId)).toEqual(['claude-code', 'codex']);

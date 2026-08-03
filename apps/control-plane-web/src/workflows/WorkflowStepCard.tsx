@@ -20,7 +20,7 @@ import {
 } from '@mui/material';
 import {
   WorkflowStepKind,
-  type WorkerImage,
+  type RunnerImage,
   type WorkflowStep,
 } from '@sagewright/shared';
 import { useState, type FC } from 'react';
@@ -32,7 +32,7 @@ interface WorkflowStepCardProps {
   index: number;
   // Every other step in the definition — candidates for this step's loop-back target.
   otherSteps: WorkflowStep[];
-  workers: WorkerImage[];
+  runners: RunnerImage[];
   fieldErrors: Record<string, string>;
   onChange: (patch: Partial<WorkflowStep>) => void;
   onKindChange: (kind: WorkflowStepKind) => void;
@@ -40,7 +40,7 @@ interface WorkflowStepCardProps {
 }
 
 // A small, non-interactive icon + tooltip — the "sparse" alternative to a text
-// chip for previewing a collapsed step's worker/kind/loop-back target at a glance.
+// chip for previewing a collapsed step's runner/kind/loop-back target at a glance.
 const MetaIcon: FC<{ title: string; testId: string; children: React.ReactNode }> = ({
   title,
   testId,
@@ -61,7 +61,7 @@ export const WorkflowStepCard: FC<WorkflowStepCardProps> = ({
   step,
   index,
   otherSteps,
-  workers,
+  runners,
   fieldErrors,
   onChange,
   onKindChange,
@@ -69,8 +69,8 @@ export const WorkflowStepCard: FC<WorkflowStepCardProps> = ({
 }) => {
   const [expanded, setExpanded] = useState(false);
   const isLoopBack = step.kind === WorkflowStepKind.VALIDATION;
-  const workerName =
-    workers.find((w) => w.image === step.workerImage)?.name || step.workerImage;
+  const runnerName =
+    runners.find((w) => w.image === step.runnerImage)?.name || step.runnerImage;
   const loopTargetName = step.onFailureGoTo
     ? (otherSteps.find((s) => s.key === step.onFailureGoTo)?.name ?? step.onFailureGoTo)
     : 'step 1 (default)';
@@ -115,7 +115,7 @@ export const WorkflowStepCard: FC<WorkflowStepCardProps> = ({
                 <BuildRounded fontSize="small" />
               )}
             </MetaIcon>
-            <MetaIcon title={workerName} testId="step-worker-icon">
+            <MetaIcon title={runnerName} testId="step-runner-icon">
               <SmartToyRounded fontSize="small" />
             </MetaIcon>
             {isLoopBack && (
@@ -153,14 +153,14 @@ export const WorkflowStepCard: FC<WorkflowStepCardProps> = ({
             />
             <TextField
               select
-              label="Worker"
-              value={step.workerImage}
-              onChange={(e) => onChange({ workerImage: e.target.value })}
-              error={Boolean(fieldErrors.workerImage)}
-              helperText={fieldErrors.workerImage}
+              label="Runner"
+              value={step.runnerImage}
+              onChange={(e) => onChange({ runnerImage: e.target.value })}
+              error={Boolean(fieldErrors.runnerImage)}
+              helperText={fieldErrors.runnerImage}
               fullWidth
             >
-              {workers.map((w) => (
+              {runners.map((w) => (
                 <MenuItem key={w.id} value={w.image}>
                   {w.name}
                 </MenuItem>

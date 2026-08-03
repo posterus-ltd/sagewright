@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { fakeWorkerRegistry, makeTestApp } from '../test/make-test-app';
+import { fakeRunnerRegistry, makeTestApp } from '../test/make-test-app';
 
 type App = Awaited<ReturnType<typeof makeTestApp>>['app'];
 
@@ -14,9 +14,9 @@ describe('user-settings routes', () => {
   it('GET returns config default when no preference stored', async () => {
     const { app } = await makeTestApp();
     const headers = await login(app);
-    const res = await app.inject({ method: 'GET', url: '/api/settings/default-worker', headers });
+    const res = await app.inject({ method: 'GET', url: '/api/settings/default-runner', headers });
     expect(res.statusCode).toBe(200);
-    // config.workerImage is 'w' in makeTestApp
+    // config.runnerImage is 'w' in makeTestApp
     expect(res.json()).toEqual({ defaultImage: 'w' });
   });
 
@@ -25,20 +25,20 @@ describe('user-settings routes', () => {
     const headers = await login(app);
     const put = await app.inject({
       method: 'PUT',
-      url: '/api/settings/default-worker',
+      url: '/api/settings/default-runner',
       headers,
       payload: { image: 'w' },
     });
     expect(put.statusCode).toBe(204);
 
-    const get = await app.inject({ method: 'GET', url: '/api/settings/default-worker', headers });
+    const get = await app.inject({ method: 'GET', url: '/api/settings/default-runner', headers });
     expect(get.json()).toEqual({ defaultImage: 'w' });
   });
 
   it('PUT upserts — second PUT replaces the stored value', async () => {
     // Need a registry that lists two images
     const { app } = await makeTestApp({
-      workerRegistry: fakeWorkerRegistry({
+      runnerRegistry: fakeRunnerRegistry({
         list: async () => [
           { id: 'first', image: 'first:latest', name: 'First', description: '' },
           { id: 'second', image: 'second:latest', name: 'Second', description: '' },
@@ -46,15 +46,15 @@ describe('user-settings routes', () => {
       }),
     });
     const headers = await login(app);
-    await app.inject({ method: 'PUT', url: '/api/settings/default-worker', headers, payload: { image: 'first:latest' } });
-    await app.inject({ method: 'PUT', url: '/api/settings/default-worker', headers, payload: { image: 'second:latest' } });
-    const get = await app.inject({ method: 'GET', url: '/api/settings/default-worker', headers });
+    await app.inject({ method: 'PUT', url: '/api/settings/default-runner', headers, payload: { image: 'first:latest' } });
+    await app.inject({ method: 'PUT', url: '/api/settings/default-runner', headers, payload: { image: 'second:latest' } });
+    const get = await app.inject({ method: 'GET', url: '/api/settings/default-runner', headers });
     expect(get.json()).toEqual({ defaultImage: 'second:latest' });
   });
 
   it('keeps each user\'s preference separate', async () => {
     const { app } = await makeTestApp({
-      workerRegistry: fakeWorkerRegistry({
+      runnerRegistry: fakeRunnerRegistry({
         list: async () => [
           { id: 'a', image: 'img-a:latest', name: 'A', description: '' },
           { id: 'b', image: 'img-b:latest', name: 'B', description: '' },
@@ -63,10 +63,10 @@ describe('user-settings routes', () => {
     });
     const al = await login(app, 'al');
     const bo = await login(app, 'bo');
-    await app.inject({ method: 'PUT', url: '/api/settings/default-worker', headers: al, payload: { image: 'img-a:latest' } });
-    await app.inject({ method: 'PUT', url: '/api/settings/default-worker', headers: bo, payload: { image: 'img-b:latest' } });
-    expect((await app.inject({ method: 'GET', url: '/api/settings/default-worker', headers: al })).json()).toEqual({ defaultImage: 'img-a:latest' });
-    expect((await app.inject({ method: 'GET', url: '/api/settings/default-worker', headers: bo })).json()).toEqual({ defaultImage: 'img-b:latest' });
+    await app.inject({ method: 'PUT', url: '/api/settings/default-runner', headers: al, payload: { image: 'img-a:latest' } });
+    await app.inject({ method: 'PUT', url: '/api/settings/default-runner', headers: bo, payload: { image: 'img-b:latest' } });
+    expect((await app.inject({ method: 'GET', url: '/api/settings/default-runner', headers: al })).json()).toEqual({ defaultImage: 'img-a:latest' });
+    expect((await app.inject({ method: 'GET', url: '/api/settings/default-runner', headers: bo })).json()).toEqual({ defaultImage: 'img-b:latest' });
   });
 
   it('PUT image NOT in registry returns 400', async () => {
@@ -74,12 +74,12 @@ describe('user-settings routes', () => {
     const headers = await login(app);
     const res = await app.inject({
       method: 'PUT',
-      url: '/api/settings/default-worker',
+      url: '/api/settings/default-runner',
       headers,
       payload: { image: 'unknown:latest' },
     });
     expect(res.statusCode).toBe(400);
-    expect(res.json().error).toBe('unknown worker image');
+    expect(res.json().error).toBe('unknown runner image');
   });
 
   it('PUT with empty string returns 400', async () => {
@@ -87,7 +87,7 @@ describe('user-settings routes', () => {
     const headers = await login(app);
     const res = await app.inject({
       method: 'PUT',
-      url: '/api/settings/default-worker',
+      url: '/api/settings/default-runner',
       headers,
       payload: { image: '' },
     });
@@ -100,7 +100,7 @@ describe('user-settings routes', () => {
     const headers = await login(app);
     const res = await app.inject({
       method: 'PUT',
-      url: '/api/settings/default-worker',
+      url: '/api/settings/default-runner',
       headers,
       payload: { notImage: 'w' },
     });
@@ -109,13 +109,13 @@ describe('user-settings routes', () => {
 
   it('GET requires auth', async () => {
     const { app } = await makeTestApp();
-    const res = await app.inject({ method: 'GET', url: '/api/settings/default-worker' });
+    const res = await app.inject({ method: 'GET', url: '/api/settings/default-runner' });
     expect(res.statusCode).toBe(401);
   });
 
   it('PUT requires auth', async () => {
     const { app } = await makeTestApp();
-    const res = await app.inject({ method: 'PUT', url: '/api/settings/default-worker', payload: { image: 'w' } });
+    const res = await app.inject({ method: 'PUT', url: '/api/settings/default-runner', payload: { image: 'w' } });
     expect(res.statusCode).toBe(401);
   });
 });

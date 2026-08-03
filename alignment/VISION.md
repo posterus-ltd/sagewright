@@ -69,9 +69,9 @@ layer on top.
 
 ## Goals
 
-- **Many agents, one control plane.** Spawn a fresh worker container per task
+- **Many agents, one control plane.** Spawn a fresh runner container per task
   on demand; the control plane owns all privileged surface (Docker socket,
-  Postgres, secrets) so credentials never spread to workers.
+  Postgres, secrets) so credentials never spread to runners.
 - **Mobile-first, resumable.** Everything an agent emits is a persisted event
   log, never a raw socket — a dropped connection replays from the last seen
   event with no gaps or duplicates.
@@ -79,7 +79,7 @@ layer on top.
   messages are picked up on the agent's next loop step.
 - **Two ways in.** Create a task from a UI chat prompt or a Linear ticket; on
   completion, status and comments mirror back to Linear.
-- **Self-correcting work.** Each worker loops work → validate → reflect up to
+- **Self-correcting work.** Each runner loops work → validate → reflect up to
   3 times before asking a human for assistance.
 - **Harness-agnostic.** Implement `opencode` first behind a `Harness`
   interface, so swapping models or providers later is a contained change, not
@@ -88,7 +88,7 @@ layer on top.
 ## V1 Scope
 
 **In:** repo + secret config · create task (UI prompt or Linear ticket) ·
-spawn worker · work/validate/reflect ×3 · live resumable streaming · interject
+spawn runner · work/validate/reflect ×3 · live resumable streaming · interject
 messages · push branch + open PR · my-sessions list + detail · persisted logs
 for auditing.
 

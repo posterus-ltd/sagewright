@@ -9,7 +9,7 @@ import { DateTime } from 'luxon';
 import { useEffect, useState, type FC, type KeyboardEvent } from 'react';
 
 import { StatusChip } from '../components/StatusChip';
-import { WorkerChip } from '../components/WorkerChip';
+import { RunnerChip } from '../components/RunnerChip';
 
 const _1_MINUTE = 60 * 1000;
 
@@ -113,11 +113,11 @@ export const buildSessionColumns = ({
     width: 140,
   },
   {
-    field: 'worker',
-    headerName: 'Worker',
+    field: 'runner',
+    headerName: 'Runner',
     width: 160,
     sortable: false,
-    renderCell: (params) => <WorkerChip image={params.row.workerImage} />,
+    renderCell: (params) => <RunnerChip image={params.row.runnerImage} />,
   },
   {
     field: 'status',

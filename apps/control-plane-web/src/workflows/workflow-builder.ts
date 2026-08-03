@@ -28,14 +28,14 @@ export const uniqueStepKey = (base: string, existingKeys: string[]): string => {
 export const createStep = (
   kind: WorkflowStepKind,
   existingKeys: string[],
-  defaultWorkerImage: string,
+  defaultRunnerImage: string,
 ): WorkflowStep => {
   const name = kind === WorkflowStepKind.VALIDATION ? 'Validate' : 'New step';
   return {
     key: uniqueStepKey(name, existingKeys),
     name,
     goal: '',
-    workerImage: defaultWorkerImage,
+    runnerImage: defaultRunnerImage,
     kind,
     validateCommands: kind === WorkflowStepKind.VALIDATION ? [] : undefined,
   };

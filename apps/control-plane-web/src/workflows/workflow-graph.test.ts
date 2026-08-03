@@ -15,9 +15,9 @@ const def: WorkflowDefinition = {
   trigger: { type: TriggerType.MANUAL },
   maxIterations: 3,
   steps: [
-    { key: 'plan', name: 'Plan', kind: WorkflowStepKind.WORK, workerImage: 'w', goal: 'g' },
-    { key: 'implement', name: 'Implement', kind: WorkflowStepKind.WORK, workerImage: 'w', goal: 'g' },
-    { key: 'validate', name: 'Validate', kind: WorkflowStepKind.VALIDATION, workerImage: 'w', goal: 'g', onFailureGoTo: 'implement' },
+    { key: 'plan', name: 'Plan', kind: WorkflowStepKind.WORK, runnerImage: 'w', goal: 'g' },
+    { key: 'implement', name: 'Implement', kind: WorkflowStepKind.WORK, runnerImage: 'w', goal: 'g' },
+    { key: 'validate', name: 'Validate', kind: WorkflowStepKind.VALIDATION, runnerImage: 'w', goal: 'g', onFailureGoTo: 'implement' },
   ],
 };
 
@@ -26,7 +26,7 @@ const task = (over: Partial<Session>): Session => ({
   kind: SessionKind.HEADLESS,
   name: null,
   prompt: null,
-  workerImage: 'w',
+  runnerImage: 'w',
   status: SessionStatus.DONE,
   branch: null,
   prUrl: null,

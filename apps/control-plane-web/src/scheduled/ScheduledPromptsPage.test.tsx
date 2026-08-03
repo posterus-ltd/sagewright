@@ -164,12 +164,12 @@ describe('ScheduledPromptsPage', () => {
     );
   });
 
-  it('creates a scheduled prompt with the selected worker', async () => {
+  it('creates a scheduled prompt with the selected runner', async () => {
     const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
-      if (url === '/api/workers') {
+      if (url === '/api/runners') {
         return jsonResponse({
-          workers: [
-            { id: 'codex', image: 'sagewright-worker-codex:latest', name: 'Codex', description: 'OpenAI Codex harness' },
+          runners: [
+            { id: 'codex', image: 'sagewright-runner-codex:latest', name: 'Codex', description: 'OpenAI Codex harness' },
           ],
           defaultImage: null,
         });
@@ -180,7 +180,7 @@ describe('ScheduledPromptsPage', () => {
           cron: '0 0 * * *',
           prompt: 'Nightly',
           enabled: true,
-          workerImage: 'sagewright-worker-codex:latest',
+          runnerImage: 'sagewright-runner-codex:latest',
           lastRunAt: null,
           createdAt: '',
         });
@@ -199,8 +199,8 @@ describe('ScheduledPromptsPage', () => {
       target: { value: 'Nightly' },
     });
 
-    // Pin a specific worker for this task instead of inheriting the default.
-    fireEvent.mouseDown(await screen.findByRole('combobox', { name: /worker/i }));
+    // Pin a specific runner for this task instead of inheriting the default.
+    fireEvent.mouseDown(await screen.findByRole('combobox', { name: /runner/i }));
     fireEvent.click(await screen.findByRole('option', { name: 'Codex' }));
 
     fireEvent.click(screen.getByRole('button', { name: /^add$/i }));
@@ -214,21 +214,21 @@ describe('ScheduledPromptsPage', () => {
             cron: '0 0 * * *',
             prompt: 'Nightly',
             enabled: true,
-            workerImage: 'sagewright-worker-codex:latest',
+            runnerImage: 'sagewright-runner-codex:latest',
           }),
         }),
       ),
     );
   });
 
-  it('shows the worker name for a scheduled prompt in the list', async () => {
+  it('shows the runner name for a scheduled prompt in the list', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn(async (url: string) => {
-        if (url === '/api/workers') {
+        if (url === '/api/runners') {
           return jsonResponse({
-            workers: [
-              { id: 'codex', image: 'sagewright-worker-codex:latest', name: 'Codex', description: '' },
+            runners: [
+              { id: 'codex', image: 'sagewright-runner-codex:latest', name: 'Codex', description: '' },
             ],
             defaultImage: null,
           });
@@ -239,7 +239,7 @@ describe('ScheduledPromptsPage', () => {
             cron: '0 9 * * *',
             prompt: 'Daily standup',
             enabled: true,
-            workerImage: 'sagewright-worker-codex:latest',
+            runnerImage: 'sagewright-runner-codex:latest',
             lastRunAt: null,
             createdAt: '',
           },
@@ -249,7 +249,7 @@ describe('ScheduledPromptsPage', () => {
 
     renderPage();
 
-    // The list resolves the stored image ref to the worker's friendly name.
+    // The list resolves the stored image ref to the runner's friendly name.
     await waitFor(() => expect(screen.getByText('Codex')).toBeTruthy());
   });
 

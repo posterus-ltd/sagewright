@@ -7,25 +7,25 @@ Work remotely over ssh where the control plane is hosted over the browser (so it
 
 ### Control plane
 
-- it is a docker container (with access to the docker socket so it can spawn/retire worker containers)
+- it is a docker container (with access to the docker socket so it can spawn/retire runner containers)
 - it hosts the UI and has access to s postgresql db where necessary metadata is being persisted
 - it is written in typescript
 - frontend uses vanilla react with typescript (with the react-router framework)
 - standard component library for the frontend is @mui/material-ui
 - the backend uses fastify also with typescript
-- allows the user to configure envs (Github SSH, NODE_AUTH_TOKEN) and repos that will be accessible to the workers
+- allows the user to configure envs (Github SSH, NODE_AUTH_TOKEN) and repos that will be accessible to the runners
 - spawn docker containers on demand (for new task)
-- builds the target environment and configuration for each new worker to be spawned
+- builds the target environment and configuration for each new runner to be spawned
 - the UI shows all sessions (being able to choose mine or all users, or scheduled)
 - each session shows the project and full chat history of what happened
-- logs are persisted for each worker that is retired for future auditing/reference
+- logs are persisted for each runner that is retired for future auditing/reference
 - enable scheduling of recuring tasks (refactor, fix tests for a specific project/repo or multiple)
 
-### Workers
+### Runners
 
 - using opencode as a harness
 - setting up alignmet for the agent with multiple skills and personality (SOUL.md)
-- each spawned worker is a loop with steps for task work, validaiton and reflection (3 iterations before requiesting assistance)
+- each spawned runner is a loop with steps for task work, validaiton and reflection (3 iterations before requiesting assistance)
 
 ## Integrations
 
@@ -66,7 +66,7 @@ If only this works reliably, it is already a product. Everything else is a layer
 
 | Fork | Decision |
 |---|---|
-| Output handoff | Worker pushes branch + opens a PR via `gh`. Review happens on GitHub. No in-app diff/merge in v1. |
+| Output handoff | Runner pushes branch + opens a PR via `gh`. Review happens on GitHub. No in-app diff/merge in v1. |
 | Task entry | **Both** UI-chat prompt and Linear ticket. |
 | Steering | Watch + **interject anytime**; messages are picked up on the agent's next loop step. |
 | Trust model | **Single trusted team, one Docker host.** Shared secrets, single login, sessions tagged by user (not isolated). |
@@ -79,16 +79,16 @@ If only this works reliably, it is already a product. Everything else is a layer
 - `apps/control-plane-web` — React + MUI + react-router + vite frontend
 - `libs/harness` — `Harness` adapter interface + opencode implementation
 - `libs/shared` — zod schemas + types shared FE/BE (task, event, status enums)
-- `worker/` — Dockerfile + runner-loop image (git, `gh`, harness, node runner)
+- `runner/` — Dockerfile + runner-loop image (git, `gh`, harness, node runner)
 
 #### Control Plane API (Fastify)
 
-Owns all privileged surface so secrets never spread to workers:
+Owns all privileged surface so secrets never spread to runners:
 
 - **Postgres** via Drizzle (typed schema + migrations).
-- **Docker** via `dockerode` against the mounted socket — spawn/retire worker containers.
+- **Docker** via `dockerode` against the mounted socket — spawn/retire runner containers.
 - **Linear** creds live here only. Fetches the ticket description on task create; mirrors
-  status/comments back when a worker reports completion (worker never sees the Linear key).
+  status/comments back when a runner reports completion (runner never sees the Linear key).
 - Endpoints:
   - `repos` CRUD — name, git URL, default branch, `setupCmds[]`, `validateCmds[]`, env refs
   - `secrets` CRUD — GitHub token/SSH key, `NODE_AUTH_TOKEN`, Linear key; encrypted at rest
@@ -96,21 +96,21 @@ Owns all privileged surface so secrets never spread to workers:
   - `GET /tasks` (filter by user), `GET /tasks/:id`, `POST /tasks/:id/cancel`
   - `GET /tasks/:id/stream` — **SSE**, replay-from-offset then tail
   - `POST /tasks/:id/messages` — inbound interjection
-  - `POST /internal/tasks/:id/events` — worker → control-plane event ingest (worker-token auth)
+  - `POST /internal/tasks/:id/events` — runner → control-plane event ingest (runner-token auth)
 
 #### Resumable streaming (the hard part — build first)
 
 Everything is a **persisted event log**, never a raw socket:
 
 - `events(id, task_id, seq, type, payload jsonb, created_at)`, `seq` monotonic per task.
-- Worker batches events → `POST /internal/.../events`.
+- Runner batches events → `POST /internal/.../events`.
 - Browser `EventSource` → `GET /tasks/:id/stream`: on connect, replay `seq > Last-Event-ID`,
   then tail via in-memory per-task pub/sub (DB-poll fallback). A dropped mobile connection
   reconnects and replays from the last seq — no lost output.
-- Interjection: `POST /tasks/:id/messages` → row in `inbound_messages` → worker pulls
+- Interjection: `POST /tasks/:id/messages` → row in `inbound_messages` → runner pulls
   pending on each loop step, marks consumed, and emits a `user_message` event into the log.
 
-#### Worker container (spawned per task)
+#### Runner container (spawned per task)
 
 Harness-agnostic runner loop:
 
@@ -154,17 +154,17 @@ Reuse house libs (`@tanstack/react-query`, `notistack`, zod). Routes:
 #### Security
 
 Single login (env-configured); user identity is a label on sessions. Secrets encrypted at
-rest (node `crypto`, key from env). Worker token scoped to one task, short-lived. Only the
+rest (node `crypto`, key from env). Runner token scoped to one task, short-lived. Only the
 control plane mounts the Docker socket — **document the root-on-host blast radius**.
 
 #### Infra
 
 `docker-compose.yml`: `control-plane` (build, mounts `/var/run/docker.sock`) + `postgres`
-(named volume). The worker image is built/tagged separately and referenced by the control plane.
+(named volume). The runner image is built/tagged separately and referenced by the control plane.
 
 ### v1 scope
 
-**IN:** repo + secret config · create task (UI prompt or Linear ticket) · spawn worker ·
+**IN:** repo + secret config · create task (UI prompt or Linear ticket) · spawn runner ·
 work/validate/reflect ×3 · live resumable streaming · interject messages · push branch + PR ·
 my-sessions list + detail · persisted logs.
 

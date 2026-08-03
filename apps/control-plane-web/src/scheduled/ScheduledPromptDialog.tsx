@@ -15,11 +15,11 @@ import { useState, type FC } from 'react';
 import {
   useCreateScheduledPrompt,
   useUpdateScheduledPrompt,
-  useWorkers,
+  useRunners,
 } from '../api/hooks';
 import { CronEditor } from '../components/CronEditor';
 
-// Sentinel for the worker <Select>: empty value means "inherit my default worker"
+// Sentinel for the runner <Select>: empty value means "inherit my default runner"
 // (resolved server-side at fire time), distinct from any real image ref.
 const INHERIT_DEFAULT = '';
 
@@ -34,32 +34,32 @@ export const ScheduledPromptDialog: FC<{
 }> = ({ open, onClose, editing }) => {
   const createPrompt = useCreateScheduledPrompt();
   const updatePrompt = useUpdateScheduledPrompt();
-  const { data: workersData } = useWorkers();
-  const workers = workersData?.workers ?? [];
+  const { data: runnersData } = useRunners();
+  const runners = runnersData?.runners ?? [];
   const [cron, setCron] = useState(editing?.cron ?? '');
   const [prompt, setPrompt] = useState(editing?.prompt ?? '');
-  const [workerImage, setWorkerImage] = useState(
-    editing?.workerImage ?? INHERIT_DEFAULT,
+  const [runnerImage, setRunnerImage] = useState(
+    editing?.runnerImage ?? INHERIT_DEFAULT,
   );
 
   const save = async (): Promise<void> => {
     if (!cron.trim() || !prompt.trim()) return;
-    // Omit workerImage entirely when inheriting the default, so we never pin a
+    // Omit runnerImage entirely when inheriting the default, so we never pin a
     // stale image and the server resolves the creator's current default.
-    const worker = workerImage ? { workerImage } : {};
+    const runner = runnerImage ? { runnerImage } : {};
     if (editing) {
       await updatePrompt.mutateAsync({
         id: editing.id,
         cron: cron.trim(),
         prompt: prompt.trim(),
-        ...worker,
+        ...runner,
       });
     } else {
       await createPrompt.mutateAsync({
         cron: cron.trim(),
         prompt: prompt.trim(),
         enabled: true,
-        ...worker,
+        ...runner,
       });
     }
     onClose();
@@ -88,13 +88,13 @@ export const ScheduledPromptDialog: FC<{
           />
           <TextField
             select
-            label="Worker"
-            value={workerImage}
-            onChange={(e) => setWorkerImage(e.target.value)}
-            helperText="Which harness runs this task. Defaults to your configured worker."
+            label="Runner"
+            value={runnerImage}
+            onChange={(e) => setRunnerImage(e.target.value)}
+            helperText="Which harness runs this task. Defaults to your configured runner."
           >
             <MenuItem value={INHERIT_DEFAULT}>Use my default</MenuItem>
-            {workers.map((w) => (
+            {runners.map((w) => (
               <MenuItem key={w.id} value={w.image}>
                 {w.name}
               </MenuItem>

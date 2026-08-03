@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+# ─────────────────────────────────────────────────────────────────────────────
+# Predefined agent start script.
+#
+# The control plane runs THIS over `docker exec` to launch the agent for the
+# session's first turn. SESSION_MODE picks the mode:
+#   - interactive: no prompt — drop straight into the harness, live, in the
+#     `sagewright-agent` tmux session so a later browser attach (continue-agent)
+#     reattaches to this same running conversation instead of starting a new one.
+#   - headless (default): start the harness you installed in runner/Dockerfile
+#     against "$PROMPT" in the current working directory, in the foreground, and
+#     exit when the agent is done. The exit code decides the task outcome (0 → DONE).
+# Everything the agent prints is streamed back as the live transcript.
+#
+# Swapping harness? Change the launch lines below to start your harness, and
+# update the install steps in runner/Dockerfile. Nothing in the control plane
+# changes — it only knows "run this script".
+# ─────────────────────────────────────────────────────────────────────────────
+set -euo pipefail
+
+if [ "${SESSION_MODE:-headless}" = "interactive" ]; then
+  exec tmux new-session -A -s sagewright-agent "exec pi -a"
+fi
+
+PROMPT_TEXT="${PROMPT:-}"
+
+# Prepend the baked alignment / system prompt, if present.
+SOUL_FILE="/etc/sagewright/SOUL.md"
+if [ -f "$SOUL_FILE" ]; then
+  PROMPT_TEXT="$(cat "$SOUL_FILE")
+
+${PROMPT_TEXT}"
+fi
+
+# Harness: Pi. `pi -p` (print mode) runs one task non-interactively and prints its
+# work to the terminal (which the control plane records as the transcript). Pi has
+# no approval prompts to bypass — the container is its sandbox. `-a` trusts the
+# project so its local pi settings/extensions load without a trust gate.
+exec pi -p "$PROMPT_TEXT" -a

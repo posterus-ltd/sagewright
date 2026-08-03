@@ -14,7 +14,7 @@ export interface StarNode {
   name: string;
   status: Session['status'];
   kind: Session['kind'];
-  workerImage: string | null;
+  runnerImage: string | null;
   parentSessionId: string | null;
   workflowId: string | null;
   createdAt: string;
@@ -27,7 +27,7 @@ export interface StarNode {
   iteration: number | null;
   branch: string | null;
   prUrl: string | null;
-  // The session's worker image, or 'unassigned' — each distinct cluster gets its
+  // The session's runner image, or 'unassigned' — each distinct cluster gets its
   // own constellation region (see clusterAnchor).
   clusterId: string;
   // A workflow parent renders larger and anchors its step children.
@@ -80,7 +80,7 @@ const clusterAnchors = (clusterIds: Set<string>): Map<string, StarAnchor> => {
  *  graph: one node per session clustered by agent, one link per parent/child pair. */
 export const buildGalaxyGraph = (sessions: Session[]): GalaxyGraph => {
   const clusterIdFor = (s: Session): string =>
-    s.workerImage ?? UNASSIGNED_CLUSTER;
+    s.runnerImage ?? UNASSIGNED_CLUSTER;
   const anchors = clusterAnchors(new Set(sessions.map(clusterIdFor)));
   const idsInPayload = new Set(sessions.map((s) => s.id));
 
@@ -91,7 +91,7 @@ export const buildGalaxyGraph = (sessions: Session[]): GalaxyGraph => {
       name: sessionLabel(s),
       status: s.status,
       kind: s.kind,
-      workerImage: s.workerImage,
+      runnerImage: s.runnerImage,
       parentSessionId: s.parentSessionId,
       workflowId: s.workflowId,
       createdAt: s.createdAt,
@@ -122,15 +122,15 @@ export const buildGalaxyGraph = (sessions: Session[]): GalaxyGraph => {
   return { nodes, links };
 };
 
-/** Constellation name for a cluster id: a worker image ref reduced to its agent
- *  name (registry path, `sagewright-worker-` prefix, and tag stripped), so the
- *  nameplate reads "opencode", not "sagewright-worker-opencode:latest". */
+/** Constellation name for a cluster id: a runner image ref reduced to its agent
+ *  name (registry path, `sagewright-runner-` prefix, and tag stripped), so the
+ *  nameplate reads "opencode", not "sagewright-runner-opencode:latest". */
 export const clusterDisplayName = (clusterId: string): string =>
   clusterId
     .split('/')
     .at(-1)!
     .replace(/:[^:]*$/, '')
-    .replace(/^sagewright-worker-/, '');
+    .replace(/^sagewright-runner-/, '');
 
 export interface ClusterSummary {
   clusterId: string;

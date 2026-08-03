@@ -14,12 +14,12 @@ import { createUserEnvService } from './user-env/user-env-service';
 import { createGithubCredentialService } from './github/github-credential-service';
 import { createCanvasLayoutService } from './canvas-layout/canvas-layout-service';
 import { createWorkflowService } from './workflows/workflow-service';
-import { createWorkflowRunner } from './workflows/workflow-runner';
-import { SESSION_LABEL, createWorkerSpawner } from './tasks/worker-spawner';
+import { createWorkflowDriver } from './workflows/workflow-driver';
+import { SESSION_LABEL, createRunnerSpawner } from './tasks/runner-spawner';
 import { createDockerClient, createContainerTerminal, createContainerExec } from './tasks/docker-client';
-import { createAgentRunner } from './tasks/agent-runner';
+import { createAgentDriver } from './tasks/agent-driver';
 import { createUserSettingsService } from './user-settings/user-settings-service';
-import { createWorkerRegistry } from './workers/worker-registry';
+import { createRunnerRegistry } from './runners/runner-registry';
 import { buildApp } from './app';
 
 const config = loadConfig(process.env);
@@ -28,11 +28,11 @@ const eventStore = createEventStore(db);
 const eventBus = createEventBus();
 // One shared dockerode client for both spawning and exec'ing into containers.
 const docker = createDockerClient();
-const spawner = createWorkerSpawner(config, () => docker);
+const spawner = createRunnerSpawner(config, () => docker);
 const containerTerminal = createContainerTerminal(docker);
 // Drives the predefined start script over `docker exec` and runs git/PR for headless sessions.
 const containerExec = createContainerExec(docker);
-const agentRunner = createAgentRunner({ db, eventStore, eventBus, exec: containerExec, retire: spawner.retire });
+const agentDriver = createAgentDriver({ db, eventStore, eventBus, exec: containerExec, retire: spawner.retire });
 // Owns the shared repo volume: all clone/pull/worktree writes funnel through here.
 const volume = createVolume({ token: config.githubToken });
 const userEnvService = createUserEnvService({ db, cipher: createSecretCipher(config.secretsKey) });
@@ -40,15 +40,15 @@ const githubCredentialService = createGithubCredentialService({ db, cipher: crea
 const repoService = createRepoService({ db, volume, githubCredentialService });
 const canvasLayoutService = createCanvasLayoutService({ db });
 const userSettingsService = createUserSettingsService({ db });
-const workerRegistry = createWorkerRegistry({ docker });
+const runnerRegistry = createRunnerRegistry({ docker });
 // The single seam every run path provisions through. Owns insert→spawn→container_id
 // and the FAILED-on-throw contract; task/workflow services attach the drive policy.
-const sessionService = createSessionService({ db, eventStore, eventBus, spawner, volume, config, userEnvService, githubCredentialService, userSettingsService, workerRegistry });
+const sessionService = createSessionService({ db, eventStore, eventBus, spawner, volume, config, userEnvService, githubCredentialService, userSettingsService, runnerRegistry });
 // In-process registry of live interactive agent execs, decoupled from the browser socket.
-const sessionRuntime = createSessionRuntime({ agentRunner });
-const taskService = createTaskService({ db, eventStore, eventBus, spawner, agentRunner, volume, sessionService, sessionRuntime });
+const sessionRuntime = createSessionRuntime({ agentDriver });
+const taskService = createTaskService({ db, eventStore, eventBus, spawner, agentDriver, volume, sessionService, sessionRuntime });
 const workflowService = createWorkflowService({ db });
-const workflowRunner = createWorkflowRunner({ db, spawner, sessionService, agentRunner, exec: containerExec, volume, config, githubCredentialService });
+const workflowDriver = createWorkflowDriver({ db, spawner, sessionService, agentDriver, exec: containerExec, volume, config, githubCredentialService });
 // Single-leader scheduling across replicas: only the instance that wins this advisory
 // lock runs the crons. `pg_try_advisory_lock` is CONNECTION-scoped, so the lock must be
 // taken — and held — on one stable connection. Using `pool.query` would check out a
@@ -64,7 +64,7 @@ const scheduler = createScheduler({
   db,
   taskService,
   workflowService,
-  workflowRunner,
+  workflowDriver,
   timezone: config.schedulerTimezone,
   leadership: {
     acquire: async () => {
@@ -107,7 +107,7 @@ const reconciler = createReconciler({
       return false;
     }
   },
-  // Every worker/ops box is labeled with its session id at spawn — the sweep's
+  // Every runner/ops box is labeled with its session id at spawn — the sweep's
   // only handle for containers whose id never reached a session row.
   listLabeledContainers: async () => {
     const list = await docker.listContainers({ all: true, filters: { label: [SESSION_LABEL] } });
@@ -115,10 +115,10 @@ const reconciler = createReconciler({
   },
   retire: spawner.retire,
   removeSessionWorktrees: volume.removeSessionWorktrees,
-  resumeWorkflow: workflowRunner.resume,
+  resumeWorkflow: workflowDriver.resume,
 });
 
-const app = buildApp({ config, db, eventStore, eventBus, sessionService, sessionRuntime, taskService, repoService, userEnvService, githubCredentialService, userSettingsService, canvasLayoutService, workflowService, workflowRunner, containerTerminal, volume, scheduler, workerRegistry });
+const app = buildApp({ config, db, eventStore, eventBus, sessionService, sessionRuntime, taskService, repoService, userEnvService, githubCredentialService, userSettingsService, canvasLayoutService, workflowService, workflowDriver, containerTerminal, volume, scheduler, runnerRegistry });
 
 // The scheduler is built before the app (the app depends on it), so hand it the
 // Fastify logger now that the app exists — failed scheduled runs go to the app log.
@@ -129,10 +129,10 @@ const start = async (): Promise<void> => {
     // Surface a stale operator default loudly at boot. The fallback image is trusted
     // (it's used whenever a user has no stored default), so if it isn't actually built
     // every such task — including scheduled runs — would 404 at container creation.
-    const available = await workerRegistry.list().catch(() => []);
-    if (!available.some((w) => w.image === config.workerImage)) {
+    const available = await runnerRegistry.list().catch(() => []);
+    if (!available.some((w) => w.image === config.runnerImage)) {
       app.log.warn(
-        `Configured WORKER_IMAGE "${config.workerImage}" is not a built worker image ` +
+        `Configured RUNNER_IMAGE "${config.runnerImage}" is not a built runner image ` +
           `(found: ${available.map((w) => w.image).join(', ') || 'none'}). ` +
           `Sessions falling back to this default will fail at container creation.`,
       );

@@ -6,7 +6,7 @@ import {
   ownerActivity,
   recentlyShipped,
   throughputStats,
-  workerUtilization,
+  runnerUtilization,
 } from './metrics';
 
 const NOW = DateTime.fromISO('2026-07-08T00:00:00.000Z');
@@ -17,7 +17,7 @@ const task = (overrides: Partial<Session> = {}): Session => ({
   kind: 'interactive',
   name: null,
   prompt: null,
-  workerImage: null,
+  runnerImage: null,
   status: SessionStatus.RUNNING,
   branch: null,
   prUrl: null,
@@ -75,16 +75,16 @@ describe('throughputStats', () => {
   });
 });
 
-describe('workerUtilization', () => {
-  it('tallies sessions per worker within the window, busiest first', () => {
+describe('runnerUtilization', () => {
+  it('tallies sessions per runner within the window, busiest first', () => {
     const sessions = [
-      task({ id: 't1', workerImage: 'claude-code', createdAt: iso(1) }),
-      task({ id: 't2', workerImage: 'claude-code', createdAt: iso(2) }),
-      task({ id: 't3', workerImage: 'codex', createdAt: iso(3) }),
-      task({ id: 't4', workerImage: 'codex', createdAt: iso(10) }), // outside window
-      task({ id: 't5', workerImage: null, createdAt: iso(1) }), // no worker — excluded
+      task({ id: 't1', runnerImage: 'claude-code', createdAt: iso(1) }),
+      task({ id: 't2', runnerImage: 'claude-code', createdAt: iso(2) }),
+      task({ id: 't3', runnerImage: 'codex', createdAt: iso(3) }),
+      task({ id: 't4', runnerImage: 'codex', createdAt: iso(10) }), // outside window
+      task({ id: 't5', runnerImage: null, createdAt: iso(1) }), // no runner — excluded
     ];
-    expect(workerUtilization(sessions, 7, NOW)).toEqual([
+    expect(runnerUtilization(sessions, 7, NOW)).toEqual([
       { key: 'claude-code', count: 2 },
       { key: 'codex', count: 1 },
     ]);

@@ -25,10 +25,10 @@ import {
   useRepos,
   useSaveRepos,
   useSaveGithubToken,
-  useSetDefaultWorker,
+  useSetDefaultRunner,
   useUpdateUserEnv,
   useUserEnv,
-  useWorkers,
+  useRunners,
 } from '../api/hooks';
 import { MainContainer } from '../components/MainContainer';
 
@@ -176,7 +176,7 @@ const EnvironmentSection: FC = () => {
       <Typography variant="h6" gutterBottom>Environment</Typography>
       <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
         A custom <code>.env</code> injected into your sessions at runtime and encrypted at rest.
-        These override the org-wide defaults baked into the worker image from the host{' '}
+        These override the org-wide defaults baked into the runner image from the host{' '}
         <code>.env</code> — e.g. add API keys or registry tokens your sessions need. GitHub
         credentials are managed above via your personal access token.
       </Typography>
@@ -203,32 +203,32 @@ const EnvironmentSection: FC = () => {
   );
 };
 
-const WorkerSection: FC = () => {
-  const { data } = useWorkers();
-  const workers = data?.workers ?? [];
+const RunnerSection: FC = () => {
+  const { data } = useRunners();
+  const runners = data?.runners ?? [];
   const defaultImage = data?.defaultImage ?? null;
-  const setDefaultWorker = useSetDefaultWorker();
-  const selected = workers.some((w) => w.image === defaultImage) ? defaultImage : '';
+  const setDefaultRunner = useSetDefaultRunner();
+  const selected = runners.some((w) => w.image === defaultImage) ? defaultImage : '';
 
   return (
     <Box sx={{ maxWidth: 560 }}>
-      <Typography variant="h6" gutterBottom>Default worker</Typography>
+      <Typography variant="h6" gutterBottom>Default runner</Typography>
       <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-        The worker image new sessions start with by default. You can still pick a different worker per
+        The runner image new sessions start with by default. You can still pick a different runner per
         session from the New session button.
       </Typography>
-      {workers.length === 0 ? (
-        <Typography variant="body2" color="text.secondary">No worker images found.</Typography>
+      {runners.length === 0 ? (
+        <Typography variant="body2" color="text.secondary">No runner images found.</Typography>
       ) : (
         <TextField
           select
           fullWidth
-          label="Worker image"
+          label="Runner image"
           value={selected ?? ''}
-          onChange={(e) => { void setDefaultWorker.mutateAsync(e.target.value); }}
-          disabled={setDefaultWorker.isPending}
+          onChange={(e) => { void setDefaultRunner.mutateAsync(e.target.value); }}
+          disabled={setDefaultRunner.isPending}
         >
-          {workers.map((w) => (
+          {runners.map((w) => (
             <MenuItem key={w.id} value={w.image}>
               {w.name}
             </MenuItem>
@@ -248,7 +248,7 @@ export const SettingsPage: FC = () => (
       <Divider />
       <EnvironmentSection />
       <Divider />
-      <WorkerSection />
+      <RunnerSection />
     </Stack>
   </MainContainer>
 );

@@ -77,7 +77,7 @@ export interface ContainerExec {
 
 /**
  * Higher-level exec built on the docker socket: the control plane uses this to start the
- * worker's predefined agent script over a PTY and to run git/gh non-interactively.
+ * runner's predefined agent script over a PTY and to run git/gh non-interactively.
  */
 export const createContainerExec = (docker: Docker): ContainerExec => ({
   startAgent: async (containerId, opts) => {

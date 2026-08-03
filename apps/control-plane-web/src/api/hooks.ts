@@ -9,7 +9,7 @@ import {
   type ScheduledPrompt,
   type Session,
   type UpdateWorkflowInput,
-  type WorkerImage,
+  type RunnerImage,
   type Workflow,
   type WorkflowInput,
   type WorkflowRun,
@@ -32,17 +32,17 @@ export type GithubStatus =
       updatedAt: string;
     };
 
-export const useWorkers = () =>
+export const useRunners = () =>
   useQuery({
-    queryKey: ['workers'],
-    queryFn: () => apiClient.get<{ workers: WorkerImage[]; defaultImage: string | null }>('/api/workers'),
+    queryKey: ['runners'],
+    queryFn: () => apiClient.get<{ runners: RunnerImage[]; defaultImage: string | null }>('/api/runners'),
   });
 
-export const useSetDefaultWorker = () => {
+export const useSetDefaultRunner = () => {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (image: string) => apiClient.put('/api/settings/default-worker', { image }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['workers'] }),
+    mutationFn: (image: string) => apiClient.put('/api/settings/default-runner', { image }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['runners'] }),
   });
 };
 

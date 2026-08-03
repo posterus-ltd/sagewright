@@ -16,7 +16,7 @@ interface ReconcilerDeps {
   listLabeledContainers: () => Promise<{ containerId: string; sessionId: string }[]>;
   retire: (containerId: string) => Promise<void>;
   removeSessionWorktrees: (id: string) => Promise<void>;
-  /** Re-drive a workflow run from its persisted step (workflowRunner.resume). */
+  /** Re-drive a workflow run from its persisted step (workflowDriver.resume). */
   resumeWorkflow: (parentId: string) => Promise<void>;
   logger?: { error: (err: unknown, msg?: string) => void };
 }
