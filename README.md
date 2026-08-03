@@ -13,8 +13,94 @@ opencode supports every major provider, you can drive sessions with **any infere
 OpenAI, Anthropic, Google, local models via Ollama, or anything else opencode reaches (see
 [Use a different model](#use-a-different-model)).
 
-![Harness — live transcript of a single session](./screenshots/harness.png)
-![Canvas — run several agent sessions side by side](./screenshots/canvas.png)
+<table>
+  <tr>
+    <td width="50%"><img src="./screenshots/harness.png" alt="Remote execution — live harness for interactive sessions" width="100%"></td>
+    <td width="50%"><img src="./screenshots/canvas.png" alt="Canvas — run several sessions in parallel" width="100%"></td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="./screenshots/work-galaxy.png" alt="Galaxy — visualise your agents work" width="100%"></td>
+    <td width="50%"><img src="./screenshots/workflows.png" alt="Build workflow loops — create and schedule workflow runs built from different roles" width="100%"></td>
+  </tr>
+</table>
+
+---
+
+> [!CAUTION]
+> ## 🚨 SECURITY WARNING — DO NOT EXPOSE THIS TO THE PUBLIC INTERNET 🚨
+>
+> **Authentication is rudimentary and provides effectively no protection against untrusted access.**
+> There is a **single shared `APP_PASSWORD`** and **no real user management**: logging in with
+> **any username** plus that one password **implicitly creates that account and signs it in**. There
+> is no registration, no per-user credentials, no email verification, no roles, and no meaningful
+> access control. Anyone who reaches the app and knows (or guesses) the one password gets in as
+> whoever they type.
+>
+> Combined with the [Docker socket mount](#architecture-note-the-docker-socket-mount) — which grants
+> the control plane **root-equivalent control over the host** — a single leaked password is a full
+> host compromise, not just an app login.
+>
+> **You MUST run Sagewright only on a trusted private network — behind a VPN or on an internal LAN
+> that is not reachable from the internet.** Treat it as a **single-user / trusted-team local tool**,
+> not a multi-tenant hosted service. **Never** bind it to a public IP, port-forward it, or place it
+> behind a plain public reverse proxy.
+>
+> Hardening this into a real auth system (registration control, per-user credentials, roles) is
+> tracked work — until then, network isolation is your only real security boundary.
+
+---
+
+## How it works
+
+Sagewright is **one control plane that spawns a fresh, throwaway container per agent session**.
+You talk to it from the browser; it talks to Docker, to your model provider, and to GitHub on your
+behalf. The control plane serves the web app, holds the host's Docker socket, and streams every
+runner's terminal back to you live.
+
+```mermaid
+flowchart LR
+    user["User's browser<br/>PWA · localhost:3000"]
+
+    subgraph host["Docker host — single box"]
+        direction TB
+        subgraph cp["control-plane container"]
+            web["control-plane-web<br/>React SPA"]
+            api["control-plane-api<br/>Fastify · auth · REST · SSE"]
+        end
+        pg[("PostgreSQL<br/>pgdata volume")]
+        sock{{"/var/run/docker.sock"}}
+        subgraph pool["Runners — one container per session"]
+            direction LR
+            rA["sagewright-runner A<br/>harness + baked role"]
+            rB["sagewright-runner B<br/>harness + baked role"]
+        end
+    end
+
+    gh["GitHub"]
+    model["Model provider<br/>OpenAI · Anthropic · Ollama · …"]
+
+    user -->|"load SPA + REST calls"| api
+    web -->|"served to the browser"| user
+    api -->|"live transcript · resumable SSE"| user
+    api <-->|"sessions · events · settings"| pg
+    api -->|"spawn / stop containers"| sock
+    sock -.->|"controls"| pool
+    api -->|"docker exec PTY · run start-agent ·<br/>stream terminal · stdin interjections"| rA
+    api -->|"docker exec PTY"| rB
+    api -->|"clone repos → shared volume"| gh
+    rA -->|"push branch + open PR"| gh
+    rA -->|"inference"| model
+    rB -->|"inference"| model
+```
+
+- **Control plane** — a single long-lived container running the Fastify API (auth, REST, resumable
+  SSE) and serving the React SPA. It owns Postgres for all state and mounts the host's Docker socket
+  so it can spawn runners on demand.
+- **Runners** — one `sagewright-runner` container per active session. Each bakes in a harness
+  (opencode by default) plus your org's config; the control plane execs `start-agent` over a PTY,
+  streams that terminal back as the live transcript, and opens a PR when the script exits.
+- **You** — open the web app the control plane hosts on `:3000`, create a task, watch the transcript
+  stream live, and interject mid-run (interjections are written straight to the agent's stdin).
 
 ---
 
@@ -54,13 +140,11 @@ SECRETS_KEY=change-this-32-char-secrets-key!!
 
 # Your GitHub token and model API key from the table above. OPENAI_API_KEY is the
 # default; to use a different provider/model see "Use a different model" below.
-GITHUB_TOKEN=
+# This kind of env vars can be set on per user base in the frontend
 OPENAI_API_KEY=
 ```
 
 > **Tip:** generate a 32-character secret with `openssl rand -base64 24 | cut -c1-32`.
-
-> `LINEAR_API_KEY` is optional — only fill it in if you want to pull tasks from Linear.
 
 ### 2. Build the agent runner image
 
@@ -260,6 +344,85 @@ already in place. Rebuild the image after any change.
 > image as build args, so they're visible via `docker history`. Rotating a token means rebuilding
 > the image. This is fine for a single-user local setup — **do not push the runner image to a shared
 > registry** with real tokens baked in.
+
+---
+
+## Workflows & roles
+
+A **runner image is a role.** Everything an agent _is_ — which harness and model it runs, its system
+prompt and guardrails (`SOUL.md`), its MCP servers, skills, and baked-in tooling — is fixed in the
+image under `runners/<id>/`. The image's `LABEL sagewright.runner.name` is how that role shows up in
+the New Session / workflow pickers, so you can name it after a persona or job (`Alice the Reviewer`,
+`Bob the CTO`) rather than the harness underneath. Picking a runner _is_ picking a role, with its
+context and guardrails already baked in.
+
+```mermaid
+flowchart TB
+    subgraph img["runners/&lt;id&gt;/  →  runner image = a role"]
+        direction TB
+        harness["Harness CLI<br/>opencode · Claude Code · Codex · Pi"]
+        soul["SOUL.md<br/>system prompt · alignment · guardrails"]
+        cfg["harness config<br/>default model · MCP servers · skills"]
+        tools["baked tooling & org config<br/>CLIs · linters · .npmrc · templates"]
+        secrets["build-arg tokens<br/>GITHUB_TOKEN · model API key"]
+        label["LABEL sagewright.runner.name<br/>e.g. 'Alice the Reviewer'"]
+    end
+
+    harness --> role(["Configured role<br/>context + guardrails baked in"])
+    soul --> role
+    cfg --> role
+    tools --> role
+    secrets --> role
+    label --> role
+    role -->|"selected per session or per workflow step"| run["Runs a goal with its<br/>baked-in context + guardrails"]
+```
+
+Because each role carries its own context and guardrails, you can compose several of them into an
+**automatable workflow loop**. A workflow is a JSON-configured sequence of steps (visualised like a
+GitHub Actions graph); each step names a _goal_ and the _role_ (runner image) that should accomplish
+it. A run drives the steps sequentially on **one shared worktree**, carries a `handoff.md` forward
+between steps, and **loops on validation failure** until it passes or hits `maxIterations` — then
+pushes the branch and opens a PR.
+
+```mermaid
+flowchart TB
+    trig(["Trigger — manual Run or cron"]) --> seed["Seed input +<br/>one shared worktree on workflow/&lt;runId&gt;"]
+    seed --> plan
+    subgraph loopbox["Steps run sequentially · handoff.md carried forward"]
+        direction TB
+        plan["Plan · WORK<br/>role: Claude Code"] --> impl["Implement · WORK<br/>role: opencode"]
+        impl --> val{"Validate · VALIDATION<br/>role: opencode"}
+        val -->|"verdict passed = true<br/>AND every validateCommand exits 0"| pass(["pass"])
+        val -->|"fail → jump to onFailureGoTo<br/>iteration + 1"| impl
+    end
+    pass --> done["Push branch + open PR<br/>status: done"]
+    val -->|"iteration ≥ maxIterations"| capped["Push branch + open PR<br/>status: max_iterations"]
+```
+
+Steps come in two kinds:
+
+- **Work steps** run a role against a goal and hand off to the next step in declared order.
+- **Validation steps** _gate the loop_: they pass only when the agent writes a `passed: true`
+  verdict **and** every `validateCommand` exits 0 in the worktree. On failure the run jumps back to
+  the step named by `onFailureGoTo` for another iteration.
+
+A run is just a `kind='workflow'` session whose steps are its children, so it streams and reconciles
+like any other session. A passing run settles `done`; an exhausted loop still ships its work as
+`max_iterations`; a hard step error is `failed`.
+
+```mermaid
+stateDiagram-v2
+    [*] --> running: trigger (manual / cron)
+    running --> running: work step advances to next
+    running --> validating: reach a validation step
+    validating --> done: verdict pass AND commands exit 0
+    validating --> running: fail, jump to onFailureGoTo (iteration + 1)
+    validating --> max_iterations: iteration reaches maxIterations
+    running --> failed: step exits non-zero / hard error
+    done --> [*]: push branch + open PR
+    max_iterations --> [*]: push branch + open PR
+    failed --> [*]
+```
 
 ---
 
