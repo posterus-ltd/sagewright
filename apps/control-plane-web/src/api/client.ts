@@ -8,7 +8,15 @@ export class ApiError extends Error {
 // a session expiry — so it must not trigger the global sign-out.
 const LOGIN_PATH = '/api/login';
 
-export const createApiClient = (baseUrl: string, onUnauthorized?: (path: string) => void) => {
+// Machine-readable body the API returns when a user must change their password before
+// the app opens up (see the auth guard's allowlist).
+const PASSWORD_CHANGE_REQUIRED = 'password_change_required';
+
+export const createApiClient = (
+  baseUrl: string,
+  onUnauthorized?: (path: string) => void,
+  onPasswordChangeRequired?: (path: string) => void,
+) => {
   const request = async <T>(method: string, path: string, body?: unknown): Promise<T> => {
     const res = await fetch(`${baseUrl}${path}`, {
       method,
@@ -17,8 +25,10 @@ export const createApiClient = (baseUrl: string, onUnauthorized?: (path: string)
       body: body ? JSON.stringify(body) : undefined,
     });
     if (!res.ok) {
+      const message = await res.text();
       if (res.status === 401 && path !== LOGIN_PATH) onUnauthorized?.(path);
-      throw new ApiError(res.status, await res.text());
+      else if (res.status === 403 && message.includes(PASSWORD_CHANGE_REQUIRED)) onPasswordChangeRequired?.(path);
+      throw new ApiError(res.status, message);
     }
     return res.status === 204 ? (undefined as T) : ((await res.json()) as T);
   };
@@ -39,4 +49,14 @@ const handleUnauthorized = (): void => {
   if (window.location.pathname !== '/login') window.location.assign('/login');
 };
 
-export const apiClient = createApiClient('', handleUnauthorized);
+// Safety net for a 403 password_change_required raised by a background request (e.g. an
+// admin reset the password of a user who's mid-session). Re-drive the auth gate so it
+// renders the forced-change screen: navigate to the root, or reload if already there.
+// The gate's own requests (me / change-password / logout) are allowlisted, so this can't
+// loop. The live `useMe` check is the primary mechanism; this unsticks an idle tab.
+const handlePasswordChangeRequired = (): void => {
+  if (window.location.pathname === '/') window.location.reload();
+  else window.location.assign('/');
+};
+
+export const apiClient = createApiClient('', handleUnauthorized, handlePasswordChangeRequired);

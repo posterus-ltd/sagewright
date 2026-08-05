@@ -33,7 +33,7 @@ describe('terminal route (live websocket)', () => {
     };
 
     // login → cookie
-    const login = await app.inject({ method: 'POST', url: '/api/login', payload: { displayName: 'al', password: 'pw' } });
+    const login = await app.inject({ method: 'POST', url: '/api/login', payload: { username: 'al', password: 'pw' } });
     const c = login.cookies[0];
     const cookie = `${c!.name}=${c!.value}`;
 
@@ -49,7 +49,7 @@ describe('terminal route (live websocket)', () => {
     const { port, taskId, app } = await boot();
     // A different authenticated user must not be able to attach by guessing the id.
     const other = (
-      await app.inject({ method: 'POST', url: '/api/login', payload: { displayName: 'mallory', password: 'pw' } })
+      await app.inject({ method: 'POST', url: '/api/login', payload: { username: 'mallory', password: 'pw' } })
     ).cookies[0];
     const ws = new WebSocket(`ws://127.0.0.1:${port}/api/tasks/${taskId}/terminal?kind=shell`, {
       headers: { cookie: `${other!.name}=${other!.value}` },
@@ -96,9 +96,14 @@ describe('terminal route (live websocket)', () => {
     });
     await once(ws, 'open');
 
-    expect(exec).toHaveBeenCalledWith(
-      'test-container',
-      expect.objectContaining({ cmd: ['bash'], initialSize: { cols: 137, rows: 42 } }),
+    // The PTY exec runs after the (now DB-backed) auth preHandler resolves — a few
+    // event-loop turns after the socket upgrades — so wait for it rather than asserting
+    // on the open tick (mirrors the deadline-poll in the hydration test below).
+    await vi.waitFor(() =>
+      expect(exec).toHaveBeenCalledWith(
+        'test-container',
+        expect.objectContaining({ cmd: ['bash'], initialSize: { cols: 137, rows: 42 } }),
+      ),
     );
     ws.close();
   });
@@ -131,7 +136,7 @@ describe('terminal route (live websocket)', () => {
     close = async () => {
       await app.close();
     };
-    const login = await app.inject({ method: 'POST', url: '/api/login', payload: { displayName: 'al', password: 'pw' } });
+    const login = await app.inject({ method: 'POST', url: '/api/login', payload: { username: 'al', password: 'pw' } });
     const c = login.cookies[0];
 
     const [row] = await db
@@ -166,6 +171,7 @@ describe('terminal route (live websocket)', () => {
     });
     await once(ws, 'open');
 
+    await vi.waitFor(() => expect(exec).toHaveBeenCalled());
     expect((exec.mock.calls[0] as unknown as [unknown, { initialSize?: unknown }])[1].initialSize).toBeUndefined();
     ws.close();
   });

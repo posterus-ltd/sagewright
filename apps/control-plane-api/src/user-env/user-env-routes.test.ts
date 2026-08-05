@@ -5,7 +5,7 @@ import { makeTestApp } from '../test/make-test-app';
 type App = Awaited<ReturnType<typeof makeTestApp>>['app'];
 
 const login = async (app: App, displayName = 'al') => {
-  const res = await app.inject({ method: 'POST', url: '/api/login', payload: { displayName, password: 'pw' } });
+  const res = await app.inject({ method: 'POST', url: '/api/login', payload: { username: displayName, password: 'pw' } });
   const cookie = res.cookies[0];
   return { cookie: `${cookie!.name}=${cookie!.value}` };
 };

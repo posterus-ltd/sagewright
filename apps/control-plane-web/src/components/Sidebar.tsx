@@ -192,7 +192,7 @@ export const Sidebar: FC = () => {
 
   const signOut = (): void => {
     setUserAnchor(null);
-    logout();
+    void logout();
     navigate('/login');
   };
 

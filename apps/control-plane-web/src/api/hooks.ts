@@ -5,11 +5,16 @@ import {
   type CanvasLayout,
   type CreateScheduledPromptInput,
   type CreateSessionInput,
+  type CreateUserResult,
+  type MeResponse,
   type RepoWithStatus,
+  type ResetPasswordResult,
   type ScheduledPrompt,
   type Session,
   type UpdateWorkflowInput,
   type RunnerImage,
+  type User,
+  type UserRole,
   type Workflow,
   type WorkflowInput,
   type WorkflowRun,
@@ -18,6 +23,63 @@ import {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { apiClient } from './client';
+
+// --- Auth & identity ---------------------------------------------------------
+
+// The source of truth for the current user's role + forced-change state. The auth
+// gate reads it live, so it must never be cached stale across a login/logout.
+export const useMe = () =>
+  useQuery({ queryKey: ['me'], queryFn: () => apiClient.get<MeResponse>('/api/me'), staleTime: 0 });
+
+export const useChangePassword = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { currentPassword: string; newPassword: string }) =>
+      apiClient.post('/api/change-password', input),
+    // Clearing the flag server-side must re-drive the gate (mustChangePassword → false).
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['me'] }),
+  });
+};
+
+// --- User management (root/admin only) ---------------------------------------
+
+export const useUsers = () =>
+  useQuery({ queryKey: ['users'], queryFn: () => apiClient.get<User[]>('/api/users') });
+
+export const useCreateUser = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { username: string; role?: UserRole }) =>
+      apiClient.post<CreateUserResult>('/api/users', input),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['users'] }),
+  });
+};
+
+export const useResetPassword = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (username: string) =>
+      apiClient.post<ResetPasswordResult>(`/api/users/${encodeURIComponent(username)}/reset-password`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['users'] }),
+  });
+};
+
+export const useSetUserRole = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ username, role }: { username: string; role: UserRole }) =>
+      apiClient.patch(`/api/users/${encodeURIComponent(username)}`, { role }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['users'] }),
+  });
+};
+
+export const useDeleteUser = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (username: string) => apiClient.del(`/api/users/${encodeURIComponent(username)}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['users'] }),
+  });
+};
 
 export type GithubStatus =
   | { connected: false }

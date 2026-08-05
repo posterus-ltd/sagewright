@@ -1,8 +1,11 @@
+import { Box, CircularProgress } from '@mui/material';
 import { type FC } from 'react';
 import { Navigate, RouterProvider, createBrowserRouter } from 'react-router';
 
+import { useMe } from './api/hooks';
 import { AboutPage } from './about/AboutPage';
 import { AdminPage } from './admin/AdminPage';
+import { ForcedChangePassword } from './auth/ForcedChangePassword';
 import { LoginPage } from './auth/LoginPage';
 import { useAuth } from './auth/useAuth';
 import { CanvasPage } from './canvas/CanvasPage';
@@ -17,9 +20,25 @@ import { TaskDetailPage } from './tasks/TaskDetailPage';
 import { WorkflowsListPage } from './workflows/WorkflowsListPage';
 import { WorkflowRunPage } from './workflows/WorkflowRunPage';
 
+const FullScreenSpinner: FC = () => (
+  <Box sx={{ minHeight: '100dvh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+    <CircularProgress />
+  </Box>
+);
+
+// Reached only once the client believes it's logged in. `useMe` is the server's word:
+// while it loads we hold a spinner, and if the account still `mustChangePassword` we
+// render the forced-change screen instead of the app — one seam gates the whole SPA.
+const AuthedApp: FC = () => {
+  const { data: me } = useMe();
+  if (!me) return <FullScreenSpinner />;
+  if (me.mustChangePassword) return <ForcedChangePassword />;
+  return <Layout />;
+};
+
 const AuthGate: FC = () => {
   const { displayName } = useAuth();
-  return displayName ? <Layout /> : <Navigate to="/login" replace />;
+  return displayName ? <AuthedApp /> : <Navigate to="/login" replace />;
 };
 
 const router = createBrowserRouter([

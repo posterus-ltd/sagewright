@@ -15,12 +15,13 @@ import {
 import DeleteIcon from '@mui/icons-material/Delete';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
-import { RepoStatus } from '@sagewright/shared';
+import { RepoStatus, isAdminRole } from '@sagewright/shared';
 import { useEffect, useState, type FC } from 'react';
 
 import {
   useDisconnectGithub,
   useGithubStatus,
+  useMe,
   revealUserEnv,
   useRepos,
   useSaveRepos,
@@ -31,6 +32,8 @@ import {
   useRunners,
 } from '../api/hooks';
 import { MainContainer } from '../components/MainContainer';
+import { ChangePasswordSection } from './ChangePasswordSection';
+import { UserManagementSection } from './UserManagementSection';
 
 const REPOS_PLACEHOLDER = `https://github.com/owner/repo
 https://github.com/owner/another-repo
@@ -239,16 +242,29 @@ const RunnerSection: FC = () => {
   );
 };
 
-export const SettingsPage: FC = () => (
-  <MainContainer>
-    <Stack spacing={3}>
-      <GithubSection />
-      <Divider />
-      <ReposSection />
-      <Divider />
-      <EnvironmentSection />
-      <Divider />
-      <RunnerSection />
-    </Stack>
-  </MainContainer>
-);
+export const SettingsPage: FC = () => {
+  const { data: me } = useMe();
+  const showUserManagement = !!me && isAdminRole(me.role);
+
+  return (
+    <MainContainer>
+      <Stack spacing={3}>
+        <GithubSection />
+        <Divider />
+        <ReposSection />
+        <Divider />
+        <EnvironmentSection />
+        <Divider />
+        <RunnerSection />
+        <Divider />
+        <ChangePasswordSection />
+        {showUserManagement && (
+          <>
+            <Divider />
+            <UserManagementSection />
+          </>
+        )}
+      </Stack>
+    </MainContainer>
+  );
+};

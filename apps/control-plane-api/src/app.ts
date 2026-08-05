@@ -19,6 +19,7 @@ import { registerRepoRoutes } from './repos/repo-routes';
 import { registerScheduledPromptRoutes } from './scheduled-prompts/scheduled-prompt-routes';
 import { registerTaskRoutes } from './tasks/task-routes';
 import { registerUserEnvRoutes } from './user-env/user-env-routes';
+import { registerUserRoutes } from './users/user-routes';
 import { registerUserSettingsRoutes } from './user-settings/user-settings-routes';
 import { registerRunnerRoutes } from './runners/runner-routes';
 import { registerCanvasLayoutRoutes } from './canvas-layout/canvas-layout-routes';
@@ -31,6 +32,7 @@ import type { TaskService } from './tasks/task-service';
 import type { WorkflowService } from './workflows/workflow-service';
 import type { WorkflowDriver } from './workflows/workflow-driver';
 import type { UserEnvService } from './user-env/user-env-service';
+import type { UserService } from './users/user-service';
 import type { UserSettingsService } from './user-settings/user-settings-service';
 import type { CanvasLayoutService } from './canvas-layout/canvas-layout-service';
 import type { ContainerTerminal } from './tasks/docker-client';
@@ -46,6 +48,7 @@ export interface AppDeps {
   sessionRuntime: SessionRuntime;
   taskService: TaskService;
   repoService: RepoService;
+  userService: UserService;
   userEnvService: UserEnvService;
   githubCredentialService: GithubCredentialService;
   userSettingsService: UserSettingsService;
@@ -78,7 +81,7 @@ export const buildApp = (deps: AppDeps): FastifyInstance => {
   const app = Fastify({ logger: true });
 
   registerAuth(app, {
-    appPassword: deps.config.appPassword,
+    userService: deps.userService,
     sessionSecret: deps.config.sessionSecret,
   });
 
@@ -86,6 +89,7 @@ export const buildApp = (deps: AppDeps): FastifyInstance => {
   registerScheduledPromptRoutes(app, deps);
   registerTaskRoutes(app, deps);
   registerUserEnvRoutes(app, deps);
+  registerUserRoutes(app, deps);
   registerGithubRoutes(app, deps);
   registerUserSettingsRoutes(app, deps);
   registerRunnerRoutes(app, deps);

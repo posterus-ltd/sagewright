@@ -25,7 +25,7 @@ describe('LoginPage', () => {
 
   it('renders the sign-in form and the marketing panel', () => {
     render(<LoginPage />);
-    expect(screen.getByLabelText(/display name/i)).toBeTruthy();
+    expect(screen.getByLabelText(/username/i)).toBeTruthy();
     expect(screen.getByLabelText(/password/i)).toBeTruthy();
     expect(screen.getByRole('button', { name: /sign in/i })).toBeTruthy();
     // Branding is present so mobile users (form-only) still see the wordmark.
@@ -36,7 +36,7 @@ describe('LoginPage', () => {
     login.mockResolvedValueOnce(undefined);
     render(<LoginPage />);
 
-    typeInto(/display name/i, 'ada');
+    typeInto(/username/i, 'ada');
     typeInto(/password/i, 'hunter2');
     fireEvent.click(screen.getByRole('button', { name: /sign in/i }));
 
@@ -49,7 +49,7 @@ describe('LoginPage', () => {
     login.mockRejectedValueOnce(new Error('nope'));
     render(<LoginPage />);
 
-    typeInto(/display name/i, 'ada');
+    typeInto(/username/i, 'ada');
     typeInto(/password/i, 'wrong');
     fireEvent.click(screen.getByRole('button', { name: /sign in/i }));
 
@@ -64,7 +64,7 @@ describe('LoginPage', () => {
     const button = screen.getByRole('button', { name: /sign in/i }) as HTMLButtonElement;
     expect(button.disabled).toBe(true);
 
-    typeInto(/display name/i, 'ada');
+    typeInto(/username/i, 'ada');
     expect(button.disabled).toBe(true);
 
     typeInto(/password/i, '   ');
@@ -75,7 +75,7 @@ describe('LoginPage', () => {
     login.mockResolvedValueOnce(undefined);
     render(<LoginPage />);
 
-    typeInto(/display name/i, 'ada');
+    typeInto(/username/i, 'ada');
     typeInto(/password/i, 'hunter2');
     fireEvent.submit(screen.getByRole('button', { name: /sign in/i }).closest('form') as HTMLFormElement);
 
@@ -90,7 +90,7 @@ describe('LoginPage', () => {
     fireEvent.submit(form);
     expect(login).not.toHaveBeenCalled();
 
-    typeInto(/display name/i, '   ');
+    typeInto(/username/i, '   ');
     typeInto(/password/i, '   ');
     fireEvent.submit(form);
     expect(login).not.toHaveBeenCalled();

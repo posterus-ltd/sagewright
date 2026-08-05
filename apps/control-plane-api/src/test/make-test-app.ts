@@ -1,11 +1,15 @@
 import { DataType, newDb } from 'pg-mem';
 import { randomUUID } from 'node:crypto';
 import { drizzle } from 'drizzle-orm/node-postgres';
+import { UserRole } from '@sagewright/shared';
 
 import { buildApp, type AppDeps } from '../app';
+import { hashPassword } from '../auth/password';
 import { loadConfig } from '../config';
 import { createSecretCipher } from '../crypto/secret-cipher';
 import * as schema from '../db/schema';
+import { users } from '../db/schema';
+import { createUserService } from '../users/user-service';
 import { createEventBus } from '../events/event-bus';
 import { createEventStore } from '../events/event-store';
 import type { Volume } from '../git/volume';
@@ -115,6 +119,15 @@ const TABLE_STMTS = [
     "default_runner_image" text,
     "updated_at" timestamp with time zone DEFAULT now() NOT NULL
   )`,
+  `CREATE TABLE "users" (
+    "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+    "username" text NOT NULL UNIQUE,
+    "password_hash" text NOT NULL,
+    "role" text DEFAULT 'user' NOT NULL,
+    "must_change_password" boolean DEFAULT true NOT NULL,
+    "created_at" timestamp with time zone DEFAULT now() NOT NULL,
+    "updated_at" timestamp with time zone DEFAULT now() NOT NULL
+  )`,
   `CREATE TABLE "workflows" (
     "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
     "name" text NOT NULL,
@@ -221,9 +234,44 @@ const createPatchedPool = (): unknown => {
   return new PatchedPool();
 };
 
+export interface TestUser {
+  username: string;
+  role?: UserRole;
+  password?: string;
+  mustChangePassword?: boolean;
+}
+
+// The identities the existing route suites log in as. Seeded with no forced change so
+// they reach guarded routes immediately. `root` is role root for admin-route tests.
+export const DEFAULT_TEST_USERS: TestUser[] = [
+  { username: 'root', role: UserRole.ROOT },
+  { username: 'al' },
+  { username: 'bo' },
+  { username: 'alice' },
+  { username: 'bob' },
+  { username: 'mallory' },
+];
+
+/** Seed-then-login helper for tests: returns a `cookie` header for the given user. */
+export const login = async (
+  app: ReturnType<typeof buildApp>,
+  username = 'al',
+  password = 'pw',
+): Promise<{ cookie: string }> => {
+  const res = await app.inject({ method: 'POST', url: '/api/login', payload: { username, password } });
+  const cookie = res.cookies[0];
+  return { cookie: `${cookie!.name}=${cookie!.value}` };
+};
+
 export const makeTestApp = async (
   overrides: Partial<AppDeps> = {},
-  opts: { spawner?: { spawn: (i: SpawnInput) => Promise<{ containerId: string }>; retire: (id: string) => Promise<void> } } = {},
+  opts: {
+    spawner?: { spawn: (i: SpawnInput) => Promise<{ containerId: string }>; retire: (id: string) => Promise<void> };
+    // Users seeded before the app returns, so `login(app, 'name')` just works. Defaults
+    // to root + a few plain users (all password 'pw', no forced change). Pass [] to seed
+    // nothing (e.g. unit tests that drive the user service directly).
+    seedUsers?: TestUser[];
+  } = {},
 ): Promise<{
   app: ReturnType<typeof buildApp>;
   db: ReturnType<typeof drizzle>;
@@ -231,9 +279,19 @@ export const makeTestApp = async (
   const pool = createPatchedPool();
   const db = drizzle(pool as never, { schema });
 
+  const userService = createUserService({ db: db as never });
+  for (const u of opts.seedUsers ?? DEFAULT_TEST_USERS) {
+    await db.insert(users).values({
+      username: u.username,
+      passwordHash: hashPassword(u.password ?? 'pw'),
+      role: u.role ?? UserRole.USER,
+      mustChangePassword: u.mustChangePassword ?? false,
+    });
+  }
+
   const config = loadConfig({
     DATABASE_URL: 'postgres://x',
-    APP_PASSWORD: 'pw',
+    ROOT_PASSWORD: 'pw',
     SESSION_SECRET: 'sec',
     SECRETS_KEY: '0123456789abcdef0123456789abcdef',
     RUNNER_IMAGE: 'w',
@@ -333,6 +391,7 @@ export const makeTestApp = async (
     sessionRuntime,
     taskService: defaultTaskService,
     repoService,
+    userService,
     userEnvService,
     githubCredentialService,
     userSettingsService,

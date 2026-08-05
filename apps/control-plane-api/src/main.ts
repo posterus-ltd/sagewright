@@ -11,6 +11,8 @@ import { createSessionRuntime } from './sessions/session-runtime';
 import { createSessionService } from './sessions/session-service';
 import { createTaskService } from './tasks/task-service';
 import { createUserEnvService } from './user-env/user-env-service';
+import { createUserService } from './users/user-service';
+import { seedRootUser } from './users/seed-root';
 import { createGithubCredentialService } from './github/github-credential-service';
 import { createCanvasLayoutService } from './canvas-layout/canvas-layout-service';
 import { createWorkflowService } from './workflows/workflow-service';
@@ -35,6 +37,7 @@ const containerExec = createContainerExec(docker);
 const agentDriver = createAgentDriver({ db, eventStore, eventBus, exec: containerExec, retire: spawner.retire });
 // Owns the shared repo volume: all clone/pull/worktree writes funnel through here.
 const volume = createVolume({ token: config.githubToken });
+const userService = createUserService({ db });
 const userEnvService = createUserEnvService({ db, cipher: createSecretCipher(config.secretsKey) });
 const githubCredentialService = createGithubCredentialService({ db, cipher: createSecretCipher(config.secretsKey), config, userEnvService });
 const repoService = createRepoService({ db, volume, githubCredentialService });
@@ -118,7 +121,7 @@ const reconciler = createReconciler({
   resumeWorkflow: workflowDriver.resume,
 });
 
-const app = buildApp({ config, db, eventStore, eventBus, sessionService, sessionRuntime, taskService, repoService, userEnvService, githubCredentialService, userSettingsService, canvasLayoutService, workflowService, workflowDriver, containerTerminal, volume, scheduler, runnerRegistry });
+const app = buildApp({ config, db, eventStore, eventBus, sessionService, sessionRuntime, taskService, repoService, userService, userEnvService, githubCredentialService, userSettingsService, canvasLayoutService, workflowService, workflowDriver, containerTerminal, volume, scheduler, runnerRegistry });
 
 // The scheduler is built before the app (the app depends on it), so hand it the
 // Fastify logger now that the app exists — failed scheduled runs go to the app log.
@@ -126,6 +129,11 @@ scheduler.setLogger({ error: (err, msg) => app.log.error({ err: String(err) }, m
 
 const start = async (): Promise<void> => {
   try {
+    // Seed the `root` account from ROOT_PASSWORD before accepting traffic. Idempotent,
+    // so it is a no-op on every boot after the first. Root starts with
+    // mustChangePassword=true, forcing the operator to change it on first login.
+    const created = await seedRootUser({ userService, rootPassword: config.rootPassword });
+    if (created) app.log.info('seeded initial root user (change its password on first login)');
     // Surface a stale operator default loudly at boot. The fallback image is trusted
     // (it's used whenever a user has no stored default), so if it isn't actually built
     // every such task — including scheduled runs — would 404 at container creation.

@@ -15,6 +15,13 @@
       "when": 1785456000000,
       "tag": "0001_rename_worker_to_runner",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1785763312774,
+      "tag": "0002_add_users",
+      "breakpoints": true
     }
   ]
 }

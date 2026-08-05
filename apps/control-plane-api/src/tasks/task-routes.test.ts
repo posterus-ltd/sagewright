@@ -73,7 +73,7 @@ describe('task routes', () => {
       agentDriver: { runInteractive, complete: async () => {} } as never,
     });
     const { app, db } = await makeTestApp({ sessionRuntime });
-    const login = await app.inject({ method: 'POST', url: '/api/login', payload: { displayName: 'al', password: 'pw' } });
+    const login = await app.inject({ method: 'POST', url: '/api/login', payload: { username: 'al', password: 'pw' } });
     const c = login.cookies[0]!;
     const headers = { cookie: `${c.name}=${c.value}` };
     // A detached session (control-plane restarted since, so no runtime entry either).
@@ -106,7 +106,7 @@ describe('task routes', () => {
       agentDriver: { runInteractive, complete: async () => {} } as never,
     });
     const { app, db } = await makeTestApp({ sessionRuntime });
-    const login = await app.inject({ method: 'POST', url: '/api/login', payload: { displayName: 'al', password: 'pw' } });
+    const login = await app.inject({ method: 'POST', url: '/api/login', payload: { username: 'al', password: 'pw' } });
     const c = login.cookies[0]!;
     const headers = { cookie: `${c.name}=${c.value}` };
     const [row] = await db
@@ -301,7 +301,7 @@ describe('task routes', () => {
   it('DELETE /api/tasks/:id removes an owned session when deletion is allowed (default)', async () => {
     const { app, db } = await makeTestApp();
     const cookie = (
-      await app.inject({ method: 'POST', url: '/api/login', payload: { displayName: 'alice', password: 'pw' } })
+      await app.inject({ method: 'POST', url: '/api/login', payload: { username: 'alice', password: 'pw' } })
     ).cookies[0];
     const headers = { cookie: `${cookie!.name}=${cookie!.value}` };
     const [row] = await db
@@ -318,13 +318,13 @@ describe('task routes', () => {
   it('DELETE /api/tasks/:id returns 403 and keeps the row when ALLOW_SESSION_DELETION=false', async () => {
     // Same env makeTestApp uses, with deletion switched off — the audit-retention deployment.
     const config = loadConfig({
-      DATABASE_URL: 'postgres://x', APP_PASSWORD: 'pw', SESSION_SECRET: 'sec',
+      DATABASE_URL: 'postgres://x', ROOT_PASSWORD: 'pw', SESSION_SECRET: 'sec',
       SECRETS_KEY: '0123456789abcdef0123456789abcdef', RUNNER_IMAGE: 'w',
       CONTROL_PLANE_URL: 'http://c', ALLOW_SESSION_DELETION: 'false',
     });
     const { app, db } = await makeTestApp({ config });
     const cookie = (
-      await app.inject({ method: 'POST', url: '/api/login', payload: { displayName: 'alice', password: 'pw' } })
+      await app.inject({ method: 'POST', url: '/api/login', payload: { username: 'alice', password: 'pw' } })
     ).cookies[0];
     const headers = { cookie: `${cookie!.name}=${cookie!.value}` };
     const [row] = await db
@@ -342,7 +342,7 @@ describe('task routes', () => {
   it('POST /api/tasks returns 201 with createdBy and status=running', async () => {
     const { app } = await makeTestApp();
     const cookie = (
-      await app.inject({ method: 'POST', url: '/api/login', payload: { displayName: 'alice', password: 'pw' } })
+      await app.inject({ method: 'POST', url: '/api/login', payload: { username: 'alice', password: 'pw' } })
     ).cookies[0];
     const headers = { cookie: `${cookie!.name}=${cookie!.value}` };
 
@@ -362,7 +362,7 @@ describe('task routes', () => {
     };
     const { app } = await makeTestApp({}, { spawner: capturingSpawner });
     const cookie = (
-      await app.inject({ method: 'POST', url: '/api/login', payload: { displayName: 'alice', password: 'pw' } })
+      await app.inject({ method: 'POST', url: '/api/login', payload: { username: 'alice', password: 'pw' } })
     ).cookies[0];
     const headers = { cookie: `${cookie!.name}=${cookie!.value}` };
 
@@ -390,7 +390,7 @@ describe('task routes', () => {
       }),
     }, { spawner: capturingSpawner });
     const cookie = (
-      await app.inject({ method: 'POST', url: '/api/login', payload: { displayName: 'alice', password: 'pw' } })
+      await app.inject({ method: 'POST', url: '/api/login', payload: { username: 'alice', password: 'pw' } })
     ).cookies[0];
     const headers = { cookie: `${cookie!.name}=${cookie!.value}` };
 
@@ -412,7 +412,7 @@ describe('task routes', () => {
     };
     const { app } = await makeTestApp({}, { spawner: capturingSpawner });
     const cookie = (
-      await app.inject({ method: 'POST', url: '/api/login', payload: { displayName: 'alice', password: 'pw' } })
+      await app.inject({ method: 'POST', url: '/api/login', payload: { username: 'alice', password: 'pw' } })
     ).cookies[0];
     const headers = { cookie: `${cookie!.name}=${cookie!.value}` };
 
@@ -432,7 +432,7 @@ describe('task routes', () => {
     };
     const { app, db } = await makeTestApp({}, { spawner: capturingSpawner });
     const cookie = (
-      await app.inject({ method: 'POST', url: '/api/login', payload: { displayName: 'alice', password: 'pw' } })
+      await app.inject({ method: 'POST', url: '/api/login', payload: { username: 'alice', password: 'pw' } })
     ).cookies[0];
     const headers = { cookie: `${cookie!.name}=${cookie!.value}` };
 
@@ -468,7 +468,7 @@ describe('task routes', () => {
   it('GET /api/tasks/graph returns sessions for every user, not just the requester', async () => {
     const { app } = await makeTestApp();
     const login = async (displayName: string) => {
-      const c = (await app.inject({ method: 'POST', url: '/api/login', payload: { displayName, password: 'pw' } })).cookies[0];
+      const c = (await app.inject({ method: 'POST', url: '/api/login', payload: { username: displayName, password: 'pw' } })).cookies[0];
       return { cookie: `${c!.name}=${c!.value}` };
     };
     const alice = await login('alice');
@@ -484,7 +484,7 @@ describe('task routes', () => {
   it('forbids a non-owner from reading or mutating another user’s session (403)', async () => {
     const { app } = await makeTestApp();
     const login = async (displayName: string) => {
-      const c = (await app.inject({ method: 'POST', url: '/api/login', payload: { displayName, password: 'pw' } })).cookies[0];
+      const c = (await app.inject({ method: 'POST', url: '/api/login', payload: { username: displayName, password: 'pw' } })).cookies[0];
       return { cookie: `${c!.name}=${c!.value}` };
     };
     const alice = await login('alice');

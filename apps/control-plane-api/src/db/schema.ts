@@ -1,5 +1,22 @@
 import { bigint, boolean, index, integer, jsonb, pgTable, text, timestamp, uniqueIndex, uuid, type AnyPgColumn } from 'drizzle-orm/pg-core';
 
+/**
+ * The source of truth for who may log in. `username` is the same identity key every
+ * per-user table already uses (`user_key` / `created_by`), so seeding this table adds
+ * real credentials without migrating any existing data. `passwordHash` is a
+ * self-describing scrypt string (see auth/password.ts); `mustChangePassword` is read
+ * live in the auth guard so an admin reset takes effect on the user's next request.
+ */
+export const users = pgTable('users', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  username: text('username').notNull().unique(),
+  passwordHash: text('password_hash').notNull(),
+  role: text('role').notNull().default('user'),
+  mustChangePassword: boolean('must_change_password').notNull().default(true),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const repos = pgTable('repos', {
   id: uuid('id').primaryKey().defaultRandom(),
   // = displayName today; becomes a real user id once SSO lands. Repos are per-user:

@@ -5,7 +5,7 @@ import { scheduledPrompts, sessions } from '../db/schema';
 import { fakeScheduler, fakeRunnerRegistry, makeTestApp } from '../test/make-test-app';
 
 const login = async (app: Awaited<ReturnType<typeof makeTestApp>>['app']) => {
-  const res = await app.inject({ method: 'POST', url: '/api/login', payload: { displayName: 'al', password: 'pw' } });
+  const res = await app.inject({ method: 'POST', url: '/api/login', payload: { username: 'al', password: 'pw' } });
   const cookie = res.cookies[0];
   return { cookie: `${cookie!.name}=${cookie!.value}` };
 };

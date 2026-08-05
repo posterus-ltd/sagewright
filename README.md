@@ -29,24 +29,23 @@ OpenAI, Anthropic, Google, local models via Ollama, or anything else opencode re
 > [!CAUTION]
 > ## 🚨 SECURITY WARNING — DO NOT EXPOSE THIS TO THE PUBLIC INTERNET 🚨
 >
-> **Authentication is rudimentary and provides effectively no protection against untrusted access.**
-> There is a **single shared `APP_PASSWORD`** and **no real user management**: logging in with
-> **any username** plus that one password **implicitly creates that account and signs it in**. There
-> is no registration, no per-user credentials, no email verification, no roles, and no meaningful
-> access control. Anyone who reaches the app and knows (or guesses) the one password gets in as
-> whoever they type.
+> Sagewright now has **real per-user authentication**: a seeded **`root`** account (initial password
+> from `ROOT_PASSWORD`), **per-user credentials** with salted **scrypt** password hashes, **roles**
+> (`root` / `admin` / `user`), a **forced password change** on first login and after any admin reset,
+> and an **admin-only User Management** panel to create users, reset passwords, promote/demote, and
+> delete. Logging in no longer auto-creates accounts — only users an admin provisions can sign in.
 >
-> Combined with the [Docker socket mount](#architecture-note-the-docker-socket-mount) — which grants
-> the control plane **root-equivalent control over the host** — a single leaked password is a full
-> host compromise, not just an app login.
+> **This is still not a hardened, internet-facing service.** Combined with the
+> [Docker socket mount](#architecture-note-the-docker-socket-mount) — which grants the control plane
+> **root-equivalent control over the host** — any account that reaches the app has a large blast
+> radius, so a compromised or weak credential is a serious risk. There is no MFA, no rate limiting,
+> no account lockout, and no audit log.
 >
 > **You MUST run Sagewright only on a trusted private network — behind a VPN or on an internal LAN
 > that is not reachable from the internet.** Treat it as a **single-user / trusted-team local tool**,
 > not a multi-tenant hosted service. **Never** bind it to a public IP, port-forward it, or place it
-> behind a plain public reverse proxy.
->
-> Hardening this into a real auth system (registration control, per-user credentials, roles) is
-> tracked work — until then, network isolation is your only real security boundary.
+> behind a plain public reverse proxy. Choose a strong `ROOT_PASSWORD`, change it on first login, and
+> give each teammate their own account.
 
 ---
 
@@ -131,8 +130,9 @@ cp .env.example .env
 Open `.env` and fill in the five values you must set. Leave everything else at its default.
 
 ```env
-# A password you'll type to log into the web UI — pick anything you'll remember.
-APP_PASSWORD=changeme
+# Initial password for the seeded `root` account. You log in as `root` with this the
+# first time and are then forced to change it — pick anything you'll remember for now.
+ROOT_PASSWORD=changeme
 
 # Two random secrets, each EXACTLY 32 characters long.
 SESSION_SECRET=change-this-32-byte-secret-value!!
@@ -175,14 +175,19 @@ That's it. This launches PostgreSQL and the control plane on port 3000.
 
 ### 4. Open the app
 
-Go to **[http://localhost:3000](http://localhost:3000)**, log in with your `APP_PASSWORD`, then:
+Go to **[http://localhost:3000](http://localhost:3000)** and log in as **`root`** with the
+`ROOT_PASSWORD` you set. You'll be prompted to **choose a new password** before the app opens — this
+forced change happens on first login and after any admin reset. Then:
 
 1. **Add your repos** — open **Settings** and list your HTTPS repo URLs (one per line, e.g.
    `https://github.com/owner/repo`, not SSH syntax like `git@github.com:owner/repo.git`). They're
    yours alone; see [Global defaults vs per-user settings](#global-defaults-vs-per-user-settings).
 2. **(Optional) Set a personal `.env`** — under **Settings → Environment**, override the org
    defaults for your sessions (e.g. your own `GITHUB_TOKEN`).
-3. **Create a task** — describe what you want; the transcript streams live as the agent works.
+3. **(Optional) Add teammates** — as `root` (or an admin), open **Settings → User Management** to
+   create accounts. Each gets a one-time password, shown once, that you share out-of-band; they're
+   forced to change it on first login. Promote a teammate to **admin** to let them manage users too.
+4. **Create a task** — describe what you want; the transcript streams live as the agent works.
 
 ### Stopping and restarting
 

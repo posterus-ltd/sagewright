@@ -176,6 +176,9 @@ export const LoginPage: FC = () => {
     setSubmitting(true);
     try {
       await login(name, password);
+      // Land on the app root; the auth gate reads `useMe` live and renders the
+      // forced-change screen when the account still `mustChangePassword` (root's first
+      // login, or after an admin reset) before letting the app through.
       navigate('/');
     } catch {
       enqueueSnackbar('Login failed', { variant: 'error' });
@@ -220,7 +223,7 @@ export const LoginPage: FC = () => {
           </Box>
 
           <TextField
-            label="Display name"
+            label="Username"
             value={name}
             onChange={(e) => setName(e.target.value)}
             autoFocus

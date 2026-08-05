@@ -14,7 +14,7 @@ import { createWorkflowDriver, type RunFiles } from './workflow-driver';
 
 const config = loadConfig({
   DATABASE_URL: 'postgres://x',
-  APP_PASSWORD: 'pw',
+  ROOT_PASSWORD: 'pw',
   SESSION_SECRET: 'sec',
   SECRETS_KEY: '0123456789abcdef0123456789abcdef',
   RUNNER_IMAGE: 'w',
