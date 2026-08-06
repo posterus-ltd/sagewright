@@ -146,7 +146,7 @@ export const UserManagementSection: FC = () => {
   if (!me || !isAdminRole(me.role)) return null;
 
   return (
-    <Box sx={{ maxWidth: 860 }}>
+    <>
       <Stack direction="row" spacing={2} sx={{ alignItems: 'center', mb: 1 }}>
         <Box sx={{ flexGrow: 1 }}>
           <Typography variant="h6">User management</Typography>
@@ -181,6 +181,6 @@ export const UserManagementSection: FC = () => {
         }
       />
       <SharePasswordDialog shared={shared} onClose={() => setShared(null)} />
-    </Box>
+    </>
   );
 };

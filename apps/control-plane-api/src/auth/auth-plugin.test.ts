@@ -47,7 +47,7 @@ describe('auth-plugin', () => {
       method: 'POST',
       url: '/api/change-password',
       headers,
-      payload: { currentPassword: 'pw', newPassword: 'a-brand-new-password' },
+      payload: { currentPassword: 'pw', newPassword: 'a-brand-new-pass1' },
     });
     expect(changed.statusCode).toBe(204);
 
@@ -62,7 +62,20 @@ describe('auth-plugin', () => {
       method: 'POST',
       url: '/api/change-password',
       headers,
-      payload: { currentPassword: 'wrong', newPassword: 'a-brand-new-password' },
+      payload: { currentPassword: 'wrong', newPassword: 'a-brand-new-pass1' },
+    });
+    expect(res.statusCode).toBe(400);
+  });
+
+  it('rejects a new password that does not meet the requirements with 400', async () => {
+    const { app } = await makeTestApp({}, { seedUsers });
+    const headers = await login(app, 'al');
+    // Long enough but no digit — must be rejected server-side regardless of the client.
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/change-password',
+      headers,
+      payload: { currentPassword: 'pw', newPassword: 'letters-only-here' },
     });
     expect(res.statusCode).toBe(400);
   });

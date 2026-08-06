@@ -16,6 +16,11 @@ import { useState, type FC } from 'react';
 import { ApiError } from '../api/client';
 import { useCreateUser } from '../api/hooks';
 
+// Letter-led handle: a letter first, then letters, digits or hyphens (3–32 chars).
+// Stricter than the shared USERNAME_RE (which also allows a leading digit plus
+// dot/underscore, min 2) on purpose — so a hyphen can't lead. Kept in sync with the hint below.
+const USERNAME_RE = /^[a-z][a-z0-9-]{2,31}$/;
+
 // Mount fresh per open (keyed) so the fields reset without a reset effect.
 export const CreateUserDialog: FC<{
   open: boolean;
@@ -27,9 +32,14 @@ export const CreateUserDialog: FC<{
   const [username, setUsername] = useState('');
   const [role, setRole] = useState<UserRole>(UserRole.USER);
 
+  // Validate against the lowercased value — the backend lowercases at the boundary,
+  // so `Alice` is fine and normalizes to `alice`.
+  const name = username.trim().toLowerCase();
+  const isValid = USERNAME_RE.test(name);
+  const showError = username.trim().length > 0 && !isValid;
+
   const save = async (): Promise<void> => {
-    const name = username.trim();
-    if (!name) return;
+    if (!isValid) return;
     try {
       const result = await createUser.mutateAsync({ username: name, role });
       onCreated(result);
@@ -56,7 +66,12 @@ export const CreateUserDialog: FC<{
             value={username}
             onChange={(e) => setUsername(e.target.value)}
             autoFocus
-            helperText="Lowercased. Letters, digits, dot, underscore or hyphen."
+            error={showError}
+            helperText={
+              showError
+                ? 'Must start with a letter, then only letters, digits or hyphens (3–32 chars).'
+                : 'Lowercased. Start with a letter, then letters, digits or hyphens (3–32 chars).'
+            }
           />
           <TextField
             select
@@ -71,7 +86,7 @@ export const CreateUserDialog: FC<{
       </DialogContent>
       <DialogActions>
         <Button onClick={onClose}>Cancel</Button>
-        <Button variant="contained" onClick={() => void save()} disabled={!username.trim() || createUser.isPending}>
+        <Button variant="contained" onClick={() => void save()} disabled={!isValid || createUser.isPending}>
           Create
         </Button>
       </DialogActions>

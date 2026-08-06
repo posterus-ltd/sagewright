@@ -36,6 +36,26 @@ export const assignableRoleSchema = z.enum(UserRole).exclude(['ROOT']);
 /** Minimum length for a user-chosen password (generated one-time passwords are longer). */
 export const MIN_PASSWORD_LENGTH = 8;
 
+/**
+ * The requirements a user-chosen password must satisfy, as a data-driven list so the UI
+ * can render a live "requirements met" checklist and the server enforces the very same
+ * rules — one source of truth for both. The repeat/confirm match is a relation between
+ * two fields rather than a property of one password, so it lives in the form, not here.
+ */
+export interface PasswordRule {
+  label: string;
+  test: (password: string) => boolean;
+}
+
+export const PASSWORD_RULES: readonly PasswordRule[] = [
+  { label: `At least ${MIN_PASSWORD_LENGTH} characters`, test: (p) => p.length >= MIN_PASSWORD_LENGTH },
+  { label: 'Contains letters', test: (p) => /[a-z]/i.test(p) },
+  { label: 'Contains numbers', test: (p) => /[0-9]/.test(p) },
+];
+
+/** True only when a password satisfies every rule in {@link PASSWORD_RULES}. */
+export const isStrongPassword = (password: string): boolean => PASSWORD_RULES.every((rule) => rule.test(password));
+
 export const loginSchema = z.object({
   username: usernameSchema,
   password: z.string().min(1),
@@ -50,7 +70,11 @@ export type CreateUserInput = z.infer<typeof createUserSchema>;
 
 export const changePasswordSchema = z.object({
   currentPassword: z.string().min(1),
-  newPassword: z.string().min(MIN_PASSWORD_LENGTH, `password must be at least ${MIN_PASSWORD_LENGTH} characters`),
+  // Enforce the same rules the UI checklist shows, so a client that skips the checks
+  // (or a direct API call) can't set a weak password.
+  newPassword: z
+    .string()
+    .refine(isStrongPassword, `password must be at least ${MIN_PASSWORD_LENGTH} characters and contain letters and numbers`),
 });
 export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;
 

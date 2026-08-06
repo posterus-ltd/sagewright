@@ -1,270 +1,123 @@
 import {
   Box,
   Button,
-  Chip,
   Divider,
-  List,
-  ListItem,
-  ListItemText,
-  Alert,
   MenuItem,
   Stack,
   TextField,
-  Typography,
 } from '@mui/material';
-import DeleteIcon from '@mui/icons-material/Delete';
-import VisibilityIcon from '@mui/icons-material/Visibility';
-import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
-import { RepoStatus, isAdminRole } from '@sagewright/shared';
-import { useEffect, useState, type FC } from 'react';
+import { isAdminRole } from '@sagewright/shared';
+import { useMemo, type FC } from 'react';
+import { useSearchParams } from 'react-router';
 
-import {
-  useDisconnectGithub,
-  useGithubStatus,
-  useMe,
-  revealUserEnv,
-  useRepos,
-  useSaveRepos,
-  useSaveGithubToken,
-  useSetDefaultRunner,
-  useUpdateUserEnv,
-  useUserEnv,
-  useRunners,
-} from '../api/hooks';
+import { useMe } from '../api/hooks';
 import { MainContainer } from '../components/MainContainer';
-import { ChangePasswordSection } from './ChangePasswordSection';
-import { UserManagementSection } from './UserManagementSection';
+import {
+  SETTINGS_SECTIONS,
+  SettingsSectionId,
+  type SettingsSection,
+} from './settingsSections';
 
-const REPOS_PLACEHOLDER = `https://github.com/owner/repo
-https://github.com/owner/another-repo
-
-Use HTTPS URLs, not SSH syntax like git@github.com:owner/repo.git`;
-
-const statusColor = (s: RepoStatus): 'success' | 'warning' | 'error' =>
-  s === RepoStatus.PRESENT ? 'success' : s === RepoStatus.CLONING ? 'warning' : 'error';
-
-const GithubSection: FC = () => {
-  const { data: status } = useGithubStatus();
-  const saveToken = useSaveGithubToken();
-  const disconnect = useDisconnectGithub();
-  const [token, setToken] = useState('');
-
-  const save = async (): Promise<void> => {
-    await saveToken.mutateAsync(token);
-    setToken('');
-  };
-
-  return (
-    <Box sx={{ maxWidth: 560 }}>
-      <Typography variant="h6" gutterBottom>GitHub</Typography>
-      <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-        Connect a classic GitHub token so Sagewright clones, pushes, opens PRs, and commits as you on
-        repos you can access.
-      </Typography>
-      {status?.connected ? (
-        <Stack spacing={1}>
-          <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
-            <Chip size="small" color="success" label={`Connected as @${status.login}`} />
-            <Typography variant="body2" color="text.secondary">{status.email}</Typography>
-          </Stack>
-          {status.missingRepoScope && (
-            <Alert severity="warning">This token is missing the classic repo scope.</Alert>
-          )}
-          <Button
-            variant="outlined"
-            color="error"
-            startIcon={<DeleteIcon />}
-            onClick={() => { void disconnect.mutateAsync(); }}
-            disabled={disconnect.isPending}
-          >
-            Disconnect
-          </Button>
-        </Stack>
-      ) : (
-        <Stack spacing={1}>
-          <TextField
-            fullWidth
-            type="password"
-            label="Classic personal access token"
-            value={token}
-            onChange={(e) => setToken(e.target.value)}
-            autoComplete="off"
-          />
-          <Button variant="contained" onClick={save} disabled={!token.trim() || saveToken.isPending}>
-            Save token
-          </Button>
-        </Stack>
-      )}
-    </Box>
-  );
-};
-
-const ReposSection: FC = () => {
-  const { data: repos = [] } = useRepos();
-  const saveRepos = useSaveRepos();
-  const [text, setText] = useState('');
-
-  // Seed the textarea from the server once (and whenever the set of repos changes).
-  const serverText = repos.map((r) => r.url).join('\n');
-  useEffect(() => {
-    setText(serverText);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [serverText]);
-
-  const save = (): void => {
-    const urls = text.split('\n').map((l) => l.trim()).filter(Boolean);
-    void saveRepos.mutateAsync(urls);
-  };
-
-  return (
-    <Box sx={{ maxWidth: 560 }}>
-      <Typography variant="h6" gutterBottom>Your repositories</Typography>
-      <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-        One HTTPS repo URL per line, managed here per-user — use
-        https://github.com/owner/repo, not SSH syntax like git@github.com:owner/repo.git. These are
-        yours alone; each is cloned onto the shared volume and your sessions get a worktree per repo.
-      </Typography>
-      <TextField
-        fullWidth
-        multiline
-        minRows={4}
-        placeholder={REPOS_PLACEHOLDER}
-        value={text}
-        onChange={(e) => setText(e.target.value)}
-      />
-      <Button variant="contained" onClick={save} disabled={saveRepos.isPending} sx={{ mt: 1 }}>
-        Save
-      </Button>
-      <List dense sx={{ mt: 1 }}>
-        {repos.map((r) => (
-          <ListItem key={r.id} secondaryAction={<Chip size="small" label={r.status} color={statusColor(r.status)} />}>
-            <ListItemText primary={r.slug} secondary={r.error ?? r.url} />
-          </ListItem>
-        ))}
-      </List>
-    </Box>
-  );
-};
-
-const ENV_PLACEHOLDER = `OPENAI_API_KEY=sk-...
-NPM_TOKEN=...
-NODE_AUTH_TOKEN=...`;
-
-const EnvironmentSection: FC = () => {
-  const { data } = useUserEnv();
-  const updateEnv = useUpdateUserEnv();
-  const masked = data?.env ?? '';
-  // Masked + read-only by default; revealing fetches plaintext and unlocks editing.
-  const [revealed, setRevealed] = useState(false);
-  const [draft, setDraft] = useState('');
-
-  const reveal = async (): Promise<void> => {
-    const { env } = await revealUserEnv();
-    setDraft(env);
-    setRevealed(true);
-  };
-
-  const hide = (): void => {
-    setRevealed(false);
-    setDraft('');
-  };
-
-  const save = async (): Promise<void> => {
-    await updateEnv.mutateAsync(draft);
-    hide();
-  };
-
-  return (
-    <Box sx={{ maxWidth: 560 }}>
-      <Typography variant="h6" gutterBottom>Environment</Typography>
-      <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-        A custom <code>.env</code> injected into your sessions at runtime and encrypted at rest.
-        These override the org-wide defaults baked into the runner image from the host{' '}
-        <code>.env</code> — e.g. add API keys or registry tokens your sessions need. GitHub
-        credentials are managed above via your personal access token.
-      </Typography>
-      <TextField
-        fullWidth
-        multiline
-        minRows={6}
-        placeholder={ENV_PLACEHOLDER}
-        value={revealed ? draft : masked}
-        onChange={(e) => setDraft(e.target.value)}
-        slotProps={{ input: { readOnly: !revealed, sx: { fontFamily: 'monospace' } } }}
-      />
-      <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
-        {revealed ? (
-          <>
-            <Button variant="contained" onClick={save} disabled={updateEnv.isPending}>Save</Button>
-            <Button startIcon={<VisibilityOffIcon />} onClick={hide}>Hide</Button>
-          </>
-        ) : (
-          <Button variant="outlined" startIcon={<VisibilityIcon />} onClick={reveal}>Reveal &amp; edit</Button>
-        )}
-      </Stack>
-    </Box>
-  );
-};
-
-const RunnerSection: FC = () => {
-  const { data } = useRunners();
-  const runners = data?.runners ?? [];
-  const defaultImage = data?.defaultImage ?? null;
-  const setDefaultRunner = useSetDefaultRunner();
-  const selected = runners.some((w) => w.image === defaultImage) ? defaultImage : '';
-
-  return (
-    <Box sx={{ maxWidth: 560 }}>
-      <Typography variant="h6" gutterBottom>Default runner</Typography>
-      <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-        The runner image new sessions start with by default. You can still pick a different runner per
-        session from the New session button.
-      </Typography>
-      {runners.length === 0 ? (
-        <Typography variant="body2" color="text.secondary">No runner images found.</Typography>
-      ) : (
-        <TextField
-          select
-          fullWidth
-          label="Runner image"
-          value={selected ?? ''}
-          onChange={(e) => { void setDefaultRunner.mutateAsync(e.target.value); }}
-          disabled={setDefaultRunner.isPending}
-        >
-          {runners.map((w) => (
-            <MenuItem key={w.id} value={w.image}>
-              {w.name}
-            </MenuItem>
-          ))}
-        </TextField>
-      )}
-    </Box>
-  );
-};
+const SECTION_PARAM = 'section';
+const NAV_WIDTH = 220;
 
 export const SettingsPage: FC = () => {
   const { data: me } = useMe();
-  const showUserManagement = !!me && isAdminRole(me.role);
+  const isAdmin = !!me && isAdminRole(me.role);
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  // Non-admins never see admin-only sections — in the nav or by deep link.
+  const sections = useMemo<SettingsSection[]>(
+    () =>
+      SETTINGS_SECTIONS.filter((section) => !section.isAdminOnly || isAdmin),
+    [isAdmin],
+  );
+
+  const requested = searchParams.get(SECTION_PARAM);
+  // Fall back to the first section for a missing, unknown, or forbidden id.
+  const active =
+    sections.find((section) => section.id === requested) ?? sections[0];
+
+  const select = (id: SettingsSectionId): void => {
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        next.set(SECTION_PARAM, id);
+        return next;
+      },
+      { replace: true },
+    );
+  };
+
+  // sections always has at least the GitHub section; the guard satisfies the type.
+  if (!active) return null;
+  const ActiveSection = active.Component;
 
   return (
     <MainContainer>
-      <Stack spacing={3}>
-        <GithubSection />
-        <Divider />
-        <ReposSection />
-        <Divider />
-        <EnvironmentSection />
-        <Divider />
-        <RunnerSection />
-        <Divider />
-        <ChangePasswordSection />
-        {showUserManagement && (
-          <>
-            <Divider />
-            <UserManagementSection />
-          </>
-        )}
-      </Stack>
+      {/* Mobile: the nav collapses into a dropdown pinned above the content. */}
+      <TextField
+        select
+        fullWidth
+        size="small"
+        label="Section"
+        value={active.id}
+        onChange={(e) => select(e.target.value as SettingsSectionId)}
+        sx={{ display: { xs: 'flex', md: 'none' }, mb: 3 }}
+      >
+        {sections.map(({ id, label }) => (
+          <MenuItem key={id} value={id}>
+            {label}
+          </MenuItem>
+        ))}
+      </TextField>
+
+      {/* `gap` (not Stack spacing) so the md-only nav/divider leave no phantom
+          margin once they're display:none on mobile. */}
+      <Box sx={{ display: 'flex', gap: 3 }}>
+        <Box
+          component="nav"
+          aria-label="Settings"
+          sx={{
+            display: { xs: 'none', md: 'block' },
+            width: NAV_WIDTH,
+            flexShrink: 0,
+          }}
+        >
+          <Stack spacing={0.5}>
+            {sections.map(({ id, label, Icon }) => {
+              const isActive = id === active.id;
+              return (
+                <Button
+                  key={id}
+                  size="small"
+                  variant="text"
+                  color={isActive ? 'primary' : 'inherit'}
+                  startIcon={<Icon fontSize="small" />}
+                  onClick={() => select(id)}
+                  sx={{
+                    justifyContent: 'flex-start',
+                    textTransform: 'none',
+                    fontWeight: isActive ? 600 : 400,
+                  }}
+                >
+                  {label}
+                </Button>
+              );
+            })}
+          </Stack>
+        </Box>
+
+        <Divider
+          orientation="vertical"
+          flexItem
+          sx={{ display: { xs: 'none', md: 'block' } }}
+        />
+
+        <Box sx={{ flexGrow: 1, minWidth: 0 }}>
+          <ActiveSection />
+        </Box>
+      </Box>
     </MainContainer>
   );
 };
