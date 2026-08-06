@@ -2,9 +2,9 @@ services:
   postgres:
     image: postgres:16
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: sage
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-sage}
     volumes:
       - pgdata:/var/lib/postgresql/data
     ports:
@@ -12,7 +12,7 @@ services:
     networks:
       - sagewright
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U postgres']
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-sage}']
       interval: 5s
       timeout: 5s
       retries: 10
@@ -30,7 +30,9 @@ services:
       postgres:
         condition: service_healthy
     environment:
-      DATABASE_URL: postgres://postgres:postgres@postgres:5432/sage
+      # Built from the POSTGRES_* vars in .env so credentials live in one place.
+      # Set DATABASE_URL in .env to override this entirely (e.g. an external Postgres).
+      DATABASE_URL: ${DATABASE_URL:-postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-sage}}
       # Initial password for the seeded `root` account (forced to change on first login).
       ROOT_PASSWORD: ${ROOT_PASSWORD}
       SESSION_SECRET: ${SESSION_SECRET}
