@@ -190,6 +190,14 @@ start.bat      # Windows
 
 That's it. This launches PostgreSQL and the control plane on port 3001.
 
+To wipe the database on startup, pass `--reset` (**destructive — all data is lost**). It applies
+only to that run; a normal start afterwards keeps your data:
+
+```bash
+./start.sh --reset     # Linux / macOS
+start.bat --reset      # Windows
+```
+
 ### 4. Open the app
 
 Go to **[http://localhost:3001](http://localhost:3001)** and log in as **`root`** with the
