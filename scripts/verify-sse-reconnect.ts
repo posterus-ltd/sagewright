@@ -15,7 +15,7 @@
  *   4. Print PASS or FAIL.
  */
 
-const BASE_URL = process.env.CONTROL_PLANE_URL ?? 'http://localhost:3000';
+const BASE_URL = process.env.CONTROL_PLANE_URL ?? 'http://localhost:3001';
 const COLLECT_FIRST = 5;
 
 interface SseFrame {

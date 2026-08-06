@@ -75,7 +75,7 @@ runner's terminal back to you live.
 
 ```mermaid
 flowchart LR
-    user["User's browser<br/>PWA · localhost:3000"]
+    user["User's browser<br/>PWA · localhost:3001"]
 
     subgraph host["Docker host — single box"]
         direction TB
@@ -115,7 +115,7 @@ flowchart LR
 - **Runners** — one `sagewright-runner` container per active session. Each bakes in a harness
   (opencode by default) plus your org's config; the control plane execs `start-agent` over a PTY,
   streams that terminal back as the live transcript, and opens a PR when the script exits.
-- **You** — open the web app the control plane hosts on `:3000`, create a task, watch the transcript
+- **You** — open the web app the control plane hosts on `:3001`, create a task, watch the transcript
   stream live, and interject mid-run (interjections are written straight to the agent's stdin).
 
 ---
@@ -188,11 +188,11 @@ Or use the convenience start script for your OS, which runs the same command:
 start.bat      # Windows
 ```
 
-That's it. This launches PostgreSQL and the control plane on port 3000.
+That's it. This launches PostgreSQL and the control plane on port 3001.
 
 ### 4. Open the app
 
-Go to **[http://localhost:3000](http://localhost:3000)** and log in as **`root`** with the
+Go to **[http://localhost:3001](http://localhost:3001)** and log in as **`root`** with the
 `ROOT_PASSWORD` you set. You'll be prompted to **choose a new password** before the app opens — this
 forced change happens on first login and after any admin reset. Then:
 

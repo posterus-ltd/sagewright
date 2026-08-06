@@ -40,7 +40,7 @@ COPY --from=builder /app/dist/control-plane-web ./dist/control-plane-web
 # Drizzle migrations must be present at runtime for the migrate runner
 COPY --from=builder /app/apps/control-plane-api/drizzle ./apps/control-plane-api/drizzle
 
-EXPOSE 3000
+EXPOSE 3001
 
 # Run migrations then start the API server
 CMD ["sh", "-c", "node apps/control-plane-api/dist/db/migrate.js && node apps/control-plane-api/dist/main.js"]

@@ -5,7 +5,7 @@ import { loadConfig } from './config';
 const base = {
   DATABASE_URL: 'postgres://x', ROOT_PASSWORD: 'p', SESSION_SECRET: 's',
   SECRETS_KEY: '0123456789abcdef0123456789abcdef',
-  RUNNER_IMAGE: 'w', CONTROL_PLANE_URL: 'http://c',
+  RUNNER_IMAGE: 'w',
 };
 
 describe('loadConfig', () => {
@@ -22,12 +22,6 @@ describe('loadConfig', () => {
   it('throws when neither ROOT_PASSWORD nor APP_PASSWORD is set', () => {
     const { ROOT_PASSWORD: _omit, ...withoutRoot } = base;
     expect(() => loadConfig(withoutRoot)).toThrow();
-  });
-  it('leaves linearApiKey undefined when LINEAR_API_KEY is absent', () => {
-    expect(loadConfig(base).linearApiKey).toBeUndefined();
-  });
-  it('surfaces LINEAR_API_KEY as linearApiKey', () => {
-    expect(loadConfig({ ...base, LINEAR_API_KEY: 'lin_abc' }).linearApiKey).toBe('lin_abc');
   });
   it('throws when a required var is missing', () => {
     const { DATABASE_URL: _omit, ...withoutDb } = base;

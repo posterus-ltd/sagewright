@@ -11,13 +11,11 @@ const configSchema = z
     SESSION_SECRET: z.string().min(1),
     // 32-char key for encrypting per-user env blobs at rest (aes-256-gcm).
     SECRETS_KEY: z.string().length(32),
-    LINEAR_API_KEY: z.string().optional(),
     GITHUB_TOKEN: z.string().optional(),
-    CONTROL_PLANE_URL: z.string().min(1),
     RUNNER_IMAGE: z.string().min(1),
     RUNNER_NETWORK: z.string().min(1).default('sage_default'),
     RUNNER_VOLUME: z.string().min(1).default('sagewright-repos'),
-    PORT: z.coerce.number().default(3000),
+    PORT: z.coerce.number().default(3001),
     // Whether sessions may be permanently deleted after archiving. Deployments that
     // must retain session history for auditing set 'false' — archiving keeps working,
     // but DELETE /api/tasks/:id is refused. Strict 'true'/'false' so a typo fails at
@@ -49,9 +47,15 @@ const configSchema = z
   });
 
 export interface AppConfig {
-  databaseUrl: string; rootPassword: string; sessionSecret: string; secretsKey: string;
-  linearApiKey?: string; githubToken?: string; controlPlaneUrl: string;
-  runnerImage: string; runnerNetwork: string; runnerVolume: string; port: number;
+  databaseUrl: string;
+  rootPassword: string;
+  sessionSecret: string;
+  secretsKey: string;
+  githubToken?: string;
+  runnerImage: string;
+  runnerNetwork: string;
+  runnerVolume: string;
+  port: number;
   allowSessionDeletion: boolean;
   schedulerTimezone?: string;
 }
@@ -64,8 +68,11 @@ export const loadConfig = (env: NodeJS.ProcessEnv): AppConfig => {
     rootPassword: (c.ROOT_PASSWORD ?? c.APP_PASSWORD)!,
     sessionSecret: c.SESSION_SECRET,
     secretsKey: c.SECRETS_KEY,
-    linearApiKey: c.LINEAR_API_KEY, githubToken: c.GITHUB_TOKEN, controlPlaneUrl: c.CONTROL_PLANE_URL,
-    runnerImage: c.RUNNER_IMAGE, runnerNetwork: c.RUNNER_NETWORK, runnerVolume: c.RUNNER_VOLUME, port: c.PORT,
+    githubToken: c.GITHUB_TOKEN,
+    runnerImage: c.RUNNER_IMAGE,
+    runnerNetwork: c.RUNNER_NETWORK,
+    runnerVolume: c.RUNNER_VOLUME,
+    port: c.PORT,
     allowSessionDeletion: c.ALLOW_SESSION_DELETION === 'true',
     schedulerTimezone: c.SCHEDULER_TIMEZONE,
   };

@@ -44,24 +44,21 @@ services:
       DB_RESET: ${DB_RESET:-}
       # Used to authenticate clones/pulls of the configured repos onto the volume.
       GITHUB_TOKEN: ${GITHUB_TOKEN:-}
-      # Used by the control-plane's Linear integration (task source=linear).
-      LINEAR_API_KEY: ${LINEAR_API_KEY:-}
-      CONTROL_PLANE_URL: http://control-plane:3000
       RUNNER_IMAGE: sagewright-runner-opencode:latest
-      # Full compose network name (the network's `name:` below is fixed so this is
-      # stable regardless of the project directory). Runner containers are attached
-      # to this network so the `control-plane` hostname resolves for /internal/* calls.
+      # Full compose network name the spawner attaches each runner container to
+      # (the network's `name:` below is fixed so this stays stable regardless of the
+      # project directory).
       RUNNER_NETWORK: sagewright
       # Named volume holding the repo clones + per-session worktrees. The spawner
       # binds this into each runner at the SAME path (/sagewright-volume) the control-plane
       # uses, so worktree gitdir links (absolute paths) resolve inside the runner.
       RUNNER_VOLUME: sagewright-repos
-      PORT: 3000
+      PORT: 3001
       # Set to 'false' on deployments that must retain session history for
       # auditing: archiving keeps working, permanent deletion is refused.
       ALLOW_SESSION_DELETION: ${ALLOW_SESSION_DELETION:-true}
     ports:
-      - '3000:3000'
+      - '3001:3001'
     networks:
       - sagewright
     volumes:

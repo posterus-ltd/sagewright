@@ -320,7 +320,7 @@ describe('task routes', () => {
     const config = loadConfig({
       DATABASE_URL: 'postgres://x', ROOT_PASSWORD: 'pw', SESSION_SECRET: 'sec',
       SECRETS_KEY: '0123456789abcdef0123456789abcdef', RUNNER_IMAGE: 'w',
-      CONTROL_PLANE_URL: 'http://c', ALLOW_SESSION_DELETION: 'false',
+      ALLOW_SESSION_DELETION: 'false',
     });
     const { app, db } = await makeTestApp({ config });
     const cookie = (

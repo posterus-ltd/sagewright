@@ -15,4 +15,4 @@ http:
     control-plane:
       loadBalancer:
         servers:
-          - url: "http://control-plane:3000"
+          - url: "http://control-plane:3001"

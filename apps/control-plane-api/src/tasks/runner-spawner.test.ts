@@ -7,7 +7,7 @@ const spawnWith = async (mode: SessionMode, userEnv: Record<string, string> = {}
   const start = vi.fn();
   const createContainer = vi.fn(async (_opts: unknown) => ({ id: 'c123', start }));
   const spawner = createRunnerSpawner(
-    { runnerImage: 'img', controlPlaneUrl: 'http://cp', runnerNetwork: 'sagewright', runnerVolume: 'sagewright-repos', linearApiKey: 'lin' } as never,
+    { runnerImage: 'img', runnerNetwork: 'sagewright', runnerVolume: 'sagewright-repos' } as never,
     () => ({ createContainer }) as never,
   );
   const out = await spawner.spawn({
@@ -33,13 +33,9 @@ describe('runner-spawner', () => {
     expect(env).toContain('TASK_ID=t1');
     expect(env).toContain('SESSION_DIR=/sagewright-volume/sessions/t1');
     expect(env).toContain('PROMPT=do');
-    // The runner no longer receives LINEAR_API_KEY: its only consumer was the
-    // opencode Linear MCP, which has been removed.
-    expect(env.some((e) => e.startsWith('LINEAR_API_KEY='))).toBe(false);
     expect(env.some((e) => e.startsWith('REPO_MANIFEST='))).toBe(true);
     // No callback creds: the control plane drives the agent over `docker exec`.
     expect(env.some((e) => e.startsWith('RUNNER_TOKEN='))).toBe(false);
-    expect(env.some((e) => e.startsWith('CONTROL_PLANE_URL='))).toBe(false);
   });
 
   it('labels the container with its session id so orphans stay discoverable', async () => {

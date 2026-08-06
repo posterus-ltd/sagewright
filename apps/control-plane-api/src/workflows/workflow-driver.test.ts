@@ -18,7 +18,6 @@ const config = loadConfig({
   SESSION_SECRET: 'sec',
   SECRETS_KEY: '0123456789abcdef0123456789abcdef',
   RUNNER_IMAGE: 'w',
-  CONTROL_PLANE_URL: 'http://c',
 });
 
 const definition = {
