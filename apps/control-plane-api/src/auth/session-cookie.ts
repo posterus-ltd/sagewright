@@ -1,26 +1,42 @@
-import { createHmac, timingSafeEqual } from 'node:crypto';
+import { SignJWT, jwtVerify } from 'jose';
 
-const TTL_MS = 7 * 24 * 60 * 60 * 1000;
+// Standard JWT (HS256) carried in the `vm_session` httpOnly cookie. The token is
+// deliberately dumb — it carries only the subject (user id); role and
+// mustChangePassword are read live from the DB in the auth guard, so a reset or
+// delete takes effect on the next request without any token-versioning machinery.
+const ALG = 'HS256';
+const ISSUER = 'sagewright-control-plane';
+const AUDIENCE = 'sagewright';
+const TTL = '7d';
 
 export const createSessionCookie = (secret: string) => {
-  // `subject` is the authenticated user's id — the opaque payload the cookie carries.
-  const sign = (subject: string): string => {
-    const expiry = String(Date.now() + TTL_MS);
-    const body = `${Buffer.from(subject).toString('base64url')}.${expiry}`;
-    const mac = createHmac('sha256', secret).update(body).digest('base64url');
-    return `${body}.${mac}`;
+  const key = new TextEncoder().encode(secret);
+
+  // `subject` is the authenticated user's id — the JWT `sub` claim the cookie carries.
+  const sign = (subject: string): Promise<string> =>
+    new SignJWT({})
+      .setProtectedHeader({ alg: ALG })
+      .setSubject(subject)
+      .setIssuedAt()
+      .setIssuer(ISSUER)
+      .setAudience(AUDIENCE)
+      .setExpirationTime(TTL)
+      .sign(key);
+
+  const verify = async (token: string): Promise<string | null> => {
+    try {
+      const { payload } = await jwtVerify(token, key, {
+        // Pin HS256 so a token advertising `alg:none` or an asymmetric alg is rejected.
+        algorithms: [ALG],
+        issuer: ISSUER,
+        audience: AUDIENCE,
+      });
+      return typeof payload.sub === 'string' ? payload.sub : null;
+    } catch {
+      // Malformed, bad signature, expired, or failing the iss/aud/alg checks.
+      return null;
+    }
   };
-  const verify = (token: string): string | null => {
-    const parts = token.split('.');
-    if (parts.length !== 3) return null;
-    const [subjectB64, expiry, mac] = parts;
-    if (subjectB64 === undefined || expiry === undefined || mac === undefined) return null;
-    // verify MAC before expiry so an expired-token check can't leak a timing oracle
-    const macBuf = Buffer.from(mac, 'base64url');
-    const expectedBuf = createHmac('sha256', secret).update(`${subjectB64}.${expiry}`).digest();
-    if (macBuf.length !== expectedBuf.length || !timingSafeEqual(macBuf, expectedBuf)) return null;
-    if (Number(expiry) < Date.now()) return null;
-    return Buffer.from(subjectB64, 'base64url').toString('utf8');
-  };
+
   return { sign, verify };
 };

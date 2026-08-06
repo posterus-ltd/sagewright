@@ -46,7 +46,7 @@ export const registerAuth = (
   // `undefined` if the decorator were registered later.
   app.decorate('requireUser', async (req: FastifyRequest, reply: FastifyReply) => {
     const token = req.cookies?.[COOKIE_NAME];
-    const userId = token ? sc.verify(token) : null;
+    const userId = token ? await sc.verify(token) : null;
     if (!userId) return reply.code(401).send({ error: 'unauthorized' });
     // Load the user live so a deleted account is rejected and an admin reset takes effect
     // on the next request without any token-versioning machinery.
@@ -76,7 +76,8 @@ export const registerAuth = (
     if (!parsed.success) return reply.code(401).send({ error: 'invalid credentials' });
     const user = await opts.userService.verifyLogin(parsed.data.username, parsed.data.password);
     if (!user) return reply.code(401).send({ error: 'invalid credentials' });
-    reply.setCookie(COOKIE_NAME, sc.sign(user.id), {
+    const token = await sc.sign(user.id);
+    reply.setCookie(COOKIE_NAME, token, {
       httpOnly: true,
       sameSite: 'lax',
       path: '/',
