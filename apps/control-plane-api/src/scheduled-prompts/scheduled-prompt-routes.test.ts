@@ -71,7 +71,7 @@ describe('scheduled-prompt routes', () => {
   });
 
   it('deletes a scheduled prompt that has already spawned sessions', async () => {
-    const { app, db } = await makeTestApp({ scheduler: fakeScheduler() });
+    const { app, db, userId } = await makeTestApp({ scheduler: fakeScheduler() });
     const headers = await login(app);
 
     const created = await app.inject({
@@ -85,7 +85,7 @@ describe('scheduled-prompt routes', () => {
     // Simulate a run: a task linked back to the scheduled prompt.
     const [task] = await db
       .insert(sessions)
-      .values({ kind: 'scheduled', prompt: 'daily triage', createdBy: 'al', scheduledPromptId: id })
+      .values({ kind: 'scheduled', prompt: 'daily triage', createdBy: userId('al'), scheduledPromptId: id })
       .returning();
 
     const del = await app.inject({ method: 'DELETE', url: `/api/scheduled-prompts/${id}`, headers });
@@ -130,14 +130,14 @@ describe('scheduled-prompt routes', () => {
   });
 
   it('re-enabling a prompt resets lastRunAt so it waits for its next real tick', async () => {
-    const { app, db } = await makeTestApp({ scheduler: fakeScheduler() });
+    const { app, db, userId } = await makeTestApp({ scheduler: fakeScheduler() });
     const headers = await login(app);
     // Disabled for a week — its stale lastRunAt would otherwise look like a missed
     // tick and fire the prompt the moment it is re-enabled.
     const stale = new Date('2000-01-01T00:00:00Z');
     const [row] = await db
       .insert(scheduledPrompts)
-      .values({ cron: '0 3 * * *', prompt: 'nightly', createdBy: 'al', enabled: false, lastRunAt: stale })
+      .values({ cron: '0 3 * * *', prompt: 'nightly', createdBy: userId('al'), enabled: false, lastRunAt: stale })
       .returning();
 
     const res = await app.inject({

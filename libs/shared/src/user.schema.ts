@@ -29,6 +29,10 @@ export const usernameSchema = z
   .toLowerCase()
   .regex(USERNAME_RE, 'username must be 2–32 chars: letters, digits, dot, underscore or hyphen');
 
+// The stable identity key every per-user table references (repos, envs, sessions…).
+// Usernames are the human login handle; this UUID is what the rest of the system keys on.
+export const userIdSchema = z.string().uuid();
+
 // Only admin/user are assignable through the API; root is seeded and never granted.
 // `.exclude` takes the enum key; the result still yields UserRole values.
 export const assignableRoleSchema = z.enum(UserRole).exclude(['ROOT']);
@@ -83,6 +87,7 @@ export type SetUserRoleInput = z.infer<typeof setUserRoleSchema>;
 
 /** A user as listed in the management panel. */
 export interface User {
+  id: string;
   username: string;
   role: UserRole;
   mustChangePassword: boolean;
@@ -91,6 +96,7 @@ export interface User {
 
 /** The current session's identity + gate state, read live from the DB on each request. */
 export interface MeResponse {
+  id: string;
   username: string;
   role: UserRole;
   mustChangePassword: boolean;

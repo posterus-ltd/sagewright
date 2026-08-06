@@ -80,7 +80,7 @@ const AttentionRow: FC<{ session: Session; onClick: () => void }> = ({
         {sessionLabel(session, 80)}
       </Typography>
       <Typography variant="caption" color="text.secondary">
-        {session.createdBy}
+        {session.createdByName ?? 'Unknown'}
       </Typography>
     </Box>
     <RunnerChip image={session.runnerImage} />
@@ -116,7 +116,7 @@ const ShippedRow: FC<{ session: Session; onClick: () => void }> = ({
         {sessionLabel(session, 80)}
       </Typography>
       <Typography variant="caption" color="text.secondary">
-        {session.createdBy}
+        {session.createdByName ?? 'Unknown'}
       </Typography>
     </Box>
     <RunnerChip image={session.runnerImage} />

@@ -1,4 +1,4 @@
-import { createUserSchema, setUserRoleSchema, usernameSchema } from '@sagewright/shared';
+import { createUserSchema, setUserRoleSchema, userIdSchema } from '@sagewright/shared';
 import type { FastifyInstance, FastifyReply } from 'fastify';
 
 import { UserServiceError, type UserErrorCode, type UserService } from './user-service';
@@ -35,8 +35,8 @@ export const registerUserRoutes = (app: FastifyInstance, deps: UserRouteDeps): v
     }
   });
 
-  app.post('/api/users/:username/reset-password', { preHandler: app.requireAdmin }, async (req, reply) => {
-    const parsed = usernameSchema.safeParse((req.params as { username: string }).username);
+  app.post('/api/users/:id/reset-password', { preHandler: app.requireAdmin }, async (req, reply) => {
+    const parsed = userIdSchema.safeParse((req.params as { id: string }).id);
     if (!parsed.success) return reply.code(404).send({ error: 'user not found' });
     try {
       return await deps.userService.resetPassword(parsed.data);
@@ -45,24 +45,24 @@ export const registerUserRoutes = (app: FastifyInstance, deps: UserRouteDeps): v
     }
   });
 
-  app.patch('/api/users/:username', { preHandler: app.requireAdmin }, async (req, reply) => {
-    const name = usernameSchema.safeParse((req.params as { username: string }).username);
-    if (!name.success) return reply.code(404).send({ error: 'user not found' });
+  app.patch('/api/users/:id', { preHandler: app.requireAdmin }, async (req, reply) => {
+    const id = userIdSchema.safeParse((req.params as { id: string }).id);
+    if (!id.success) return reply.code(404).send({ error: 'user not found' });
     const body = setUserRoleSchema.safeParse(req.body);
     if (!body.success) return reply.code(400).send({ error: body.error.issues[0]?.message ?? 'invalid role' });
     try {
-      await deps.userService.setRole(name.data, body.data.role);
+      await deps.userService.setRole(id.data, body.data.role);
       return reply.code(204).send();
     } catch (err) {
       return sendError(err, reply);
     }
   });
 
-  app.delete('/api/users/:username', { preHandler: app.requireAdmin }, async (req, reply) => {
-    const parsed = usernameSchema.safeParse((req.params as { username: string }).username);
+  app.delete('/api/users/:id', { preHandler: app.requireAdmin }, async (req, reply) => {
+    const parsed = userIdSchema.safeParse((req.params as { id: string }).id);
     if (!parsed.success) return reply.code(404).send({ error: 'user not found' });
     try {
-      await deps.userService.remove(parsed.data, req.displayName!);
+      await deps.userService.remove(parsed.data, req.userId!);
       return reply.code(204).send();
     } catch (err) {
       return sendError(err, reply);

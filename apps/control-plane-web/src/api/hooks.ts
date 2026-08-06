@@ -58,8 +58,8 @@ export const useCreateUser = () => {
 export const useResetPassword = () => {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (username: string) =>
-      apiClient.post<ResetPasswordResult>(`/api/users/${encodeURIComponent(username)}/reset-password`),
+    mutationFn: (id: string) =>
+      apiClient.post<ResetPasswordResult>(`/api/users/${encodeURIComponent(id)}/reset-password`),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['users'] }),
   });
 };
@@ -67,8 +67,8 @@ export const useResetPassword = () => {
 export const useSetUserRole = () => {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ username, role }: { username: string; role: UserRole }) =>
-      apiClient.patch(`/api/users/${encodeURIComponent(username)}`, { role }),
+    mutationFn: ({ id, role }: { id: string; role: UserRole }) =>
+      apiClient.patch(`/api/users/${encodeURIComponent(id)}`, { role }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['users'] }),
   });
 };
@@ -76,7 +76,7 @@ export const useSetUserRole = () => {
 export const useDeleteUser = () => {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (username: string) => apiClient.del(`/api/users/${encodeURIComponent(username)}`),
+    mutationFn: (id: string) => apiClient.del(`/api/users/${encodeURIComponent(id)}`),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['users'] }),
   });
 };

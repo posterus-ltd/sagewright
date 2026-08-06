@@ -167,7 +167,7 @@ export const TaskDetailPanel: FC<TaskDetailPanelProps> = ({
                   Owned by
                 </Typography>
                 <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                  {node.createdBy}
+                  {node.createdByName ?? 'Unknown'}
                 </Typography>
               </Box>
               <RouteRounded color="action" />

@@ -14,7 +14,9 @@ export interface UserPreferences {
   // for rendering by ThemeModeProvider.
   themeMode: ThemeMode;
   // Client-side record of who is logged in. The httpOnly cookie remains the
-  // source of truth for server authorization.
+  // source of truth for server authorization. `userId` is the identity key used to
+  // match a session's `createdBy`; `displayName` is the human label shown in the UI.
+  userId: string | null;
   displayName: string | null;
   // Activity window preselected on the Galaxy view; defaults to recent activity
   // at the call site so the view opens as "what's happening lately".

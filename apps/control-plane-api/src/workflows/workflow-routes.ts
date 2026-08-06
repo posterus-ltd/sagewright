@@ -39,7 +39,7 @@ export const registerWorkflowRoutes = (app: FastifyInstance, deps: AppDeps): voi
       (await assertRunnerImages(deps, parsed.data.definition.steps.map((s) => s.runnerImage))) ??
       assertCronTrigger(deps, parsed.data.definition.trigger);
     if (err) return reply.code(400).send({ error: err });
-    const wf = await deps.workflowService.create(parsed.data, req.displayName!);
+    const wf = await deps.workflowService.create(parsed.data, req.userId!);
     await deps.scheduler.sync(); // pick up a cron trigger immediately
     return reply.code(201).send(wf);
   });
@@ -72,7 +72,7 @@ export const registerWorkflowRoutes = (app: FastifyInstance, deps: AppDeps): voi
     const { id } = req.params as { id: string };
     const parsed = runWorkflowSchema.safeParse(req.body ?? {});
     if (!parsed.success) return reply.code(400).send({ error: 'invalid run input' });
-    const run = await deps.workflowDriver.start(id, req.displayName!, parsed.data.input);
+    const run = await deps.workflowDriver.start(id, req.userId!, parsed.data.input);
     if (!run) return reply.code(404).send({ error: 'workflow not found' });
     return reply.code(201).send(run);
   });

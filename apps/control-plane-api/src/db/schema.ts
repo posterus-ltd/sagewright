@@ -1,11 +1,11 @@
 import { bigint, boolean, index, integer, jsonb, pgTable, text, timestamp, uniqueIndex, uuid, type AnyPgColumn } from 'drizzle-orm/pg-core';
 
 /**
- * The source of truth for who may log in. `username` is the same identity key every
- * per-user table already uses (`user_key` / `created_by`), so seeding this table adds
- * real credentials without migrating any existing data. `passwordHash` is a
- * self-describing scrypt string (see auth/password.ts); `mustChangePassword` is read
- * live in the auth guard so an admin reset takes effect on the user's next request.
+ * The source of truth for who may log in. `id` is the identity key every per-user table
+ * references (`user_id` / `created_by`); `username` is only the human login handle and a
+ * display label. `passwordHash` is a self-describing scrypt string (see auth/password.ts);
+ * `mustChangePassword` is read live in the auth guard so an admin reset takes effect on the
+ * user's next request.
  */
 export const users = pgTable('users', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -19,22 +19,22 @@ export const users = pgTable('users', {
 
 export const repos = pgTable('repos', {
   id: uuid('id').primaryKey().defaultRandom(),
-  // = displayName today; becomes a real user id once SSO lands. Repos are per-user:
-  // each user has their own list. The physical clone at <vol>/repos/<slug> is shared
-  // (deduped by slug) across users who configure the same repo.
-  userKey: text('user_key').notNull(),
+  // The owning user's id. Repos are per-user: each user has their own list. The physical
+  // clone at <vol>/repos/<slug> is shared (deduped by slug) across users who configure the
+  // same repo.
+  userId: uuid('user_id').notNull(),
   url: text('url').notNull(),
   slug: text('slug').notNull(),
   defaultBranch: text('default_branch'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-}, (t) => ({ userSlugIdx: uniqueIndex('repos_user_key_slug_idx').on(t.userKey, t.slug) }));
+}, (t) => ({ userSlugIdx: uniqueIndex('repos_user_id_slug_idx').on(t.userId, t.slug) }));
 
 export const scheduledPrompts = pgTable('scheduled_prompts', {
   id: uuid('id').primaryKey().defaultRandom(),
   cron: text('cron').notNull(),
   prompt: text('prompt').notNull(),
   enabled: boolean('enabled').notNull().default(true),
-  createdBy: text('created_by').notNull(),
+  createdBy: uuid('created_by').notNull(),
   runnerImage: text('runner_image'),
   lastRunAt: timestamp('last_run_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -46,7 +46,7 @@ export const workflows = pgTable('workflows', {
   // Full WorkflowDefinition JSON the user authored (steps, trigger, maxIterations).
   definition: jsonb('definition').notNull(),
   enabled: boolean('enabled').notNull().default(true),
-  createdBy: text('created_by').notNull(),
+  createdBy: uuid('created_by').notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -64,7 +64,7 @@ export const sessions = pgTable('sessions', {
   status: text('status').notNull().default('queued'),
   branch: text('branch'),
   prUrl: text('pr_url'),
-  createdBy: text('created_by').notNull(),
+  createdBy: uuid('created_by').notNull(),
   containerId: text('container_id'),
   scheduledPromptId: uuid('scheduled_prompt_id').references(() => scheduledPrompts.id, { onDelete: 'set null' }),
   // A workflow_step points at its workflow parent (cascade so deleting the parent run
@@ -101,16 +101,16 @@ export const events = pgTable('events', {
 
 export const userEnvs = pgTable('user_envs', {
   id: uuid('id').primaryKey().defaultRandom(),
-  // = displayName today; becomes a real user id once SSO lands. One blob per user.
-  userKey: text('user_key').notNull().unique(),
+  // The owning user's id. One env blob per user.
+  userId: uuid('user_id').notNull().unique(),
   envEncrypted: text('env_encrypted').notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
 export const githubCredentials = pgTable('github_credentials', {
   id: uuid('id').primaryKey().defaultRandom(),
-  // = displayName today; becomes a real user id once SSO lands. One credential per user.
-  userKey: text('user_key').notNull().unique(),
+  // The owning user's id. One credential per user.
+  userId: uuid('user_id').notNull().unique(),
   tokenEncrypted: text('token_encrypted').notNull(),
   source: text('source').notNull(),
   login: text('login').notNull(),
@@ -122,15 +122,15 @@ export const githubCredentials = pgTable('github_credentials', {
 
 export const canvasLayouts = pgTable('canvas_layouts', {
   id: uuid('id').primaryKey().defaultRandom(),
-  // = displayName today; becomes a real user id once SSO lands. One layout per user.
-  userKey: text('user_key').notNull().unique(),
+  // The owning user's id. One layout per user.
+  userId: uuid('user_id').notNull().unique(),
   layout: jsonb('layout').notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
 export const userSettings = pgTable('user_settings', {
   id: uuid('id').primaryKey().defaultRandom(),
-  userKey: text('user_key').notNull().unique(),
+  userId: uuid('user_id').notNull().unique(),
   defaultRunnerImage: text('default_runner_image'),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });

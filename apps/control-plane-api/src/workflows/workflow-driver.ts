@@ -192,7 +192,7 @@ export const createWorkflowDriver = (deps: WorkflowDriverDeps) => {
       const credential = await deps.githubCredentialService.resolve(createdBy);
       const userEnv: Record<string, string> = {};
       if (credential) userEnv.GITHUB_TOKEN = credential.token;
-      const configured = await deps.db.select().from(repos).where(eq(repos.userKey, createdBy));
+      const configured = await deps.db.select().from(repos).where(eq(repos.userId, createdBy));
       const manifest = await deps.volume.addRunWorktrees(
         runId,
         configured.map((r) => ({ url: r.url, slug: r.slug })),

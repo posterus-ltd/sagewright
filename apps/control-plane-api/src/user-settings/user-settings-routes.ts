@@ -12,7 +12,7 @@ interface UserSettingsRouteDeps {
 
 export const registerUserSettingsRoutes = (app: FastifyInstance, deps: UserSettingsRouteDeps): void => {
   app.get('/api/settings/default-runner', { preHandler: app.requireUser }, async (req) => {
-    const stored = await deps.userSettingsService.getDefaultRunner(req.displayName!);
+    const stored = await deps.userSettingsService.getDefaultRunner(req.userId!);
     return { defaultImage: stored ?? deps.config.runnerImage };
   });
 
@@ -23,7 +23,7 @@ export const registerUserSettingsRoutes = (app: FastifyInstance, deps: UserSetti
     if (!runners.some((w) => w.image === parsed.data.image)) {
       return reply.code(400).send({ error: 'unknown runner image' });
     }
-    await deps.userSettingsService.setDefaultRunner(req.displayName!, parsed.data.image);
+    await deps.userSettingsService.setDefaultRunner(req.userId!, parsed.data.image);
     return reply.code(204).send();
   });
 };

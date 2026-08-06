@@ -9,14 +9,14 @@ const putBody = z.object({ token: z.string() });
 
 export const registerGithubRoutes = (app: FastifyInstance, deps: AppDeps): void => {
   app.get('/api/github/status', { preHandler: app.requireUser }, async (req) =>
-    deps.githubCredentialService.getStatus(req.displayName!));
+    deps.githubCredentialService.getStatus(req.userId!));
 
   app.put('/api/github/token', { preHandler: app.requireUser }, async (req, reply) => {
     const parsed = putBody.safeParse(req.body);
     if (!parsed.success) return reply.code(400).send({ error: 'token must be a string' });
     try {
       const result = await deps.githubCredentialService.validateAndStore(
-        req.displayName!,
+        req.userId!,
         parsed.data.token,
         GithubCredentialSource.PAT,
       );
@@ -28,7 +28,7 @@ export const registerGithubRoutes = (app: FastifyInstance, deps: AppDeps): void 
   });
 
   app.delete('/api/github', { preHandler: app.requireUser }, async (req, reply) => {
-    await deps.githubCredentialService.disconnect(req.displayName!);
+    await deps.githubCredentialService.disconnect(req.userId!);
     return reply.code(204).send();
   });
 };

@@ -44,7 +44,7 @@ export const registerStreamRoute = (app: FastifyInstance, deps: AppDeps): void =
 
     // Owner-only: don't open a live event stream for a session the requester doesn't own.
     const session = await deps.taskService.get(id);
-    if (!session || session.createdBy !== req.displayName) {
+    if (!session || session.createdBy !== req.userId) {
       return reply.code(403).send({ error: 'forbidden' });
     }
 

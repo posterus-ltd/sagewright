@@ -9,11 +9,12 @@ import { createScheduler } from './scheduler';
 
 const insertPrompt = async (
   db: Awaited<ReturnType<typeof makeTestApp>>['db'],
+  createdBy: string,
   over: Partial<typeof scheduledPrompts.$inferInsert> = {},
 ) => {
   const [row] = await db
     .insert(scheduledPrompts)
-    .values({ cron: '* * * * * *', prompt: 'do it', createdBy: 'alice', ...over })
+    .values({ cron: '* * * * * *', prompt: 'do it', createdBy, ...over })
     .returning();
   return row!;
 };
@@ -35,8 +36,8 @@ describe('createScheduler', () => {
   });
 
   it('fires a headless task and stamps lastRunAt', async () => {
-    const { db } = await makeTestApp();
-    const row = await insertPrompt(db);
+    const { db, userId } = await makeTestApp();
+    const row = await insertPrompt(db, userId('alice'));
     const create = vi.fn(async () => ({}) as never);
 
     const scheduler = createScheduler({ db: db as never, taskService: { create } as never });
@@ -46,7 +47,7 @@ describe('createScheduler', () => {
 
     // Runs as the prompt's creator — not a synthetic 'scheduler' user — so the
     // task gets that user's repos, default runner, and env.
-    expect(create).toHaveBeenCalledWith({ prompt: 'do it' }, 'alice', { scheduledPromptId: row.id });
+    expect(create).toHaveBeenCalledWith({ prompt: 'do it' }, userId('alice'), { scheduledPromptId: row.id });
     await vi.waitFor(async () => {
       const [after] = await db.select().from(scheduledPrompts).where(eq(scheduledPrompts.id, row.id));
       expect(after!.lastRunAt).not.toBeNull();
@@ -54,8 +55,8 @@ describe('createScheduler', () => {
   });
 
   it('forwards the prompt-pinned runnerImage to the task', async () => {
-    const { db } = await makeTestApp();
-    const row = await insertPrompt(db, { runnerImage: 'sagewright-runner-codex:latest' });
+    const { db, userId } = await makeTestApp();
+    const row = await insertPrompt(db, userId('alice'), { runnerImage: 'sagewright-runner-codex:latest' });
     const create = vi.fn(async () => ({}) as never);
 
     const scheduler = createScheduler({ db: db as never, taskService: { create } as never });
@@ -65,14 +66,14 @@ describe('createScheduler', () => {
 
     expect(create).toHaveBeenCalledWith(
       { prompt: 'do it', runnerImage: 'sagewright-runner-codex:latest' },
-      'alice',
+      userId('alice'),
       { scheduledPromptId: row.id },
     );
   });
 
   it('logs the error and still stamps lastRunAt when a run fails to start', async () => {
-    const { db } = await makeTestApp();
-    const row = await insertPrompt(db, { runnerImage: 'gone:latest' });
+    const { db, userId } = await makeTestApp();
+    const row = await insertPrompt(db, userId('alice'), { runnerImage: 'gone:latest' });
     const create = vi.fn(async () => {
       throw new Error('unknown runner image: gone:latest');
     });
@@ -96,13 +97,13 @@ describe('createScheduler', () => {
   });
 
   it('skips a tick while a previous run of the same prompt is still active', async () => {
-    const { db } = await makeTestApp();
-    const row = await insertPrompt(db);
+    const { db, userId } = await makeTestApp();
+    const row = await insertPrompt(db, userId('alice'));
     // A still-working session from an earlier fire — provisioning is long over, so
     // the in-memory inFlight set can't know about it; only the DB does.
     await db
       .insert(sessions)
-      .values({ kind: 'scheduled', status: SessionStatus.RUNNING, createdBy: 'alice', scheduledPromptId: row.id });
+      .values({ kind: 'scheduled', status: SessionStatus.RUNNING, createdBy: userId('alice'), scheduledPromptId: row.id });
     const create = vi.fn(async () => ({}) as never);
 
     const scheduler = createScheduler({ db: db as never, taskService: { create } as never });
@@ -117,11 +118,11 @@ describe('createScheduler', () => {
   }, 10000);
 
   it('fires again once the previous run has settled', async () => {
-    const { db } = await makeTestApp();
-    const row = await insertPrompt(db);
+    const { db, userId } = await makeTestApp();
+    const row = await insertPrompt(db, userId('alice'));
     await db
       .insert(sessions)
-      .values({ kind: 'scheduled', status: SessionStatus.DONE, createdBy: 'alice', scheduledPromptId: row.id });
+      .values({ kind: 'scheduled', status: SessionStatus.DONE, createdBy: userId('alice'), scheduledPromptId: row.id });
     const create = vi.fn(async () => ({}) as never);
 
     const scheduler = createScheduler({ db: db as never, taskService: { create } as never });
@@ -156,9 +157,9 @@ describe('createScheduler', () => {
   });
 
   it('fires a catch-up run on start for a prompt whose scheduled time passed while down', async () => {
-    const { db } = await makeTestApp();
+    const { db, userId } = await makeTestApp();
     // Daily 09:00; lastRunAt years ago → the most recent 09:00 is unrun → catch-up now.
-    const row = await insertPrompt(db, { cron: '0 9 * * *', prompt: 'daily', createdBy: 'al', lastRunAt: new Date('2000-01-01T00:00:00Z') });
+    const row = await insertPrompt(db, userId('al'), { cron: '0 9 * * *', prompt: 'daily', lastRunAt: new Date('2000-01-01T00:00:00Z') });
     const create = vi.fn(async () => ({}) as never);
 
     const scheduler = createScheduler({ db: db as never, taskService: { create } as never });
@@ -166,14 +167,14 @@ describe('createScheduler', () => {
     await vi.waitFor(() => expect(create).toHaveBeenCalled(), { timeout: 2000 });
     scheduler.stopAll();
 
-    expect(create).toHaveBeenCalledWith({ prompt: 'daily' }, 'al', { scheduledPromptId: row.id });
+    expect(create).toHaveBeenCalledWith({ prompt: 'daily' }, userId('al'), { scheduledPromptId: row.id });
   });
 
   it('does NOT catch-up-fire a never-run prompt on start (waits for its first real tick)', async () => {
-    const { db } = await makeTestApp();
+    const { db, userId } = await makeTestApp();
     // Never run (lastRunAt: null) and not due for hours — adding it must not fire it now,
     // even though measuring a "missed" tick from epoch would make it look overdue.
-    await insertPrompt(db, { cron: '0 9 * * *', prompt: 'daily', createdBy: 'al' });
+    await insertPrompt(db, userId('al'), { cron: '0 9 * * *', prompt: 'daily' });
     const create = vi.fn(async () => ({}) as never);
 
     const scheduler = createScheduler({ db: db as never, taskService: { create } as never });
@@ -185,10 +186,10 @@ describe('createScheduler', () => {
   });
 
   it('does NOT catch-up-fire on sync() — a CRUD write is not a boot', async () => {
-    const { db } = await makeTestApp();
+    const { db, userId } = await makeTestApp();
     // Overdue by the boot rules; but this instance never went down — a re-enabled or
     // edited prompt syncing at noon must not fire the missed 09:00 immediately.
-    await insertPrompt(db, { cron: '0 9 * * *', prompt: 'daily', createdBy: 'al', lastRunAt: new Date('2000-01-01T00:00:00Z') });
+    await insertPrompt(db, userId('al'), { cron: '0 9 * * *', prompt: 'daily', lastRunAt: new Date('2000-01-01T00:00:00Z') });
     const create = vi.fn(async () => ({}) as never);
 
     const scheduler = createScheduler({ db: db as never, taskService: { create } as never });
@@ -200,7 +201,7 @@ describe('createScheduler', () => {
   });
 
   it('skips a workflow cron tick while a previous run of that workflow is active', async () => {
-    const { db } = await makeTestApp();
+    const { db, userId } = await makeTestApp();
     const workflowService = createWorkflowService({ db: db as never });
     const wf = await workflowService.create(
       {
@@ -215,9 +216,9 @@ describe('createScheduler', () => {
         },
         enabled: true,
       },
-      'al',
+      userId('al'),
     );
-    await db.insert(sessions).values({ kind: 'workflow', status: SessionStatus.RUNNING, createdBy: 'al', workflowId: wf.id });
+    await db.insert(sessions).values({ kind: 'workflow', status: SessionStatus.RUNNING, createdBy: userId('al'), workflowId: wf.id });
     const start = vi.fn(async () => null);
 
     const scheduler = createScheduler({
@@ -234,7 +235,7 @@ describe('createScheduler', () => {
   }, 10000);
 
   it('fires a workflow cron when no run of it is active', async () => {
-    const { db } = await makeTestApp();
+    const { db, userId } = await makeTestApp();
     const workflowService = createWorkflowService({ db: db as never });
     const wf = await workflowService.create(
       {
@@ -249,7 +250,7 @@ describe('createScheduler', () => {
         },
         enabled: true,
       },
-      'al',
+      userId('al'),
     );
     const start = vi.fn(async () => null);
 
@@ -260,7 +261,7 @@ describe('createScheduler', () => {
       workflowDriver: { start } as never,
     });
     await scheduler.start();
-    await vi.waitFor(() => expect(start).toHaveBeenCalledWith(wf.id, 'al'), { timeout: 2000 });
+    await vi.waitFor(() => expect(start).toHaveBeenCalledWith(wf.id, userId('al')), { timeout: 2000 });
     scheduler.stopAll();
   });
 });

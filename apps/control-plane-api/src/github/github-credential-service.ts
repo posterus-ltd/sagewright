@@ -4,7 +4,7 @@ import { eq } from 'drizzle-orm';
 import type { AppConfig } from '../config';
 import type { SecretCipher } from '../crypto/secret-cipher';
 import type { Db } from '../db/client';
-import { githubCredentials } from '../db/schema';
+import { githubCredentials, users } from '../db/schema';
 import type { UserEnvService } from '../user-env/user-env-service';
 
 export interface GithubIdentity {
@@ -73,17 +73,17 @@ export const createGithubCredentialService = (deps: GithubCredentialServiceDeps)
     return { data: await res.json() as T, scopes: parseScopes(res.headers.get('x-oauth-scopes')) };
   };
 
-  const findRow = async (userKey: string) => {
+  const findRow = async (userId: string) => {
     const [row] = await deps.db
       .select()
       .from(githubCredentials)
-      .where(eq(githubCredentials.userKey, userKey))
+      .where(eq(githubCredentials.userId, userId))
       .limit(1);
     return row;
   };
 
   const validateAndStore = async (
-    userKey: string,
+    userId: string,
     token: string,
     source: GithubCredentialSource = GithubCredentialSource.PAT,
   ): Promise<{ identity: GithubIdentity; scopes: string[]; missingRepoScope: boolean }> => {
@@ -103,7 +103,7 @@ export const createGithubCredentialService = (deps: GithubCredentialServiceDeps)
     await deps.db
       .insert(githubCredentials)
       .values({
-        userKey,
+        userId,
         tokenEncrypted: deps.cipher.encrypt(trimmed),
         source,
         login: identity.login,
@@ -112,7 +112,7 @@ export const createGithubCredentialService = (deps: GithubCredentialServiceDeps)
         scopes,
       })
       .onConflictDoUpdate({
-        target: githubCredentials.userKey,
+        target: githubCredentials.userId,
         set: { tokenEncrypted: deps.cipher.encrypt(trimmed), source, ...identity, scopes, updatedAt: new Date() },
       });
 
@@ -122,8 +122,8 @@ export const createGithubCredentialService = (deps: GithubCredentialServiceDeps)
   return {
     validateAndStore,
 
-    resolve: async (userKey: string): Promise<ResolvedGithubCredential | undefined> => {
-      const row = await findRow(userKey);
+    resolve: async (userId: string): Promise<ResolvedGithubCredential | undefined> => {
+      const row = await findRow(userId);
       if (row) {
         return {
           token: deps.cipher.decrypt(row.tokenEncrypted),
@@ -133,14 +133,24 @@ export const createGithubCredentialService = (deps: GithubCredentialServiceDeps)
         };
       }
 
-      const legacyToken = await deps.userEnvService.getValue(userKey, 'GITHUB_TOKEN');
-      if (legacyToken) return { token: legacyToken, login: userKey, name: userKey, email: 'bot@sagewright' };
+      const legacyToken = await deps.userEnvService.getValue(userId, 'GITHUB_TOKEN');
+      if (legacyToken) {
+        // No stored GitHub identity — attribute commits to the Sagewright username (the id
+        // is opaque), falling back to a generic name if the user row is gone.
+        const [owner] = await deps.db
+          .select({ username: users.username })
+          .from(users)
+          .where(eq(users.id, userId))
+          .limit(1);
+        const who = owner?.username ?? 'sagewright';
+        return { token: legacyToken, login: who, name: who, email: 'bot@sagewright' };
+      }
       if (deps.config.githubToken) return { token: deps.config.githubToken, login: 'sagewright', name: 'sagewright', email: 'bot@sagewright' };
       return undefined;
     },
 
-    getStatus: async (userKey: string) => {
-      const row = await findRow(userKey);
+    getStatus: async (userId: string) => {
+      const row = await findRow(userId);
       if (!row) return { connected: false as const };
       return {
         connected: true as const,
@@ -154,8 +164,8 @@ export const createGithubCredentialService = (deps: GithubCredentialServiceDeps)
       };
     },
 
-    disconnect: async (userKey: string): Promise<void> => {
-      await deps.db.delete(githubCredentials).where(eq(githubCredentials.userKey, userKey));
+    disconnect: async (userId: string): Promise<void> => {
+      await deps.db.delete(githubCredentials).where(eq(githubCredentials.userId, userId));
     },
   };
 };

@@ -73,10 +73,10 @@ const withInsertBeforeConsume = (db: any, before: () => Promise<void>) => {
 
 describe('agent-stream interjections', () => {
   it('delivers every interjection it consumes — including one that lands mid-poll', { timeout: 10000 }, async () => {
-    const { db } = await makeTestApp();
+    const { db, userId } = await makeTestApp();
     const [row] = await db
       .insert(sessions)
-      .values({ kind: 'headless', status: SessionStatus.RUNNING, createdBy: 'al' })
+      .values({ kind: 'headless', status: SessionStatus.RUNNING, createdBy: userId('al') })
       .returning();
     const id = row!.id;
     const eventStore = createEventStore(db as never);

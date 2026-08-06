@@ -130,7 +130,7 @@ describe('terminal route (live websocket)', () => {
     });
     const stream = new PassThrough();
     const exec = vi.fn(async () => ({ stream, resize: vi.fn(async () => {}), close: () => stream.destroy() }));
-    const { app, db } = await makeTestApp({ sessionRuntime, containerTerminal: { exec } });
+    const { app, db, userId } = await makeTestApp({ sessionRuntime, containerTerminal: { exec } });
     await app.listen({ port: 0, host: '127.0.0.1' });
     const addr = app.server.address() as { port: number };
     close = async () => {
@@ -141,7 +141,7 @@ describe('terminal route (live websocket)', () => {
 
     const [row] = await db
       .insert(sessions)
-      .values({ kind: 'interactive', status: SessionStatus.DETACHED, createdBy: 'al', containerId: 'c-restart' })
+      .values({ kind: 'interactive', status: SessionStatus.DETACHED, createdBy: userId('al'), containerId: 'c-restart' })
       .returning();
 
     const ws = new WebSocket(`ws://127.0.0.1:${addr.port}/api/tasks/${row!.id}/terminal?kind=agent`, {

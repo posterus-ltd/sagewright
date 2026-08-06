@@ -108,9 +108,10 @@ export const buildSessionColumns = ({
       ),
   },
   {
-    field: 'createdBy',
+    field: 'createdByName',
     headerName: 'Owner',
     width: 140,
+    valueGetter: (_v, row) => row.createdByName ?? '—',
   },
   {
     field: 'runner',

@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+
 import { UserRole } from '@sagewright/shared';
 import { describe, expect, it } from 'vitest';
 
@@ -47,8 +49,9 @@ describe('createUserService', () => {
   it('changePassword verifies the current password and clears the forced-change flag', async () => {
     const s = await svc();
     const { initialPassword } = await s.create('alice');
-    await expect(s.changePassword('alice', 'wrong', 'a-new-password')).rejects.toMatchObject({ code: 'invalid_current' });
-    await s.changePassword('alice', initialPassword, 'a-new-password');
+    const { id } = (await s.findByUsername('alice'))!;
+    await expect(s.changePassword(id, 'wrong', 'a-new-password')).rejects.toMatchObject({ code: 'invalid_current' });
+    await s.changePassword(id, initialPassword, 'a-new-password');
     expect(await s.findByUsername('alice')).toMatchObject({ mustChangePassword: false });
     expect(await s.verifyLogin('alice', 'a-new-password')).not.toBeNull();
     expect(await s.verifyLogin('alice', initialPassword)).toBeNull();
@@ -57,8 +60,9 @@ describe('createUserService', () => {
   it('resetPassword issues a new one-time password and re-sets the forced-change flag', async () => {
     const s = await svc();
     const { initialPassword } = await s.create('alice');
-    await s.changePassword('alice', initialPassword, 'chosen-password');
-    const { initialPassword: reset } = await s.resetPassword('alice');
+    const { id } = (await s.findByUsername('alice'))!;
+    await s.changePassword(id, initialPassword, 'chosen-password');
+    const { initialPassword: reset } = await s.resetPassword(id);
     expect(reset).not.toBe('chosen-password');
     expect(await s.findByUsername('alice')).toMatchObject({ mustChangePassword: true });
     expect(await s.verifyLogin('alice', 'chosen-password')).toBeNull();
@@ -68,17 +72,19 @@ describe('createUserService', () => {
   it('never resets, re-roles, or deletes the root account', async () => {
     const s = await svc();
     await s.provisionRoot('root-secret');
-    await expect(s.resetPassword('root')).rejects.toMatchObject({ code: 'forbidden' });
-    await expect(s.setRole('root', UserRole.USER)).rejects.toMatchObject({ code: 'forbidden' });
-    await expect(s.remove('root', 'root')).rejects.toMatchObject({ code: 'forbidden' });
+    const { id: rootId } = (await s.findByUsername('root'))!;
+    await expect(s.resetPassword(rootId)).rejects.toMatchObject({ code: 'forbidden' });
+    await expect(s.setRole(rootId, UserRole.USER)).rejects.toMatchObject({ code: 'forbidden' });
+    await expect(s.remove(rootId, rootId)).rejects.toMatchObject({ code: 'forbidden' });
   });
 
   it('setRole promotes and demotes a user', async () => {
     const s = await svc();
     await s.create('alice');
-    await s.setRole('alice', UserRole.ADMIN);
+    const { id } = (await s.findByUsername('alice'))!;
+    await s.setRole(id, UserRole.ADMIN);
     expect(await s.findByUsername('alice')).toMatchObject({ role: UserRole.ADMIN });
-    await s.setRole('alice', UserRole.USER);
+    await s.setRole(id, UserRole.USER);
     expect(await s.findByUsername('alice')).toMatchObject({ role: UserRole.USER });
   });
 
@@ -86,17 +92,20 @@ describe('createUserService', () => {
     const s = await svc();
     await s.create('alice');
     await s.create('bob');
-    await expect(s.remove('alice', 'alice')).rejects.toMatchObject({ code: 'forbidden' });
-    await s.remove('bob', 'alice');
+    const { id: aliceId } = (await s.findByUsername('alice'))!;
+    const { id: bobId } = (await s.findByUsername('bob'))!;
+    await expect(s.remove(aliceId, aliceId)).rejects.toMatchObject({ code: 'forbidden' });
+    await s.remove(bobId, aliceId);
     expect(await s.findByUsername('bob')).toBeNull();
   });
 
   it('surfaces not_found for operations on a missing user', async () => {
     const s = await svc();
-    await expect(s.changePassword('ghost', 'x', 'yyyyyyyy')).rejects.toMatchObject({ code: 'not_found' });
-    await expect(s.resetPassword('ghost')).rejects.toMatchObject({ code: 'not_found' });
-    await expect(s.setRole('ghost', UserRole.ADMIN)).rejects.toMatchObject({ code: 'not_found' });
-    await expect(s.remove('ghost', 'root')).rejects.toMatchObject({ code: 'not_found' });
+    const ghost = randomUUID();
+    await expect(s.changePassword(ghost, 'x', 'yyyyyyyy')).rejects.toMatchObject({ code: 'not_found' });
+    await expect(s.resetPassword(ghost)).rejects.toMatchObject({ code: 'not_found' });
+    await expect(s.setRole(ghost, UserRole.ADMIN)).rejects.toMatchObject({ code: 'not_found' });
+    await expect(s.remove(ghost, randomUUID())).rejects.toMatchObject({ code: 'not_found' });
   });
 
   it('lists users in creation order', async () => {

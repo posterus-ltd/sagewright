@@ -43,9 +43,10 @@ const setup = async (opts: {
   addRunWorktrees?: () => Promise<{ slug: string; url: string; defaultBranch: string; path: string }[]>;
   execStep?: (i: { taskId: string }) => Promise<{ exitCode: number | null }>;
 }) => {
-  const { db } = await makeTestApp();
+  const { db, userId } = await makeTestApp();
   const service = createWorkflowService({ db: db as never });
-  const wf = await service.create({ definition: opts.definitionOverride ?? definition, enabled: true }, 'al');
+  const creatorId = userId('al');
+  const wf = await service.create({ definition: opts.definitionOverride ?? definition, enabled: true }, creatorId);
 
   const spawnInputs: SpawnInput[] = [];
   const captures: string[][] = [];
@@ -124,7 +125,7 @@ const setup = async (opts: {
     logger: { error: () => undefined },
   });
 
-  return { db, driver, workflowId: wf.id, spawnInputs, captures, removeSessionWorktrees };
+  return { db, driver, workflowId: wf.id, creatorId, spawnInputs, captures, removeSessionWorktrees };
 };
 
 type TestDb = Awaited<ReturnType<typeof makeTestApp>>['db'];
@@ -154,8 +155,8 @@ const stepKeys = async (db: TestDb, runId: string): Promise<string[]> => {
 
 describe('workflow-driver', () => {
   it('runs plan→implement→validate and succeeds when validation passes', async () => {
-    const { db, driver, workflowId } = await setup({ verdicts: [true] });
-    const run = await driver.start(workflowId, 'al', 'feature requirements');
+    const { db, driver, workflowId, creatorId } = await setup({ verdicts: [true] });
+    const run = await driver.start(workflowId, creatorId, 'feature requirements');
     const settled = await waitForRun(db, run!.id);
 
     expect(settled.status).toBe('done');
@@ -168,8 +169,8 @@ describe('workflow-driver', () => {
   });
 
   it('loops back to onFailureGoTo on failure, then succeeds', async () => {
-    const { db, driver, workflowId } = await setup({ verdicts: [false, true] });
-    const run = await driver.start(workflowId, 'al');
+    const { db, driver, workflowId, creatorId } = await setup({ verdicts: [false, true] });
+    const run = await driver.start(workflowId, creatorId);
     const settled = await waitForRun(db, run!.id);
 
     expect(settled.status).toBe('done');
@@ -180,8 +181,8 @@ describe('workflow-driver', () => {
   });
 
   it('stops at max_iterations when validation never passes', async () => {
-    const { db, driver, workflowId } = await setup({ verdicts: [false] });
-    const run = await driver.start(workflowId, 'al');
+    const { db, driver, workflowId, creatorId } = await setup({ verdicts: [false] });
+    const run = await driver.start(workflowId, creatorId);
     const settled = await waitForRun(db, run!.id);
 
     expect(settled.status).toBe('max_iterations');
@@ -192,8 +193,8 @@ describe('workflow-driver', () => {
   });
 
   it('fails the run (no push) when a step exits non-zero', async () => {
-    const { db, driver, workflowId, captures } = await setup({ verdicts: [true], stepExit: 1 });
-    const run = await driver.start(workflowId, 'al');
+    const { db, driver, workflowId, creatorId, captures } = await setup({ verdicts: [true], stepExit: 1 });
+    const run = await driver.start(workflowId, creatorId);
     const settled = await waitForRun(db, run!.id);
 
     expect(settled.status).toBe('failed');
@@ -202,8 +203,8 @@ describe('workflow-driver', () => {
   });
 
   it('records the failure reason and keeps the failed step when a step exits non-zero', async () => {
-    const { db, driver, workflowId } = await setup({ verdicts: [true], stepExit: 2 });
-    const run = await driver.start(workflowId, 'al');
+    const { db, driver, workflowId, creatorId } = await setup({ verdicts: [true], stepExit: 2 });
+    const run = await driver.start(workflowId, creatorId);
     const settled = await waitForRun(db, run!.id);
 
     expect(settled.status).toBe('failed');
@@ -215,8 +216,8 @@ describe('workflow-driver', () => {
   });
 
   it('records a reason and clears the step on a successful run', async () => {
-    const { db, driver, workflowId } = await setup({ verdicts: [true] });
-    const run = await driver.start(workflowId, 'al');
+    const { db, driver, workflowId, creatorId } = await setup({ verdicts: [true] });
+    const run = await driver.start(workflowId, creatorId);
     const settled = await waitForRun(db, run!.id);
 
     expect(settled.status).toBe('done');
@@ -234,16 +235,16 @@ describe('workflow-driver', () => {
         { ...definition.steps[2]!, validateCommands: ['exit 1'] },
       ],
     };
-    const { db, driver, workflowId } = await setup({ verdicts: [true], commandsExit: 1, definitionOverride: def });
-    const run = await driver.start(workflowId, 'al');
+    const { db, driver, workflowId, creatorId } = await setup({ verdicts: [true], commandsExit: 1, definitionOverride: def });
+    const run = await driver.start(workflowId, creatorId);
     const settled = await waitForRun(db, run!.id);
 
     expect(settled.status).toBe('max_iterations');
   });
 
   it('passes the full resolved user env to each step, not just GITHUB_TOKEN', async () => {
-    const { db, driver, workflowId, spawnInputs } = await setup({ verdicts: [true], envBlob: 'FOO=bar\n' });
-    const run = await driver.start(workflowId, 'al');
+    const { db, driver, workflowId, creatorId, spawnInputs } = await setup({ verdicts: [true], envBlob: 'FOO=bar\n' });
+    const run = await driver.start(workflowId, creatorId);
     await waitForRun(db, run!.id);
 
     // Steps are now provisioned through the session seam, which merges the user's
@@ -252,13 +253,13 @@ describe('workflow-driver', () => {
   });
 
   it('settles a step task to failed (not stuck provisioning) when its spawn throws', async () => {
-    const { db, driver, workflowId } = await setup({
+    const { db, driver, workflowId, creatorId } = await setup({
       verdicts: [true],
       spawn: async () => {
         throw new Error('docker daemon unreachable');
       },
     });
-    const run = await driver.start(workflowId, 'al');
+    const run = await driver.start(workflowId, creatorId);
     const settled = await waitForRun(db, run!.id);
 
     expect(settled.status).toBe('failed');
@@ -275,7 +276,7 @@ describe('workflow-driver', () => {
   it('halts a stopped run at the next step boundary without shipping or overwriting STOPPED', async () => {
     // The user stops the run (POST /stop) while its first step is executing.
     let dbRef: unknown = null;
-    const { db, driver, workflowId, captures, removeSessionWorktrees } = await setup({
+    const { db, driver, workflowId, creatorId, captures, removeSessionWorktrees } = await setup({
       verdicts: [true],
       execStep: async ({ taskId }) => {
         const d = dbRef as TestDb;
@@ -292,7 +293,7 @@ describe('workflow-driver', () => {
     });
     dbRef = db;
 
-    const run = await driver.start(workflowId, 'al');
+    const run = await driver.start(workflowId, creatorId);
     const settled = await waitForRun(db, run!.id);
     // The drive loop owns cleanup after a stop — wait for its sweep before asserting.
     const deadline = Date.now() + 2000;
@@ -309,13 +310,13 @@ describe('workflow-driver', () => {
   it('does not sweep the run worktree when setup fails before any step ran', async () => {
     // A transient failure while laying down worktrees (e.g. git fetch on a reconciled
     // resume) must not destroy the run's preserved uncommitted work.
-    const { db, driver, workflowId, removeSessionWorktrees } = await setup({
+    const { db, driver, workflowId, creatorId, removeSessionWorktrees } = await setup({
       verdicts: [true],
       addRunWorktrees: async () => {
         throw new Error('git fetch failed');
       },
     });
-    const run = await driver.start(workflowId, 'al');
+    const run = await driver.start(workflowId, creatorId);
     const settled = await waitForRun(db, run!.id);
 
     expect(settled.status).toBe('failed');
@@ -324,22 +325,22 @@ describe('workflow-driver', () => {
   });
 
   it('sweeps the run worktree once the run settles inside the loop', async () => {
-    const { db, driver, workflowId, removeSessionWorktrees } = await setup({ verdicts: [true] });
-    const run = await driver.start(workflowId, 'al');
+    const { db, driver, workflowId, creatorId, removeSessionWorktrees } = await setup({ verdicts: [true] });
+    const run = await driver.start(workflowId, creatorId);
     await waitForRun(db, run!.id);
 
     expect(removeSessionWorktrees).toHaveBeenCalledWith(run!.id);
   });
 
   it('resume seeds the prior on-disk handoff and restores the persisted iteration', async () => {
-    const { db, driver, workflowId, spawnInputs } = await setup({ verdicts: [false] });
+    const { db, driver, workflowId, creatorId, spawnInputs } = await setup({ verdicts: [false] });
     // Simulate a run reconciled mid-flight: persisted at the validate step on iteration 2
     // (one short of maxIterations=3), carrying its original seed input on the row.
     const [parent] = await db
       .insert(sessions)
       .values({
         kind: 'workflow',
-        createdBy: 'al',
+        createdBy: creatorId,
         status: 'running',
         workflowId,
         currentStepKey: 'validate',

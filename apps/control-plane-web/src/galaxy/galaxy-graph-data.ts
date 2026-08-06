@@ -22,6 +22,7 @@ export interface StarNode {
   updatedAt: string;
   prompt: string | null;
   createdBy: string;
+  createdByName: string | null;
   currentStepKey: string | null;
   workflowStepKey: string | null;
   iteration: number | null;
@@ -99,6 +100,7 @@ export const buildGalaxyGraph = (sessions: Session[]): GalaxyGraph => {
       updatedAt: s.updatedAt,
       prompt: s.prompt,
       createdBy: s.createdBy,
+      createdByName: s.createdByName,
       currentStepKey: s.currentStepKey,
       workflowStepKey: s.workflowStepKey,
       iteration: s.iteration,

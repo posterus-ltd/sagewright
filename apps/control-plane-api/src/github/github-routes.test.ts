@@ -22,7 +22,7 @@ describe('github routes', () => {
       disconnect: vi.fn(async () => undefined),
       resolve: vi.fn(),
     };
-    const { app } = await makeTestApp({ githubCredentialService: githubCredentialService as never });
+    const { app, userId } = await makeTestApp({ githubCredentialService: githubCredentialService as never });
     const headers = await login(app);
 
     expect((await app.inject({ method: 'GET', url: '/api/github/status', headers })).json()).toEqual({ connected: false });
@@ -30,7 +30,7 @@ describe('github routes', () => {
     const put = await app.inject({ method: 'PUT', url: '/api/github/token', headers, payload: { token: 'ghp_user' } });
     expect(put.statusCode).toBe(200);
     expect(put.json()).not.toHaveProperty('token');
-    expect(githubCredentialService.validateAndStore).toHaveBeenCalledWith('al', 'ghp_user', GithubCredentialSource.PAT);
+    expect(githubCredentialService.validateAndStore).toHaveBeenCalledWith(userId('al'), 'ghp_user', GithubCredentialSource.PAT);
 
     expect((await app.inject({ method: 'GET', url: '/api/github/status', headers })).json()).toMatchObject({
       connected: true,
@@ -39,7 +39,7 @@ describe('github routes', () => {
 
     const del = await app.inject({ method: 'DELETE', url: '/api/github', headers });
     expect(del.statusCode).toBe(204);
-    expect(githubCredentialService.disconnect).toHaveBeenCalledWith('al');
+    expect(githubCredentialService.disconnect).toHaveBeenCalledWith(userId('al'));
   });
 
   it('rejects malformed bodies and requires auth', async () => {

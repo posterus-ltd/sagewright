@@ -1,4 +1,5 @@
 import { EventType, SessionStatus } from '@sagewright/shared';
+import { randomUUID } from 'node:crypto';
 import { eq } from 'drizzle-orm';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -72,14 +73,14 @@ describe('task routes', () => {
     const sessionRuntime = createSessionRuntime({
       agentDriver: { runInteractive, complete: async () => {} } as never,
     });
-    const { app, db } = await makeTestApp({ sessionRuntime });
+    const { app, db, userId } = await makeTestApp({ sessionRuntime });
     const login = await app.inject({ method: 'POST', url: '/api/login', payload: { username: 'al', password: 'pw' } });
     const c = login.cookies[0]!;
     const headers = { cookie: `${c.name}=${c.value}` };
     // A detached session (control-plane restarted since, so no runtime entry either).
     const [row] = await db
       .insert(sessions)
-      .values({ kind: 'interactive', status: SessionStatus.DETACHED, createdBy: 'al', containerId: 'c-d' })
+      .values({ kind: 'interactive', status: SessionStatus.DETACHED, createdBy: userId('al'), containerId: 'c-d' })
       .returning();
 
     const res = await app.inject({
@@ -105,13 +106,13 @@ describe('task routes', () => {
     const sessionRuntime = createSessionRuntime({
       agentDriver: { runInteractive, complete: async () => {} } as never,
     });
-    const { app, db } = await makeTestApp({ sessionRuntime });
+    const { app, db, userId } = await makeTestApp({ sessionRuntime });
     const login = await app.inject({ method: 'POST', url: '/api/login', payload: { username: 'al', password: 'pw' } });
     const c = login.cookies[0]!;
     const headers = { cookie: `${c.name}=${c.value}` };
     const [row] = await db
       .insert(sessions)
-      .values({ kind: 'interactive', status: SessionStatus.RUNNING, createdBy: 'al', containerId: 'c-l' })
+      .values({ kind: 'interactive', status: SessionStatus.RUNNING, createdBy: userId('al'), containerId: 'c-l' })
       .returning();
     sessionRuntime.start({ sessionId: row!.id, containerId: 'c-l', manifest: [], sessionDir: '/v' });
     expect(runInteractive).toHaveBeenCalledTimes(1);
@@ -129,11 +130,11 @@ describe('task routes', () => {
 
   it('stop is a no-op on an already-terminal session (no retire, no status overwrite)', async () => {
     const retire = vi.fn(async () => {});
-    const { db } = await makeTestApp();
+    const { db, userId } = await makeTestApp();
     const service = buildService({ db, spawner: { spawn: vi.fn(), retire }, volume: fakeVolume() });
     const [row] = await db
       .insert(sessions)
-      .values({ kind: 'headless', status: SessionStatus.DONE, createdBy: 'al', containerId: 'c-done' })
+      .values({ kind: 'headless', status: SessionStatus.DONE, createdBy: userId('al'), containerId: 'c-done' })
       .returning();
     const id = row!.id;
 
@@ -147,7 +148,7 @@ describe('task routes', () => {
   it('stop on a workflow parent leaves the shared run worktree to the drive loop', async () => {
     const retire = vi.fn(async () => {});
     const removeSessionWorktrees = vi.fn(async () => undefined);
-    const { db } = await makeTestApp();
+    const { db, userId } = await makeTestApp();
     const service = buildService({
       db,
       spawner: { spawn: vi.fn(), retire },
@@ -155,7 +156,7 @@ describe('task routes', () => {
     });
     const [row] = await db
       .insert(sessions)
-      .values({ kind: 'workflow', status: SessionStatus.RUNNING, createdBy: 'al' })
+      .values({ kind: 'workflow', status: SessionStatus.RUNNING, createdBy: userId('al') })
       .returning();
     const id = row!.id;
 
@@ -173,7 +174,7 @@ describe('task routes', () => {
   it('creates an interactive session and spawns a runner', async () => {
     const spawn = vi.fn(async () => ({ containerId: 'c1' }));
     const addSessionWorktrees = vi.fn(async () => []);
-    const { db } = await makeTestApp();
+    const { db, userId } = await makeTestApp();
 
     const service = buildService({
       db,
@@ -181,7 +182,7 @@ describe('task routes', () => {
       volume: fakeVolume({ addSessionWorktrees }),
     });
 
-    const task = await service.create({}, 'al');
+    const task = await service.create({}, userId('al'));
     expect(task.status).toBe(SessionStatus.RUNNING);
     expect(task.kind).toBe('interactive');
     expect(task.prompt).toBeNull();
@@ -192,7 +193,7 @@ describe('task routes', () => {
   it('uses the resolved GitHub credential for worktrees and runner env', async () => {
     const spawn = vi.fn(async (_i: SpawnInput) => ({ containerId: 'c1' }));
     const addSessionWorktrees = vi.fn(async () => []);
-    const { db } = await makeTestApp();
+    const { db, userId } = await makeTestApp();
 
     const service = buildService({
       db,
@@ -202,7 +203,7 @@ describe('task routes', () => {
       githubCredentialService: fakeGithubCredentialService('resolved-token'),
     });
 
-    await service.create({}, 'al');
+    await service.create({}, userId('al'));
 
     expect(addSessionWorktrees).toHaveBeenCalledWith(expect.any(String), [], 'resolved-token');
     expect(spawn.mock.calls[0]![0].userEnv).toMatchObject({ GITHUB_TOKEN: 'resolved-token', OTHER: 'ok' });
@@ -211,9 +212,10 @@ describe('task routes', () => {
   it('creates a headless task from the scheduler with a prompt', async () => {
     const spawn = vi.fn(async (_i: SpawnInput) => ({ containerId: 'c1' }));
     const { db } = await makeTestApp();
+    const schedulerId = randomUUID();
     const [sp] = await db
       .insert(scheduledPrompts)
-      .values({ cron: '0 9 * * *', prompt: 'nightly', createdBy: 'scheduler' })
+      .values({ cron: '0 9 * * *', prompt: 'nightly', createdBy: schedulerId })
       .returning();
     const service = buildService({
       db,
@@ -221,7 +223,7 @@ describe('task routes', () => {
       volume: fakeVolume(),
     });
 
-    const task = await service.create({ prompt: 'nightly' }, 'scheduler', { scheduledPromptId: sp!.id });
+    const task = await service.create({ prompt: 'nightly' }, schedulerId, { scheduledPromptId: sp!.id });
     // A scheduled fire records kind='scheduled' (its runner mode is still headless).
     expect(task.kind).toBe('scheduled');
     expect(task.prompt).toBe('nightly');
@@ -232,7 +234,7 @@ describe('task routes', () => {
   it('tears down worktrees and fails the task on spawn error', async () => {
     const spawnError = new Error('docker unavailable');
     const removeSessionWorktrees = vi.fn(async () => undefined);
-    const { db } = await makeTestApp();
+    const { db, userId } = await makeTestApp();
 
     const eventStore = (await import('../events/event-store')).createEventStore(db as never);
     const eventBus = (await import('../events/event-bus')).createEventBus();
@@ -245,7 +247,7 @@ describe('task routes', () => {
       volume: fakeVolume({ removeSessionWorktrees }),
     });
 
-    await expect(service.create({}, 'al')).rejects.toThrow('docker unavailable');
+    await expect(service.create({}, userId('al'))).rejects.toThrow('docker unavailable');
     expect(removeSessionWorktrees).toHaveBeenCalledOnce();
 
     const [taskRow] = await (db as never as import('drizzle-orm/node-postgres').NodePgDatabase<typeof import('../db/schema')>)
@@ -258,14 +260,14 @@ describe('task routes', () => {
   });
 
   it('archives a session by stamping archivedAt without removing the row', async () => {
-    const { db } = await makeTestApp();
+    const { db, userId } = await makeTestApp();
     const service = buildService({
       db,
       spawner: { spawn: vi.fn(async () => ({ containerId: 'c1' })), retire: vi.fn() },
       volume: fakeVolume(),
     });
 
-    const task = await service.create({}, 'al');
+    const task = await service.create({}, userId('al'));
     expect(task.archivedAt).toBeNull();
 
     await service.archive(task.id);
@@ -277,7 +279,7 @@ describe('task routes', () => {
   it('removes a session and its dependent rows', async () => {
     const removeSessionWorktrees = vi.fn(async () => undefined);
     const retire = vi.fn(async () => undefined);
-    const { db } = await makeTestApp();
+    const { db, userId } = await makeTestApp();
     const eventStore = (await import('../events/event-store')).createEventStore(db as never);
     const service = buildService({
       db,
@@ -287,7 +289,7 @@ describe('task routes', () => {
       volume: fakeVolume({ removeSessionWorktrees }),
     });
 
-    const task = await service.create({}, 'al');
+    const task = await service.create({}, userId('al'));
     await eventStore.append(task.id, [{ type: EventType.LOG, payload: { line: 'hi' } }]);
 
     await service.remove(task.id);
@@ -299,14 +301,14 @@ describe('task routes', () => {
   });
 
   it('DELETE /api/tasks/:id removes an owned session when deletion is allowed (default)', async () => {
-    const { app, db } = await makeTestApp();
+    const { app, db, userId } = await makeTestApp();
     const cookie = (
       await app.inject({ method: 'POST', url: '/api/login', payload: { username: 'alice', password: 'pw' } })
     ).cookies[0];
     const headers = { cookie: `${cookie!.name}=${cookie!.value}` };
     const [row] = await db
       .insert(sessions)
-      .values({ kind: 'headless', status: SessionStatus.DONE, createdBy: 'alice', archivedAt: new Date() })
+      .values({ kind: 'headless', status: SessionStatus.DONE, createdBy: userId('alice'), archivedAt: new Date() })
       .returning();
 
     const res = await app.inject({ method: 'DELETE', url: `/api/tasks/${row!.id}`, headers });
@@ -322,14 +324,14 @@ describe('task routes', () => {
       SECRETS_KEY: '0123456789abcdef0123456789abcdef', RUNNER_IMAGE: 'w',
       ALLOW_SESSION_DELETION: 'false',
     });
-    const { app, db } = await makeTestApp({ config });
+    const { app, db, userId } = await makeTestApp({ config });
     const cookie = (
       await app.inject({ method: 'POST', url: '/api/login', payload: { username: 'alice', password: 'pw' } })
     ).cookies[0];
     const headers = { cookie: `${cookie!.name}=${cookie!.value}` };
     const [row] = await db
       .insert(sessions)
-      .values({ kind: 'headless', status: SessionStatus.DONE, createdBy: 'alice', archivedAt: new Date() })
+      .values({ kind: 'headless', status: SessionStatus.DONE, createdBy: userId('alice'), archivedAt: new Date() })
       .returning();
 
     const res = await app.inject({ method: 'DELETE', url: `/api/tasks/${row!.id}`, headers });
@@ -350,7 +352,7 @@ describe('task routes', () => {
 
     expect(res.statusCode).toBe(201);
     const task = res.json();
-    expect(task.createdBy).toBe('alice');
+    expect(task.createdByName).toBe('alice');
     expect(task.status).toBe(SessionStatus.RUNNING);
   });
 
@@ -451,13 +453,13 @@ describe('task routes', () => {
   });
 
   it('listGraph returns every session including workflow parents and steps', async () => {
-    const { db } = await makeTestApp();
+    const { db, userId } = await makeTestApp();
     const service = buildService({ db, spawner: { spawn: vi.fn(), retire: vi.fn() }, volume: fakeVolume() });
-    const [standalone] = await db.insert(sessions).values({ kind: 'headless', createdBy: 'al' }).returning();
-    const [parent] = await db.insert(sessions).values({ kind: 'workflow', createdBy: 'al' }).returning();
+    const [standalone] = await db.insert(sessions).values({ kind: 'headless', createdBy: userId('al') }).returning();
+    const [parent] = await db.insert(sessions).values({ kind: 'workflow', createdBy: userId('al') }).returning();
     const [step] = await db
       .insert(sessions)
-      .values({ kind: 'workflow_step', createdBy: 'al', parentSessionId: parent!.id, workflowStepKey: 'plan' })
+      .values({ kind: 'workflow_step', createdBy: userId('al'), parentSessionId: parent!.id, workflowStepKey: 'plan' })
       .returning();
 
     const all = await service.listGraph();

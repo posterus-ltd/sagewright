@@ -1,9 +1,9 @@
 CREATE TABLE "canvas_layouts" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"user_key" text NOT NULL,
+	"user_id" uuid NOT NULL,
 	"layout" jsonb NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "canvas_layouts_user_key_unique" UNIQUE("user_key")
+	CONSTRAINT "canvas_layouts_user_id_unique" UNIQUE("user_id")
 );
 --> statement-breakpoint
 CREATE TABLE "events" (
@@ -17,7 +17,7 @@ CREATE TABLE "events" (
 --> statement-breakpoint
 CREATE TABLE "github_credentials" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"user_key" text NOT NULL,
+	"user_id" uuid NOT NULL,
 	"token_encrypted" text NOT NULL,
 	"source" text NOT NULL,
 	"login" text NOT NULL,
@@ -25,7 +25,7 @@ CREATE TABLE "github_credentials" (
 	"email" text NOT NULL,
 	"scopes" jsonb DEFAULT '[]'::jsonb NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "github_credentials_user_key_unique" UNIQUE("user_key")
+	CONSTRAINT "github_credentials_user_id_unique" UNIQUE("user_id")
 );
 --> statement-breakpoint
 CREATE TABLE "inbound_messages" (
@@ -38,7 +38,7 @@ CREATE TABLE "inbound_messages" (
 --> statement-breakpoint
 CREATE TABLE "repos" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"user_key" text NOT NULL,
+	"user_id" uuid NOT NULL,
 	"url" text NOT NULL,
 	"slug" text NOT NULL,
 	"default_branch" text,
@@ -50,8 +50,8 @@ CREATE TABLE "scheduled_prompts" (
 	"cron" text NOT NULL,
 	"prompt" text NOT NULL,
 	"enabled" boolean DEFAULT true NOT NULL,
-	"created_by" text NOT NULL,
-	"worker_image" text,
+	"created_by" uuid NOT NULL,
+	"runner_image" text,
 	"last_run_at" timestamp with time zone,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
@@ -64,7 +64,7 @@ CREATE TABLE "sessions" (
 	"status" text DEFAULT 'queued' NOT NULL,
 	"branch" text,
 	"pr_url" text,
-	"created_by" text NOT NULL,
+	"created_by" uuid NOT NULL,
 	"container_id" text,
 	"scheduled_prompt_id" uuid,
 	"parent_session_id" uuid,
@@ -75,7 +75,7 @@ CREATE TABLE "sessions" (
 	"error" text,
 	"trigger_context" jsonb,
 	"archived_at" timestamp with time zone,
-	"worker_image" text,
+	"runner_image" text,
 	"started_at" timestamp with time zone,
 	"ended_at" timestamp with time zone,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
@@ -84,18 +84,29 @@ CREATE TABLE "sessions" (
 --> statement-breakpoint
 CREATE TABLE "user_envs" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"user_key" text NOT NULL,
+	"user_id" uuid NOT NULL,
 	"env_encrypted" text NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "user_envs_user_key_unique" UNIQUE("user_key")
+	CONSTRAINT "user_envs_user_id_unique" UNIQUE("user_id")
 );
 --> statement-breakpoint
 CREATE TABLE "user_settings" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"user_key" text NOT NULL,
-	"default_worker_image" text,
+	"user_id" uuid NOT NULL,
+	"default_runner_image" text,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "user_settings_user_key_unique" UNIQUE("user_key")
+	CONSTRAINT "user_settings_user_id_unique" UNIQUE("user_id")
+);
+--> statement-breakpoint
+CREATE TABLE "users" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"username" text NOT NULL,
+	"password_hash" text NOT NULL,
+	"role" text DEFAULT 'user' NOT NULL,
+	"must_change_password" boolean DEFAULT true NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "users_username_unique" UNIQUE("username")
 );
 --> statement-breakpoint
 CREATE TABLE "workflows" (
@@ -103,7 +114,7 @@ CREATE TABLE "workflows" (
 	"name" text NOT NULL,
 	"definition" jsonb NOT NULL,
 	"enabled" boolean DEFAULT true NOT NULL,
-	"created_by" text NOT NULL,
+	"created_by" uuid NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
@@ -114,4 +125,4 @@ ALTER TABLE "sessions" ADD CONSTRAINT "sessions_parent_session_id_sessions_id_fk
 ALTER TABLE "sessions" ADD CONSTRAINT "sessions_workflow_id_workflows_id_fk" FOREIGN KEY ("workflow_id") REFERENCES "public"."workflows"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 CREATE UNIQUE INDEX "events_session_seq_idx" ON "events" USING btree ("session_id","seq");--> statement-breakpoint
 CREATE INDEX "events_session_created_idx" ON "events" USING btree ("session_id","created_at");--> statement-breakpoint
-CREATE UNIQUE INDEX "repos_user_key_slug_idx" ON "repos" USING btree ("user_key","slug");
+CREATE UNIQUE INDEX "repos_user_id_slug_idx" ON "repos" USING btree ("user_id","slug");

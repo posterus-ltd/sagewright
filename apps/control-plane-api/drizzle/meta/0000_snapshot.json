@@ -1,5 +1,5 @@
 {
-  "id": "d5c64800-3e0e-437c-b82c-a674ccabac6c",
+  "id": "74a94f71-f312-422c-9964-525d76ee7819",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -15,9 +15,9 @@
           "notNull": true,
           "default": "gen_random_uuid()"
         },
-        "user_key": {
-          "name": "user_key",
-          "type": "text",
+        "user_id": {
+          "name": "user_id",
+          "type": "uuid",
           "primaryKey": false,
           "notNull": true
         },
@@ -39,11 +39,11 @@
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
-        "canvas_layouts_user_key_unique": {
-          "name": "canvas_layouts_user_key_unique",
+        "canvas_layouts_user_id_unique": {
+          "name": "canvas_layouts_user_id_unique",
           "nullsNotDistinct": false,
           "columns": [
-            "user_key"
+            "user_id"
           ]
         }
       },
@@ -170,9 +170,9 @@
           "notNull": true,
           "default": "gen_random_uuid()"
         },
-        "user_key": {
-          "name": "user_key",
-          "type": "text",
+        "user_id": {
+          "name": "user_id",
+          "type": "uuid",
           "primaryKey": false,
           "notNull": true
         },
@@ -225,11 +225,11 @@
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
-        "github_credentials_user_key_unique": {
-          "name": "github_credentials_user_key_unique",
+        "github_credentials_user_id_unique": {
+          "name": "github_credentials_user_id_unique",
           "nullsNotDistinct": false,
           "columns": [
-            "user_key"
+            "user_id"
           ]
         }
       },
@@ -307,9 +307,9 @@
           "notNull": true,
           "default": "gen_random_uuid()"
         },
-        "user_key": {
-          "name": "user_key",
-          "type": "text",
+        "user_id": {
+          "name": "user_id",
+          "type": "uuid",
           "primaryKey": false,
           "notNull": true
         },
@@ -340,11 +340,11 @@
         }
       },
       "indexes": {
-        "repos_user_key_slug_idx": {
-          "name": "repos_user_key_slug_idx",
+        "repos_user_id_slug_idx": {
+          "name": "repos_user_id_slug_idx",
           "columns": [
             {
-              "expression": "user_key",
+              "expression": "user_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -401,12 +401,12 @@
         },
         "created_by": {
           "name": "created_by",
-          "type": "text",
+          "type": "uuid",
           "primaryKey": false,
           "notNull": true
         },
-        "worker_image": {
-          "name": "worker_image",
+        "runner_image": {
+          "name": "runner_image",
           "type": "text",
           "primaryKey": false,
           "notNull": false
@@ -483,7 +483,7 @@
         },
         "created_by": {
           "name": "created_by",
-          "type": "text",
+          "type": "uuid",
           "primaryKey": false,
           "notNull": true
         },
@@ -547,8 +547,8 @@
           "primaryKey": false,
           "notNull": false
         },
-        "worker_image": {
-          "name": "worker_image",
+        "runner_image": {
+          "name": "runner_image",
           "type": "text",
           "primaryKey": false,
           "notNull": false
@@ -639,9 +639,9 @@
           "notNull": true,
           "default": "gen_random_uuid()"
         },
-        "user_key": {
-          "name": "user_key",
-          "type": "text",
+        "user_id": {
+          "name": "user_id",
+          "type": "uuid",
           "primaryKey": false,
           "notNull": true
         },
@@ -663,11 +663,11 @@
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
-        "user_envs_user_key_unique": {
-          "name": "user_envs_user_key_unique",
+        "user_envs_user_id_unique": {
+          "name": "user_envs_user_id_unique",
           "nullsNotDistinct": false,
           "columns": [
-            "user_key"
+            "user_id"
           ]
         }
       },
@@ -686,14 +686,14 @@
           "notNull": true,
           "default": "gen_random_uuid()"
         },
-        "user_key": {
-          "name": "user_key",
-          "type": "text",
+        "user_id": {
+          "name": "user_id",
+          "type": "uuid",
           "primaryKey": false,
           "notNull": true
         },
-        "default_worker_image": {
-          "name": "default_worker_image",
+        "default_runner_image": {
+          "name": "default_runner_image",
           "type": "text",
           "primaryKey": false,
           "notNull": false
@@ -710,11 +710,79 @@
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
-        "user_settings_user_key_unique": {
-          "name": "user_settings_user_key_unique",
+        "user_settings_user_id_unique": {
+          "name": "user_settings_user_id_unique",
           "nullsNotDistinct": false,
           "columns": [
-            "user_key"
+            "user_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.users": {
+      "name": "users",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "username": {
+          "name": "username",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "password_hash": {
+          "name": "password_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "role": {
+          "name": "role",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'user'"
+        },
+        "must_change_password": {
+          "name": "must_change_password",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "users_username_unique": {
+          "name": "users_username_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "username"
           ]
         }
       },
@@ -754,7 +822,7 @@
         },
         "created_by": {
           "name": "created_by",
-          "type": "text",
+          "type": "uuid",
           "primaryKey": false,
           "notNull": true
         },

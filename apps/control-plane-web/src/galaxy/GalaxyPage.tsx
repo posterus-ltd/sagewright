@@ -32,7 +32,7 @@ export const GalaxyPage: FC = () => {
   const reducedMotion = usePrefersReducedMotion();
   const sceneRef = useRef<GalaxySceneHandle>(null);
 
-  const { displayName } = useAuth();
+  const { userId } = useAuth();
   const { preference: timeWindow, updatePreference: setTimeWindow } =
     useUserPreferences('galaxyTimeWindow', DEFAULT_GALAXY_TIME_WINDOW);
   // Like the Sessions page's toggles, these are transient lenses, not saved
@@ -48,13 +48,13 @@ export const GalaxyPage: FC = () => {
     () =>
       filterSessionsByWindow(
         filterSessionsByView(
-          filterSessionsByScope(sessions ?? [], scope, displayName),
+          filterSessionsByScope(sessions ?? [], scope, userId),
           view,
         ),
         timeWindow,
         Date.now(),
       ),
-    [sessions, scope, displayName, view, timeWindow],
+    [sessions, scope, userId, view, timeWindow],
   );
   const { nodes, links } = useMemo(
     () => buildGalaxyGraph(windowed),

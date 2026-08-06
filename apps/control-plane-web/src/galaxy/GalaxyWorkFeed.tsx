@@ -133,14 +133,14 @@ const WorkCard: FC<{
               flexShrink: 0,
             }}
           >
-            {initials(node.createdBy)}
+            {initials(node.createdByName ?? 'Unknown')}
           </Box>
           <Box sx={{ minWidth: 0, flex: 1 }}>
             <Typography
               sx={{ fontSize: 12, fontWeight: 650, lineHeight: 1.2 }}
               noWrap
             >
-              {node.createdBy}
+              {node.createdByName ?? 'Unknown'}
             </Typography>
             <Typography
               sx={{ fontFamily: fonts.mono, fontSize: 9, color: palette.muted }}

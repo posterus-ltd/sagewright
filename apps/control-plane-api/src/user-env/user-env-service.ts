@@ -10,13 +10,13 @@ interface UserEnvServiceDeps {
   cipher: SecretCipher;
 }
 
-/** Stores one encrypted custom `.env` blob per user, keyed by `userKey`
- *  (the caller's displayName today). Blobs are decrypted on read and used by
+/** Stores one encrypted custom `.env` blob per user, keyed by `userId`.
+ *  Blobs are decrypted on read and used by
  *  the task service to override the runner image's baked-in env at spawn. */
 export const createUserEnvService = (deps: UserEnvServiceDeps) => {
   /** The user's decrypted blob, or '' if none stored. */
-  const get = async (userKey: string): Promise<string> => {
-    const [row] = await deps.db.select().from(userEnvs).where(eq(userEnvs.userKey, userKey)).limit(1);
+  const get = async (userId: string): Promise<string> => {
+    const [row] = await deps.db.select().from(userEnvs).where(eq(userEnvs.userId, userId)).limit(1);
     return row ? deps.cipher.decrypt(row.envEncrypted) : '';
   };
 
@@ -26,17 +26,17 @@ export const createUserEnvService = (deps: UserEnvServiceDeps) => {
     /** A single decrypted override value (e.g. GITHUB_TOKEN), or undefined if the
      *  user hasn't set it. Lets the control plane authenticate its own git ops
      *  with the user's token rather than only the operator's baked-in one. */
-    getValue: async (userKey: string, key: string): Promise<string | undefined> =>
-      parseEnvBlob(await get(userKey))[key],
+    getValue: async (userId: string, key: string): Promise<string | undefined> =>
+      parseEnvBlob(await get(userId))[key],
 
     /** Encrypt and upsert the user's blob. Throws if it isn't valid `KEY=VALUE` content. */
-    set: async (userKey: string, plaintext: string): Promise<void> => {
+    set: async (userId: string, plaintext: string): Promise<void> => {
       parseEnvBlob(plaintext); // validates shape; throws are surfaced as 400 by the route
       const envEncrypted = deps.cipher.encrypt(plaintext);
       await deps.db
         .insert(userEnvs)
-        .values({ userKey, envEncrypted })
-        .onConflictDoUpdate({ target: userEnvs.userKey, set: { envEncrypted, updatedAt: new Date() } });
+        .values({ userId, envEncrypted })
+        .onConflictDoUpdate({ target: userEnvs.userId, set: { envEncrypted, updatedAt: new Date() } });
     },
   };
 };

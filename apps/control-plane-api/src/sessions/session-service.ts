@@ -82,9 +82,9 @@ export interface SpawnSessionResult {
 // can't hijack the runner token or repoint the control plane.
 const resolveUserEnv = async (
   userEnvService: Pick<UserEnvService, 'get'>,
-  userKey: string,
+  userId: string,
 ): Promise<Record<string, string>> => {
-  const parsed = parseEnvBlob(await userEnvService.get(userKey));
+  const parsed = parseEnvBlob(await userEnvService.get(userId));
   for (const k of RESERVED_ENV_KEYS) delete parsed[k];
   return parsed;
 };
@@ -161,7 +161,7 @@ export const createSessionService = (deps: SessionServiceDeps) => {
         // Standalone sessions always branch as `task/<id>` — which is exactly the
         // volume's default — so we don't pass `branch` here; the workflow-step path
         // (which needs `workflow/<runId>`) supplies its own pre-made worktrees above.
-        const configured = await deps.db.select().from(repos).where(eq(repos.userKey, input.createdBy));
+        const configured = await deps.db.select().from(repos).where(eq(repos.userId, input.createdBy));
         manifest = await deps.volume.addSessionWorktrees(
           row.id,
           configured.map((r) => ({ url: r.url, slug: r.slug })),
@@ -225,7 +225,7 @@ export const createSessionService = (deps: SessionServiceDeps) => {
     if (isTerminalStatus(row.status as SessionStatus)) return null;
 
     const slugs = await deps.volume.listSessionWorktrees(sessionId);
-    const configured = await deps.db.select().from(repos).where(eq(repos.userKey, row.createdBy));
+    const configured = await deps.db.select().from(repos).where(eq(repos.userId, row.createdBy));
     const bySlug = new Map(configured.map((r) => [r.slug, r]));
     const manifest: RepoManifestEntry[] = slugs.map((slug) => ({
       slug,

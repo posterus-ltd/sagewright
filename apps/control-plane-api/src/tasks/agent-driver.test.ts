@@ -1,5 +1,6 @@
 import { EventType, SessionStatus } from '@sagewright/shared';
 import { PassThrough } from 'node:stream';
+import { randomUUID } from 'node:crypto';
 import { eq } from 'drizzle-orm';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -19,7 +20,7 @@ const waitListening = async (stream: PassThrough): Promise<void> => {
 const insertTask = async (db: Awaited<ReturnType<typeof makeTestApp>>['db']): Promise<string> => {
   const [row] = await db
     .insert(sessions)
-    .values({ kind: 'headless', status: SessionStatus.PROVISIONING, createdBy: 'al' })
+    .values({ kind: 'headless', status: SessionStatus.PROVISIONING, createdBy: randomUUID() })
     .returning();
   return row!.id;
 };

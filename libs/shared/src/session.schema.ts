@@ -58,7 +58,10 @@ export const sessionSchema = z.object({
   status: z.enum(SessionStatus),
   branch: z.string().nullable(),
   prUrl: z.string().nullable(),
+  // The creator's user id (the internal identity key). `createdByName` carries the
+  // resolved username for display, since the id is opaque.
   createdBy: z.string(),
+  createdByName: z.string().nullable(),
   containerId: z.string().nullable(),
   scheduledPromptId: z.string().nullable(),
   // A workflow_step's parent run/session; replaces the old workflowRunId. Null for standalone.

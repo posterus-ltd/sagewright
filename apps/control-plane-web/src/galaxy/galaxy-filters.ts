@@ -23,5 +23,5 @@ export const filterSessionsByView = (sessions: Session[], view: GalaxyView): Ses
 export const filterSessionsByScope = (
   sessions: Session[],
   scope: GalaxyScope,
-  displayName: string | null,
-): Session[] => (scope === GalaxyScope.ALL ? sessions : sessions.filter((s) => s.createdBy === displayName));
+  userId: string | null,
+): Session[] => (scope === GalaxyScope.ALL ? sessions : sessions.filter((s) => s.createdBy === userId));

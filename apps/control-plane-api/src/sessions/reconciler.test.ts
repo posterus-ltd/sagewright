@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+
 import { SessionStatus } from '@sagewright/shared';
 import { eq } from 'drizzle-orm';
 import { describe, expect, it, vi } from 'vitest';
@@ -13,7 +15,7 @@ type TestDb = Awaited<ReturnType<typeof makeTestApp>>['db'];
 const insert = async (db: TestDb, values: Record<string, unknown>): Promise<string> => {
   const [row] = await db
     .insert(sessions)
-    .values({ createdBy: 'al', ...values } as typeof sessions.$inferInsert)
+    .values({ createdBy: randomUUID(), ...values } as typeof sessions.$inferInsert)
     .returning();
   return row!.id;
 };

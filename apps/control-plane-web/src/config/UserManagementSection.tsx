@@ -42,9 +42,9 @@ export const UserManagementSection: FC = () => {
     setCreateOpen(true);
   };
 
-  const onReset = async (username: string): Promise<void> => {
+  const onReset = async (id: string): Promise<void> => {
     try {
-      const result = await resetPassword.mutateAsync(username);
+      const result = await resetPassword.mutateAsync(id);
       setShared({ title: 'Password reset', username: result.username, password: result.initialPassword });
     } catch {
       enqueueSnackbar('Could not reset password', { variant: 'error' });
@@ -54,7 +54,7 @@ export const UserManagementSection: FC = () => {
   const onToggleRole = (user: User): void => {
     const next = user.role === UserRole.ADMIN ? UserRole.USER : UserRole.ADMIN;
     setUserRole.mutate(
-      { username: user.username, role: next },
+      { id: user.id, role: next },
       { onError: () => enqueueSnackbar('Could not change role', { variant: 'error' }) },
     );
   };
@@ -69,7 +69,7 @@ export const UserManagementSection: FC = () => {
           label: 'Delete',
           type: ButtonType.DANGER,
           onClick: () =>
-            deleteUser.mutate(user.username, {
+            deleteUser.mutate(user.id, {
               onError: () => enqueueSnackbar('Could not delete user', { variant: 'error' }),
             }),
         },
@@ -115,12 +115,12 @@ export const UserManagementSection: FC = () => {
           const u = params.row;
           // Root is immutable; you can't manage your own row here (use Change password
           // above, and you can't delete/demote yourself into a lockout).
-          if (u.role === UserRole.ROOT || u.username === me?.username) return null;
+          if (u.role === UserRole.ROOT || u.id === me?.id) return null;
           const isAdmin = u.role === UserRole.ADMIN;
           return (
             <Box className="row-actions" sx={{ display: 'flex', justifyContent: 'flex-end', height: '100%', alignItems: 'center', gap: 0.25 }}>
               <Tooltip title="Reset password">
-                <IconButton size="small" aria-label="Reset password" onClick={() => void onReset(u.username)}>
+                <IconButton size="small" aria-label="Reset password" onClick={() => void onReset(u.id)}>
                   <LockResetIcon fontSize="small" />
                 </IconButton>
               </Tooltip>
@@ -140,7 +140,7 @@ export const UserManagementSection: FC = () => {
       },
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [me?.username],
+    [me?.id],
   );
 
   if (!me || !isAdminRole(me.role)) return null;
@@ -162,7 +162,7 @@ export const UserManagementSection: FC = () => {
       <DataGrid
         rows={users}
         columns={columns}
-        getRowId={(row) => row.username}
+        getRowId={(row) => row.id}
         autoHeight
         disableRowSelectionOnClick
         pageSizeOptions={[25, 50, 100]}

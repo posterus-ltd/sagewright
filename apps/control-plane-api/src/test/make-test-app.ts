@@ -26,26 +26,26 @@ import { createCanvasLayoutService } from '../canvas-layout/canvas-layout-servic
 import { createWorkflowService } from '../workflows/workflow-service';
 import type { RunnerRegistry } from '../runners/runner-registry';
 
-// Final-state schema (post-0003) for pg-mem. Adaptations:
+// Final-state schema for pg-mem (mirrors the single 0000 baseline). Adaptations:
 //   1. gen_random_uuid() registered manually (not built-in to pg-mem).
 //   2. FK constraints executed after all tables exist.
 //   3. events unique index created in one shot (final state).
 const TABLE_STMTS = [
   `CREATE TABLE "repos" (
     "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-    "user_key" text NOT NULL,
+    "user_id" uuid NOT NULL,
     "url" text NOT NULL,
     "slug" text NOT NULL,
     "default_branch" text,
     "created_at" timestamp with time zone DEFAULT now() NOT NULL,
-    UNIQUE ("user_key", "slug")
+    UNIQUE ("user_id", "slug")
   )`,
   `CREATE TABLE "scheduled_prompts" (
     "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
     "cron" text NOT NULL,
     "prompt" text NOT NULL,
     "enabled" boolean DEFAULT true NOT NULL,
-    "created_by" text NOT NULL,
+    "created_by" uuid NOT NULL,
     "runner_image" text,
     "last_run_at" timestamp with time zone,
     "created_at" timestamp with time zone DEFAULT now() NOT NULL
@@ -58,7 +58,7 @@ const TABLE_STMTS = [
     "status" text DEFAULT 'queued' NOT NULL,
     "branch" text,
     "pr_url" text,
-    "created_by" text NOT NULL,
+    "created_by" uuid NOT NULL,
     "container_id" text,
     "scheduled_prompt_id" uuid,
     "parent_session_id" uuid,
@@ -92,13 +92,13 @@ const TABLE_STMTS = [
   )`,
   `CREATE TABLE "user_envs" (
     "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-    "user_key" text NOT NULL UNIQUE,
+    "user_id" uuid NOT NULL UNIQUE,
     "env_encrypted" text NOT NULL,
     "updated_at" timestamp with time zone DEFAULT now() NOT NULL
   )`,
   `CREATE TABLE "github_credentials" (
     "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-    "user_key" text NOT NULL UNIQUE,
+    "user_id" uuid NOT NULL UNIQUE,
     "token_encrypted" text NOT NULL,
     "source" text NOT NULL,
     "login" text NOT NULL,
@@ -109,13 +109,13 @@ const TABLE_STMTS = [
   )`,
   `CREATE TABLE "canvas_layouts" (
     "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-    "user_key" text NOT NULL UNIQUE,
+    "user_id" uuid NOT NULL UNIQUE,
     "layout" jsonb NOT NULL,
     "updated_at" timestamp with time zone DEFAULT now() NOT NULL
   )`,
   `CREATE TABLE "user_settings" (
     "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-    "user_key" text NOT NULL UNIQUE,
+    "user_id" uuid NOT NULL UNIQUE,
     "default_runner_image" text,
     "updated_at" timestamp with time zone DEFAULT now() NOT NULL
   )`,
@@ -133,7 +133,7 @@ const TABLE_STMTS = [
     "name" text NOT NULL,
     "definition" jsonb NOT NULL,
     "enabled" boolean DEFAULT true NOT NULL,
-    "created_by" text NOT NULL,
+    "created_by" uuid NOT NULL,
     "created_at" timestamp with time zone DEFAULT now() NOT NULL
   )`,
   `ALTER TABLE "events" ADD CONSTRAINT "events_session_id_sessions_id_fk" FOREIGN KEY ("session_id") REFERENCES "public"."sessions"("id") ON DELETE cascade ON UPDATE no action`,
@@ -275,18 +275,27 @@ export const makeTestApp = async (
 ): Promise<{
   app: ReturnType<typeof buildApp>;
   db: ReturnType<typeof drizzle>;
+  /** The id of a seeded user, by username — for direct inserts/assertions keyed by uuid. */
+  userId: (username: string) => string;
 }> => {
   const pool = createPatchedPool();
   const db = drizzle(pool as never, { schema });
 
   const userService = createUserService({ db: db as never });
+  // Capture each seeded user's id so tests can key direct inserts/assertions by the same
+  // uuid the API keys on (createdBy / user_id are uuids now, not usernames).
+  const seededIds = new Map<string, string>();
   for (const u of opts.seedUsers ?? DEFAULT_TEST_USERS) {
-    await db.insert(users).values({
-      username: u.username,
-      passwordHash: hashPassword(u.password ?? 'pw'),
-      role: u.role ?? UserRole.USER,
-      mustChangePassword: u.mustChangePassword ?? false,
-    });
+    const [row] = await db
+      .insert(users)
+      .values({
+        username: u.username,
+        passwordHash: hashPassword(u.password ?? 'pw'),
+        role: u.role ?? UserRole.USER,
+        mustChangePassword: u.mustChangePassword ?? false,
+      })
+      .returning({ id: users.id });
+    seededIds.set(u.username, row!.id);
   }
 
   const config = loadConfig({
@@ -404,5 +413,11 @@ export const makeTestApp = async (
     ...overrides,
   });
 
-  return { app, db };
+  const userId = (username: string): string => {
+    const id = seededIds.get(username);
+    if (!id) throw new Error(`test user not seeded: ${username}`);
+    return id;
+  };
+
+  return { app, db, userId };
 };

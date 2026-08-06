@@ -7,12 +7,14 @@ import { clearSession } from './session';
 
 export const useAuth = () => {
   const { preference: displayName, updatePreference: setDisplayName } = useUserPreferences('displayName', null);
+  const { preference: userId, updatePreference: setUserId } = useUserPreferences('userId', null);
 
   const login = useCallback(async (username: string, password: string): Promise<LoginResult> => {
     const result = await apiClient.post<LoginResult>('/api/login', { username, password });
+    setUserId(result.id);
     setDisplayName(result.username);
     return result;
-  }, [setDisplayName]);
+  }, [setDisplayName, setUserId]);
 
   const logout = useCallback(async (): Promise<void> => {
     // Best-effort server-side cookie clear; the client state is reset regardless.
@@ -22,8 +24,9 @@ export const useAuth = () => {
       // A failed logout still signs the user out locally.
     }
     clearSession();
+    setUserId(null);
     setDisplayName(null);
-  }, [setDisplayName]);
+  }, [setDisplayName, setUserId]);
 
-  return { displayName, login, logout };
+  return { userId, displayName, login, logout };
 };

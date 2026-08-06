@@ -22,7 +22,9 @@ declare module 'fastify' {
     requireAdmin: (req: FastifyRequest, reply: FastifyReply) => Promise<void>;
   }
   interface FastifyRequest {
-    // Backward-compatible identity key consumed by every existing route.
+    // The authenticated user's id — the identity key every per-user route keys on.
+    userId?: string;
+    // The authenticated user's username, for display/attribution only.
     displayName?: string;
     // The authenticated user, loaded live from the DB by requireUser.
     user?: MeResponse;
@@ -44,13 +46,14 @@ export const registerAuth = (
   // `undefined` if the decorator were registered later.
   app.decorate('requireUser', async (req: FastifyRequest, reply: FastifyReply) => {
     const token = req.cookies?.[COOKIE_NAME];
-    const username = token ? sc.verify(token) : null;
-    if (!username) return reply.code(401).send({ error: 'unauthorized' });
-    // Load the user live so a deleted/renamed account is rejected and an admin reset
-    // takes effect on the next request without any token-versioning machinery.
-    const user = await opts.userService.findByUsername(username);
+    const userId = token ? sc.verify(token) : null;
+    if (!userId) return reply.code(401).send({ error: 'unauthorized' });
+    // Load the user live so a deleted account is rejected and an admin reset takes effect
+    // on the next request without any token-versioning machinery.
+    const user = await opts.userService.findById(userId);
     if (!user) return reply.code(401).send({ error: 'unauthorized' });
-    req.user = { username: user.username, role: user.role, mustChangePassword: user.mustChangePassword };
+    req.user = { id: user.id, username: user.username, role: user.role, mustChangePassword: user.mustChangePassword };
+    req.userId = user.id;
     req.displayName = user.username;
     if (user.mustChangePassword) {
       const path = req.url.split('?')[0] ?? req.url;
@@ -73,12 +76,12 @@ export const registerAuth = (
     if (!parsed.success) return reply.code(401).send({ error: 'invalid credentials' });
     const user = await opts.userService.verifyLogin(parsed.data.username, parsed.data.password);
     if (!user) return reply.code(401).send({ error: 'invalid credentials' });
-    reply.setCookie(COOKIE_NAME, sc.sign(user.username), {
+    reply.setCookie(COOKIE_NAME, sc.sign(user.id), {
       httpOnly: true,
       sameSite: 'lax',
       path: '/',
     });
-    return { username: user.username, role: user.role, mustChangePassword: user.mustChangePassword };
+    return { id: user.id, username: user.username, role: user.role, mustChangePassword: user.mustChangePassword };
   });
 
   app.post('/api/logout', async (_req, reply) => {
@@ -96,7 +99,7 @@ export const registerAuth = (
     }
     try {
       await opts.userService.changePassword(
-        req.displayName!,
+        req.userId!,
         parsed.data.currentPassword,
         parsed.data.newPassword,
       );

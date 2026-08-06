@@ -30,7 +30,7 @@ enum SessionScope {
 export const SessionsListPage: FC = () => {
   const [scope, setScope] = useState<SessionScope>(SessionScope.MINE);
   const { data: tasks = [] } = useTasks(scope === SessionScope.MINE);
-  const { displayName } = useAuth();
+  const { userId } = useAuth();
   const stopTask = useStopTask();
   const archiveTask = useArchiveTask();
   const deleteTask = useDeleteTask();
@@ -70,7 +70,7 @@ export const SessionsListPage: FC = () => {
   // Other users' sessions are read-only in "All" scope — the API rejects
   // mutating a session you don't own.
   const canActOn = (t: Session): boolean =>
-    scope === SessionScope.MINE || t.createdBy === displayName;
+    scope === SessionScope.MINE || t.createdBy === userId;
 
   // Baked in at build time: audit-retention deployments build the web bundle
   // with VITE_ALLOW_SESSION_DELETION=false to drop the permanent-delete action
@@ -97,7 +97,7 @@ export const SessionsListPage: FC = () => {
     [
       view,
       scope,
-      displayName,
+      userId,
       renamingId,
       draft,
       archiveTask,
@@ -151,7 +151,7 @@ export const SessionsListPage: FC = () => {
         <DataGrid
           rows={visible}
           columns={columns}
-          columnVisibilityModel={{ createdBy: scope === SessionScope.ALL }}
+          columnVisibilityModel={{ createdByName: scope === SessionScope.ALL }}
           autoHeight
           disableVirtualization
           disableRowSelectionOnClick

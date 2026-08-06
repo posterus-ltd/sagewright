@@ -12,7 +12,7 @@ import { users } from '../db/schema';
 
 const ROOT_USERNAME = 'root';
 
-// Usernames are the identity key shared with every per-user table, so normalize to
+// Usernames are the login handle and must stay collision-free, so normalize to
 // trimmed-lowercase everywhere (the shared schema does this too; this is defense in
 // depth for callers that bypass it, e.g. seeding).
 const normalize = (username: string): string => username.trim().toLowerCase();
@@ -20,6 +20,7 @@ const normalize = (username: string): string => username.trim().toLowerCase();
 type UserRow = typeof users.$inferSelect;
 
 const toUser = (row: UserRow): User => ({
+  id: row.id,
   username: row.username,
   role: row.role as UserRole,
   mustChangePassword: row.mustChangePassword,
@@ -53,9 +54,22 @@ export const createUserService = (deps: UserServiceDeps) => {
     return row ?? null;
   };
 
+  const findRowById = async (id: string): Promise<UserRow | null> => {
+    const [row] = await deps.db.select().from(users).where(eq(users.id, id)).limit(1);
+    return row ?? null;
+  };
+
   return {
+    // By username — the login path (and the auth cookie's re-load when it still carried a
+    // name). The rest of the system resolves users by id via {@link findById}.
     findByUsername: async (username: string): Promise<User | null> => {
       const row = await findRow(username);
+      return row ? toUser(row) : null;
+    },
+
+    /** Load a user by their id — how the auth guard resolves the cookie subject. */
+    findById: async (id: string): Promise<User | null> => {
+      const row = await findRowById(id);
       return row ? toUser(row) : null;
     },
 
@@ -93,8 +107,8 @@ export const createUserService = (deps: UserServiceDeps) => {
      * Self-service password change: verifies the current password, sets the new hash
      * and clears `mustChangePassword` (this is how the forced-change flow completes).
      */
-    changePassword: async (username: string, current: string, next: string): Promise<void> => {
-      const row = await findRow(username);
+    changePassword: async (userId: string, current: string, next: string): Promise<void> => {
+      const row = await findRowById(userId);
       if (!row) throw new UserServiceError('not_found', 'user not found');
       if (!verifyPassword(current, row.passwordHash)) {
         throw new UserServiceError('invalid_current', 'current password is incorrect');
@@ -110,8 +124,8 @@ export const createUserService = (deps: UserServiceDeps) => {
      * return the plaintext ONCE. Root's password is never reset via the API (that would
      * let an admin take over root) — root changes its own password self-service.
      */
-    resetPassword: async (username: string): Promise<ResetPasswordResult> => {
-      const row = await findRow(username);
+    resetPassword: async (userId: string): Promise<ResetPasswordResult> => {
+      const row = await findRowById(userId);
       if (!row) throw new UserServiceError('not_found', 'user not found');
       if (row.role === UserRole.ROOT) throw new UserServiceError('forbidden', 'root password cannot be reset');
       const initialPassword = generateInitialPassword();
@@ -123,8 +137,8 @@ export const createUserService = (deps: UserServiceDeps) => {
     },
 
     /** Promote/demote a user. Root is immutable and cannot be re-roled. */
-    setRole: async (username: string, role: UserRole): Promise<void> => {
-      const row = await findRow(username);
+    setRole: async (userId: string, role: UserRole): Promise<void> => {
+      const row = await findRowById(userId);
       if (!row) throw new UserServiceError('not_found', 'user not found');
       if (row.role === UserRole.ROOT) throw new UserServiceError('forbidden', 'root role is immutable');
       await deps.db
@@ -134,12 +148,11 @@ export const createUserService = (deps: UserServiceDeps) => {
     },
 
     /** Delete a user. Root cannot be deleted, and callers cannot delete themselves. */
-    remove: async (username: string, actingUsername: string): Promise<void> => {
-      const name = normalize(username);
-      const row = await findRow(name);
+    remove: async (userId: string, actingUserId: string): Promise<void> => {
+      const row = await findRowById(userId);
       if (!row) throw new UserServiceError('not_found', 'user not found');
       if (row.role === UserRole.ROOT) throw new UserServiceError('forbidden', 'root cannot be deleted');
-      if (name === normalize(actingUsername)) throw new UserServiceError('forbidden', 'you cannot delete yourself');
+      if (row.id === actingUserId) throw new UserServiceError('forbidden', 'you cannot delete yourself');
       await deps.db.delete(users).where(eq(users.id, row.id));
     },
 

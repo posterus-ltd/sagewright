@@ -2,7 +2,7 @@ import { EventType, SessionKind, SessionMode, SessionStatus, isTerminalStatus, m
 import { and, desc, eq, isNull } from 'drizzle-orm';
 
 import type { Db } from '../db/client';
-import { events, inboundMessages, sessions } from '../db/schema';
+import { events, inboundMessages, sessions, users } from '../db/schema';
 import type { EventStore } from '../events/event-store';
 import type { EventBus } from '../events/event-bus';
 import type { SessionRuntime } from '../sessions/session-runtime';
@@ -26,6 +26,9 @@ interface CreateOpts {
   scheduledPromptId?: string;
 }
 
+// `createdBy` is the creator's opaque user id; `createdByName` carries the resolved
+// username for display and defaults to null. The display read paths (list/get/graph)
+// override it via a join to `users`; callers that don't care (e.g. workflow steps) get null.
 export const rowToSession = (r: typeof sessions.$inferSelect): Session => ({
   id: r.id,
   kind: r.kind as Session['kind'],
@@ -36,6 +39,7 @@ export const rowToSession = (r: typeof sessions.$inferSelect): Session => ({
   branch: r.branch,
   prUrl: r.prUrl,
   createdBy: r.createdBy,
+  createdByName: null,
   containerId: r.containerId,
   scheduledPromptId: r.scheduledPromptId,
   parentSessionId: r.parentSessionId,
@@ -49,6 +53,14 @@ export const rowToSession = (r: typeof sessions.$inferSelect): Session => ({
   endedAt: r.endedAt ? r.endedAt.toISOString() : null,
   createdAt: r.createdAt.toISOString(),
   updatedAt: r.updatedAt.toISOString(),
+});
+
+// A session row left-joined to its creator; `users` is null if the creator was deleted
+// (references are loose, so the row survives). Resolves `createdByName` for display.
+type SessionWithOwner = { sessions: typeof sessions.$inferSelect; users: { username: string } | null };
+const joinedToSession = (r: SessionWithOwner): Session => ({
+  ...rowToSession(r.sessions),
+  createdByName: r.users?.username ?? null,
 });
 
 export const createTaskService = (deps: TaskServiceDeps) => {
@@ -73,7 +85,12 @@ export const createTaskService = (deps: TaskServiceDeps) => {
       runnerImage: input.runnerImage,
       scheduledPromptId: opts.scheduledPromptId,
     });
-    const [row] = await deps.db.select().from(sessions).where(eq(sessions.id, id)).limit(1);
+    const [row] = await deps.db
+      .select()
+      .from(sessions)
+      .leftJoin(users, eq(sessions.createdBy, users.id))
+      .where(eq(sessions.id, id))
+      .limit(1);
 
     if (mode === SessionMode.HEADLESS) {
       // The box is up; drive the agent over `docker exec` and stream it as the transcript.
@@ -87,14 +104,14 @@ export const createTaskService = (deps: TaskServiceDeps) => {
           ]);
           await deps.db.update(sessions).set({ status: SessionStatus.FAILED, endedAt: new Date() }).where(eq(sessions.id, id));
         });
-      return { ...rowToSession(row!), status: SessionStatus.RUNNING };
+      return { ...joinedToSession(row!), status: SessionStatus.RUNNING };
     }
 
     // Interactive: bring up the persistent agent runtime. Its first turn streams to the
     // durable event log AND to any attached socket, and the agent's life is decoupled from
     // the browser — closing the tab leaves it DETACHED and resumable, not destroyed.
     deps.sessionRuntime.start({ sessionId: id, containerId, manifest, sessionDir: dir, githubIdentity: githubCredential });
-    return { ...rowToSession(row!), status: SessionStatus.RUNNING };
+    return { ...joinedToSession(row!), status: SessionStatus.RUNNING };
   };
 
   return {
@@ -106,24 +123,44 @@ export const createTaskService = (deps: TaskServiceDeps) => {
       // the workflow parent itself (has a workflow_id) — both belong to the run graph.
       const standalone = and(isNull(sessions.parentSessionId), isNull(sessions.workflowId));
       const where = createdBy ? and(eq(sessions.createdBy, createdBy), standalone) : standalone;
-      const rows = await deps.db.select().from(sessions).where(where).orderBy(desc(sessions.createdAt));
-      return rows.map(rowToSession);
+      const rows = await deps.db
+        .select()
+        .from(sessions)
+        .leftJoin(users, eq(sessions.createdBy, users.id))
+        .where(where)
+        .orderBy(desc(sessions.createdAt));
+      return rows.map(joinedToSession);
     },
     // Every session, including workflow parents and their steps — for the task
     // galaxy visualization, which maps the whole run graph, not just the flat list.
     listGraph: async (): Promise<Session[]> => {
-      const rows = await deps.db.select().from(sessions).orderBy(desc(sessions.createdAt));
-      return rows.map(rowToSession);
+      const rows = await deps.db
+        .select()
+        .from(sessions)
+        .leftJoin(users, eq(sessions.createdBy, users.id))
+        .orderBy(desc(sessions.createdAt));
+      return rows.map(joinedToSession);
     },
     get: async (id: string): Promise<Session | null> => {
-      const [row] = await deps.db.select().from(sessions).where(eq(sessions.id, id)).limit(1);
-      return row ? rowToSession(row) : null;
+      const [row] = await deps.db
+        .select()
+        .from(sessions)
+        .leftJoin(users, eq(sessions.createdBy, users.id))
+        .where(eq(sessions.id, id))
+        .limit(1);
+      return row ? joinedToSession(row) : null;
     },
     // Rename a session. A blank name clears the custom label back to the default.
     update: async (id: string, input: UpdateSessionInput): Promise<Session | null> => {
       const name = input.name?.trim() || null;
       const [row] = await deps.db.update(sessions).set({ name }).where(eq(sessions.id, id)).returning();
-      return row ? rowToSession(row) : null;
+      if (!row) return null;
+      const [owner] = await deps.db
+        .select({ username: users.username })
+        .from(users)
+        .where(eq(users.id, row.createdBy))
+        .limit(1);
+      return { ...rowToSession(row), createdByName: owner?.username ?? null };
     },
     stop: async (id: string): Promise<void> => {
       const [row] = await deps.db.select().from(sessions).where(eq(sessions.id, id)).limit(1);

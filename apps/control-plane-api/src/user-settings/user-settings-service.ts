@@ -8,16 +8,16 @@ interface UserSettingsServiceDeps {
 }
 
 export const createUserSettingsService = (deps: UserSettingsServiceDeps) => ({
-  getDefaultRunner: async (userKey: string): Promise<string | null> => {
-    const [row] = await deps.db.select().from(userSettings).where(eq(userSettings.userKey, userKey)).limit(1);
+  getDefaultRunner: async (userId: string): Promise<string | null> => {
+    const [row] = await deps.db.select().from(userSettings).where(eq(userSettings.userId, userId)).limit(1);
     return row?.defaultRunnerImage ?? null;
   },
 
-  setDefaultRunner: async (userKey: string, image: string): Promise<void> => {
+  setDefaultRunner: async (userId: string, image: string): Promise<void> => {
     await deps.db
       .insert(userSettings)
-      .values({ userKey, defaultRunnerImage: image })
-      .onConflictDoUpdate({ target: userSettings.userKey, set: { defaultRunnerImage: image, updatedAt: new Date() } });
+      .values({ userId, defaultRunnerImage: image })
+      .onConflictDoUpdate({ target: userSettings.userId, set: { defaultRunnerImage: image, updatedAt: new Date() } });
   },
 });
 

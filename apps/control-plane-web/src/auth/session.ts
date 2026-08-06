@@ -14,9 +14,9 @@ export const clearSession = (): void => {
     const preferences = JSON.parse(
       localStorage.getItem(PREFERENCES_STORAGE_KEY) ?? '{}',
     ) as Partial<UserPreferences>;
-    localStorage.setItem(PREFERENCES_STORAGE_KEY, JSON.stringify({ ...preferences, displayName: null }));
+    localStorage.setItem(PREFERENCES_STORAGE_KEY, JSON.stringify({ ...preferences, userId: null, displayName: null }));
   } catch {
-    localStorage.setItem(PREFERENCES_STORAGE_KEY, JSON.stringify({ displayName: null }));
+    localStorage.setItem(PREFERENCES_STORAGE_KEY, JSON.stringify({ userId: null, displayName: null }));
   }
   localStorage.removeItem(LEGACY_DISPLAY_NAME_STORAGE_KEY);
 };

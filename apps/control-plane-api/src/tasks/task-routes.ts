@@ -28,25 +28,25 @@ const ownedOr = async (
 export const registerTaskRoutes = (app: FastifyInstance, deps: AppDeps): void => {
   app.post('/api/tasks', { preHandler: app.requireUser }, async (req, reply) => {
     const input = createSessionSchema.parse(req.body);
-    const task = await deps.taskService.create(input, req.displayName!);
+    const task = await deps.taskService.create(input, req.userId!);
     return reply.code(201).send(task);
   });
 
   app.get('/api/tasks', { preHandler: app.requireUser }, async (req) => {
     const { mine } = req.query as { mine?: string };
-    return deps.taskService.list(mine ? req.displayName : undefined);
+    return deps.taskService.list(mine ? req.userId : undefined);
   });
 
   app.get('/api/tasks/graph', { preHandler: app.requireUser }, async () => deps.taskService.listGraph());
 
   app.get('/api/tasks/:id', { preHandler: app.requireUser }, async (req, reply) => {
-    const session = await ownedOr(deps, (req.params as { id: string }).id, req.displayName!, reply);
+    const session = await ownedOr(deps, (req.params as { id: string }).id, req.userId!, reply);
     return session ?? reply;
   });
 
   app.patch('/api/tasks/:id', { preHandler: app.requireUser }, async (req, reply) => {
     const { id } = req.params as { id: string };
-    if (!(await ownedOr(deps, id, req.displayName!, reply))) return reply;
+    if (!(await ownedOr(deps, id, req.userId!, reply))) return reply;
     const input = updateSessionSchema.parse(req.body);
     const task = await deps.taskService.update(id, input);
     return task ?? reply.code(404).send({ error: 'not found' });
@@ -54,7 +54,7 @@ export const registerTaskRoutes = (app: FastifyInstance, deps: AppDeps): void =>
 
   app.post('/api/tasks/:id/stop', { preHandler: app.requireUser }, async (req, reply) => {
     const { id } = req.params as { id: string };
-    if (!(await ownedOr(deps, id, req.displayName!, reply))) return reply;
+    if (!(await ownedOr(deps, id, req.userId!, reply))) return reply;
     await deps.taskService.stop(id);
     return { ok: true };
   });
@@ -63,14 +63,14 @@ export const registerTaskRoutes = (app: FastifyInstance, deps: AppDeps): void =>
   // `stop` aborts without a PR; `complete` is the "I'm done, ship it" path.
   app.post('/api/tasks/:id/complete', { preHandler: app.requireUser }, async (req, reply) => {
     const { id } = req.params as { id: string };
-    if (!(await ownedOr(deps, id, req.displayName!, reply))) return reply;
+    if (!(await ownedOr(deps, id, req.userId!, reply))) return reply;
     await deps.sessionRuntime.complete(id);
     return { ok: true };
   });
 
   app.post('/api/tasks/:id/archive', { preHandler: app.requireUser }, async (req, reply) => {
     const { id } = req.params as { id: string };
-    if (!(await ownedOr(deps, id, req.displayName!, reply))) return reply;
+    if (!(await ownedOr(deps, id, req.userId!, reply))) return reply;
     await deps.taskService.archive(id);
     return { ok: true };
   });
@@ -82,14 +82,14 @@ export const registerTaskRoutes = (app: FastifyInstance, deps: AppDeps): void =>
       return reply.code(403).send({ error: 'session deletion is disabled on this deployment' });
     }
     const { id } = req.params as { id: string };
-    if (!(await ownedOr(deps, id, req.displayName!, reply))) return reply;
+    if (!(await ownedOr(deps, id, req.userId!, reply))) return reply;
     await deps.taskService.remove(id);
     return { ok: true };
   });
 
   app.post('/api/tasks/:id/messages', { preHandler: app.requireUser }, async (req, reply) => {
     const { id } = req.params as { id: string };
-    const session = await ownedOr(deps, id, req.displayName!, reply);
+    const session = await ownedOr(deps, id, req.userId!, reply);
     if (!session) return reply;
     const { body } = postMessageSchema.parse(req.body);
     await deps.db.insert(inboundMessages).values({ sessionId: id, body });

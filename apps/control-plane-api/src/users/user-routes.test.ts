@@ -45,9 +45,9 @@ describe('user routes', () => {
   });
 
   it('resets a password (forcing a change) but never for root', async () => {
-    const { app } = await makeTestApp();
+    const { app, userId } = await makeTestApp();
     const asRoot = await login(app, 'root');
-    const reset = await app.inject({ method: 'POST', url: '/api/users/al/reset-password', headers: asRoot });
+    const reset = await app.inject({ method: 'POST', url: `/api/users/${userId('al')}/reset-password`, headers: asRoot });
     expect(reset.statusCode).toBe(200);
     expect(reset.json()).toMatchObject({ username: 'al' });
     expect(reset.json().initialPassword).toBeTruthy();
@@ -55,44 +55,44 @@ describe('user routes', () => {
     const listed = (await app.inject({ method: 'GET', url: '/api/users', headers: asRoot })).json() as User[];
     expect(listed.find((u) => u.username === 'al')?.mustChangePassword).toBe(true);
 
-    expect((await app.inject({ method: 'POST', url: '/api/users/root/reset-password', headers: asRoot })).statusCode).toBe(403);
+    expect((await app.inject({ method: 'POST', url: `/api/users/${userId('root')}/reset-password`, headers: asRoot })).statusCode).toBe(403);
   });
 
   it('promotes and demotes via PATCH, protecting root and rejecting an invalid role', async () => {
-    const { app } = await makeTestApp();
+    const { app, userId } = await makeTestApp();
     const asRoot = await login(app, 'root');
 
-    expect((await app.inject({ method: 'PATCH', url: '/api/users/al', headers: asRoot, payload: { role: 'admin' } })).statusCode).toBe(204);
+    expect((await app.inject({ method: 'PATCH', url: `/api/users/${userId('al')}`, headers: asRoot, payload: { role: 'admin' } })).statusCode).toBe(204);
     const listed = (await app.inject({ method: 'GET', url: '/api/users', headers: asRoot })).json() as User[];
     expect(listed.find((u) => u.username === 'al')?.role).toBe('admin');
 
-    expect((await app.inject({ method: 'PATCH', url: '/api/users/root', headers: asRoot, payload: { role: 'admin' } })).statusCode).toBe(403);
-    expect((await app.inject({ method: 'PATCH', url: '/api/users/al', headers: asRoot, payload: { role: 'root' } })).statusCode).toBe(400);
+    expect((await app.inject({ method: 'PATCH', url: `/api/users/${userId('root')}`, headers: asRoot, payload: { role: 'admin' } })).statusCode).toBe(403);
+    expect((await app.inject({ method: 'PATCH', url: `/api/users/${userId('al')}`, headers: asRoot, payload: { role: 'root' } })).statusCode).toBe(400);
   });
 
   it('deletes a user, protecting root and self', async () => {
-    const { app } = await makeTestApp();
+    const { app, userId } = await makeTestApp();
     const asRoot = await login(app, 'root');
 
-    expect((await app.inject({ method: 'DELETE', url: '/api/users/bo', headers: asRoot })).statusCode).toBe(204);
+    expect((await app.inject({ method: 'DELETE', url: `/api/users/${userId('bo')}`, headers: asRoot })).statusCode).toBe(204);
     const listed = (await app.inject({ method: 'GET', url: '/api/users', headers: asRoot })).json() as User[];
     expect(listed.map((u) => u.username)).not.toContain('bo');
 
     // Root cannot be deleted (it is also root's own account here → self + root protected).
-    expect((await app.inject({ method: 'DELETE', url: '/api/users/root', headers: asRoot })).statusCode).toBe(403);
+    expect((await app.inject({ method: 'DELETE', url: `/api/users/${userId('root')}`, headers: asRoot })).statusCode).toBe(403);
 
     // An admin cannot delete themselves.
-    await app.inject({ method: 'PATCH', url: '/api/users/alice', headers: asRoot, payload: { role: 'admin' } });
+    await app.inject({ method: 'PATCH', url: `/api/users/${userId('alice')}`, headers: asRoot, payload: { role: 'admin' } });
     const asAlice = await login(app, 'alice');
-    expect((await app.inject({ method: 'DELETE', url: '/api/users/alice', headers: asAlice })).statusCode).toBe(403);
+    expect((await app.inject({ method: 'DELETE', url: `/api/users/${userId('alice')}`, headers: asAlice })).statusCode).toBe(403);
   });
 
   it('forbids all writes for a non-admin', async () => {
-    const { app } = await makeTestApp();
+    const { app, userId } = await makeTestApp();
     const asUser = await login(app, 'al');
     expect((await app.inject({ method: 'POST', url: '/api/users', headers: asUser, payload: { username: 'x1abc' } })).statusCode).toBe(403);
-    expect((await app.inject({ method: 'POST', url: '/api/users/bo/reset-password', headers: asUser })).statusCode).toBe(403);
-    expect((await app.inject({ method: 'PATCH', url: '/api/users/bo', headers: asUser, payload: { role: 'admin' } })).statusCode).toBe(403);
-    expect((await app.inject({ method: 'DELETE', url: '/api/users/bo', headers: asUser })).statusCode).toBe(403);
+    expect((await app.inject({ method: 'POST', url: `/api/users/${userId('bo')}/reset-password`, headers: asUser })).statusCode).toBe(403);
+    expect((await app.inject({ method: 'PATCH', url: `/api/users/${userId('bo')}`, headers: asUser, payload: { role: 'admin' } })).statusCode).toBe(403);
+    expect((await app.inject({ method: 'DELETE', url: `/api/users/${userId('bo')}`, headers: asUser })).statusCode).toBe(403);
   });
 });

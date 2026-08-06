@@ -22,10 +22,10 @@ describe('assignSeqs', () => {
 
 describe('createEventStore append serialization', () => {
   it('gives concurrent appends to one session contiguous, collision-free seqs', async () => {
-    const { db } = await makeTestApp();
+    const { db, userId } = await makeTestApp();
     const [s] = await db
       .insert(sessions)
-      .values({ kind: 'headless', createdBy: 'al' })
+      .values({ kind: 'headless', createdBy: userId('al') })
       .returning();
     const store = createEventStore(db as never);
 

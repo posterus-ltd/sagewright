@@ -37,7 +37,7 @@ export const registerScheduledPromptRoutes = (app: FastifyInstance, deps: AppDep
     }
     const [row] = await deps.db
       .insert(scheduledPrompts)
-      .values({ cron: body.cron, prompt: body.prompt, enabled: body.enabled, runnerImage: body.runnerImage ?? null, createdBy: req.displayName! })
+      .values({ cron: body.cron, prompt: body.prompt, enabled: body.enabled, runnerImage: body.runnerImage ?? null, createdBy: req.userId! })
       .returning();
     await deps.scheduler.sync();
     return reply.code(201).send(rowToScheduled(row!));

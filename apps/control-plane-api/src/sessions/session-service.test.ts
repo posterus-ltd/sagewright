@@ -29,7 +29,7 @@ interface SetupOpts {
 }
 
 const setup = async (opts: SetupOpts = {}) => {
-  const { db } = await makeTestApp();
+  const { db, userId } = await makeTestApp();
   const eventStore = createEventStore(db as never);
   const eventBus = createEventBus();
 
@@ -58,7 +58,7 @@ const setup = async (opts: SetupOpts = {}) => {
     runnerRegistry: fakeRunnerRegistry(),
   });
 
-  return { db, service, spawns, removeSessionWorktrees, retire: spawner.retire };
+  return { db, service, spawns, removeSessionWorktrees, retire: spawner.retire, userId };
 };
 
 const eventsFor = async (db: Awaited<ReturnType<typeof makeTestApp>>['db'], id: string) => {
@@ -71,12 +71,12 @@ const eventsFor = async (db: Awaited<ReturnType<typeof makeTestApp>>['db'], id: 
 
 describe('session-service spawnSession', () => {
   it('injects GITHUB_TOKEN and strips reserved env keys before spawning', async () => {
-    const { service, spawns } = await setup({
+    const { service, spawns, userId } = await setup({
       envBlob: 'FOO=bar\nRUNNER_TOKEN=leak\n',
       credential: { token: 'ght', login: 'u', name: 'u', email: 'e' },
     });
 
-    await service.spawnSession({ kind: SessionKind.HEADLESS, createdBy: 'al', prompt: 'do it' });
+    await service.spawnSession({ kind: SessionKind.HEADLESS, createdBy: userId('al'), prompt: 'do it' });
 
     expect(spawns).toHaveLength(1);
     expect(spawns[0]!.userEnv.FOO).toBe('bar');
@@ -85,9 +85,9 @@ describe('session-service spawnSession', () => {
   });
 
   it('persists the container id on the session row and returns it', async () => {
-    const { db, service } = await setup();
+    const { db, service, userId } = await setup();
 
-    const result = await service.spawnSession({ kind: SessionKind.INTERACTIVE, createdBy: 'al' });
+    const result = await service.spawnSession({ kind: SessionKind.INTERACTIVE, createdBy: userId('al') });
 
     expect(result.containerId).toBe('cid');
     const [row] = await db.select().from(sessions).where(eq(sessions.id, result.id)).limit(1);
@@ -96,13 +96,13 @@ describe('session-service spawnSession', () => {
   });
 
   it('stamps FAILED and emits ERROR+STATUS when the spawner throws', async () => {
-    const { db, service, removeSessionWorktrees } = await setup({
+    const { db, service, removeSessionWorktrees, userId } = await setup({
       spawn: async () => {
         throw new Error('boom');
       },
     });
 
-    await expect(service.spawnSession({ kind: SessionKind.HEADLESS, createdBy: 'al' })).rejects.toThrow('boom');
+    await expect(service.spawnSession({ kind: SessionKind.HEADLESS, createdBy: userId('al') })).rejects.toThrow('boom');
 
     const [row] = await db.select().from(sessions).orderBy(sessions.createdAt).limit(1);
     expect(row!.status).toBe(SessionStatus.FAILED);
@@ -117,7 +117,7 @@ describe('session-service spawnSession', () => {
 
   it('retires the late container and preserves STOPPED when stop lands mid-provisioning', async () => {
     let dbRef: Awaited<ReturnType<typeof setup>>['db'] | null = null;
-    const { db, service, retire } = await setup({
+    const { db, service, retire, userId } = await setup({
       spawn: async (i) => {
         // The user stops the session while docker create is still in flight.
         await dbRef!.update(sessions).set({ status: SessionStatus.STOPPED }).where(eq(sessions.id, i.taskId));
@@ -126,7 +126,7 @@ describe('session-service spawnSession', () => {
     });
     dbRef = db;
 
-    await expect(service.spawnSession({ kind: SessionKind.INTERACTIVE, createdBy: 'al' })).rejects.toThrow(
+    await expect(service.spawnSession({ kind: SessionKind.INTERACTIVE, createdBy: userId('al') })).rejects.toThrow(
       /settled during provisioning/,
     );
 
@@ -143,10 +143,10 @@ describe('session-service spawnSession', () => {
   });
 
   it('rejects an unknown runner image with a FAILED session', async () => {
-    const { db, service } = await setup();
+    const { db, service, userId } = await setup();
 
     await expect(
-      service.spawnSession({ kind: SessionKind.HEADLESS, createdBy: 'al', runnerImage: 'not-registered' }),
+      service.spawnSession({ kind: SessionKind.HEADLESS, createdBy: userId('al'), runnerImage: 'not-registered' }),
     ).rejects.toThrow(/unknown runner image/);
 
     const [row] = await db.select().from(sessions).orderBy(sessions.createdAt).limit(1);
@@ -155,15 +155,15 @@ describe('session-service spawnSession', () => {
 
   it('hydrateSession rebuilds runtime input for a detached interactive session', async () => {
     const listSessionWorktrees = vi.fn(async () => ['a-b']);
-    const { db, service } = await setup({
+    const { db, service, userId } = await setup({
       credential: { token: 'ght', login: 'u', name: null, email: 'e' },
       volume: { listSessionWorktrees },
     });
     const [row] = await db
       .insert(sessions)
-      .values({ kind: 'interactive', status: SessionStatus.DETACHED, createdBy: 'al', containerId: 'c9' })
+      .values({ kind: 'interactive', status: SessionStatus.DETACHED, createdBy: userId('al'), containerId: 'c9' })
       .returning();
-    await db.insert(repos).values({ userKey: 'al', url: 'https://github.com/a/b', slug: 'a-b', defaultBranch: 'main' });
+    await db.insert(repos).values({ userId: userId('al'), url: 'https://github.com/a/b', slug: 'a-b', defaultBranch: 'main' });
 
     const input = await service.hydrateSession(row!.id);
 
@@ -183,11 +183,11 @@ describe('session-service spawnSession', () => {
   });
 
   it('hydrateSession returns null for terminal, non-interactive, or container-less sessions', async () => {
-    const { db, service } = await setup();
+    const { db, service, userId } = await setup();
     const mk = async (v: Partial<typeof sessions.$inferInsert>): Promise<string> => {
       const [r] = await db
         .insert(sessions)
-        .values({ kind: 'interactive', status: SessionStatus.DETACHED, createdBy: 'al', containerId: 'c', ...v })
+        .values({ kind: 'interactive', status: SessionStatus.DETACHED, createdBy: userId('al'), containerId: 'c', ...v })
         .returning();
       return r!.id;
     };
@@ -200,13 +200,13 @@ describe('session-service spawnSession', () => {
 
   it('reuses provided worktrees instead of creating per-session ones (workflow step path)', async () => {
     const addSessionWorktrees = vi.fn(async () => []);
-    const { service, spawns } = await setup({ volume: { addSessionWorktrees } });
+    const { service, spawns, userId } = await setup({ volume: { addSessionWorktrees } });
     const manifest = [{ slug: 'a-b', url: 'u', defaultBranch: 'main', path: '/v/a-b' }];
     const runId = randomUUID();
 
     await service.spawnSession({
       kind: SessionKind.WORKFLOW_STEP,
-      createdBy: 'al',
+      createdBy: userId('al'),
       prompt: 'step',
       workflowStepKey: 'plan',
       iteration: 0,

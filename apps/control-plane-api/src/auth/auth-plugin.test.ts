@@ -19,10 +19,10 @@ describe('auth-plugin', () => {
   });
 
   it('logs in and reports identity via /api/me', async () => {
-    const { app } = await makeTestApp({}, { seedUsers });
+    const { app, userId } = await makeTestApp({}, { seedUsers });
     const headers = await login(app, 'al');
     const me = await app.inject({ method: 'GET', url: '/api/me', headers });
-    expect(me.json()).toEqual({ username: 'al', role: 'user', mustChangePassword: false });
+    expect(me.json()).toEqual({ id: userId('al'), username: 'al', role: 'user', mustChangePassword: false });
   });
 
   it('rejects a wrong password and an unknown user with 401', async () => {
