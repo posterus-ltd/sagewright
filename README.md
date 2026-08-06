@@ -529,6 +529,25 @@ DATABASE_URL=postgres://postgres:postgres@localhost:5432/sage \
   node apps/control-plane-api/dist/db/migrate.js
 ```
 
+#### Browse the database (Drizzle Studio)
+
+To inspect the current database state — every table with typed column headers and
+paginated rows — launch [Drizzle Studio](https://orm.drizzle.team/drizzle-studio/overview):
+
+```bash
+npm run db:studio   # then open the printed https://local.drizzle.studio URL
+```
+
+It's a generic, schema-driven browser: the table list comes straight from
+`apps/control-plane-api/src/db/schema.ts`, so new tables appear automatically with
+no changes here. The compose Postgres must be running (`docker compose up -d postgres`,
+or `./start.sh`) with port `5432` published (the default). The wrapper composes the
+connection URL from the `POSTGRES_*` vars in `.env`; set `DATABASE_URL` explicitly to
+point it elsewhere.
+
+> **Local development only.** Studio connects to Postgres with full read/write access
+> and no authentication — never expose it or point it at a production database.
+
 #### `DB_RESET` — destructive clean slate
 
 `DB_RESET` is an opt-in switch on the migrate step. When truthy (`1`, `true`, or
