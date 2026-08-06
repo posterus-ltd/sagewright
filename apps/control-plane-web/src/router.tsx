@@ -10,6 +10,7 @@ import { LoginPage } from './auth/LoginPage';
 import { useAuth } from './auth/useAuth';
 import { CanvasPage } from './canvas/CanvasPage';
 import { Layout } from './components/Layout';
+import { NotFoundPage } from './components/NotFoundPage';
 import { RouteErrorBoundary } from './components/RouteErrorBoundary';
 import { SettingsPage } from './config/SettingsPage';
 import { GalaxyPage } from './galaxy/GalaxyPage';
@@ -62,6 +63,10 @@ const router = createBrowserRouter([
         { path: 'adm', element: <AdminPage /> },
         { path: 'tasks/:id', element: <TaskDetailPage /> },
       ] },
+      // Catch-all: unmatched paths land on the 404 page rather than bubbling a
+      // route error into the fault fallback. Sits outside the auth gate so a
+      // mistyped URL shows the same friendly page whether or not you're signed in.
+      { path: '*', element: <NotFoundPage /> },
     ],
   },
 ]);
