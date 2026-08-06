@@ -1,8 +1,25 @@
 # Sagewright
 
-A control plane for running coding agents inside Docker containers. You give it a repo and a task;
-it spins up a runner, streams the agent's live transcript, lets you interject mid-run, and opens a
-PR on GitHub when it's done.
+Run your favorite agent harnesses — Claude Code, Codex, opencode, Aider, or your own — **remotely
+and at scale**. Sagewright is a control plane that spawns a fresh, isolated container per agent
+session, so you can run **one agent or a hundred in parallel** from any browser. Give it a repo and
+a task; it spins up a runner, streams the agent's live transcript, lets you interject mid-run, and
+opens a PR on GitHub when it's done.
+
+You control the whole execution surface:
+
+- **Execution environment** — each agent runs in a throwaway Docker container you define (the
+  **runner image**): its OS, tooling, and resource limits are yours to set.
+- **Context** — bake your org's harness config, system prompt / alignment (`SOUL.md`), MCP servers,
+  and skills into that image, so every session starts already aligned.
+- **Agent access control** — a runner only sees the repos, files, and secrets you mount into its
+  sandbox; nothing else on the host is reachable.
+- **Accessibility** — the control plane lives on remote infra and is reachable from any device.
+  Start a run on your phone, close your laptop, and reconnect to the live transcript later.
+
+**Scale is the point.** A fresh runner spawns per task, so fanning routine work out across repos —
+or running the same task a hundred ways in parallel — is just launching more sessions. Nothing runs
+on your machine, and nothing is left open.
 
 It ships with an [opencode](https://opencode.ai) harness, but the runner is just a box you connect
 to: the control plane spawns it, runs a predefined start script over a terminal (`docker exec`),
