@@ -132,6 +132,10 @@ export const userSettings = pgTable('user_settings', {
   id: uuid('id').primaryKey().defaultRandom(),
   userId: uuid('user_id').notNull().unique(),
   defaultRunnerImage: text('default_runner_image'),
+  // Whether this user's agents may call the /mcp endpoint. Defaults true so the
+  // capability stays on for everyone unless the user explicitly opts out; read live
+  // in the MCP guard so a toggle takes effect on the next call (see auth-plugin.ts).
+  mcpEnabled: boolean('mcp_enabled').notNull().default(true),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
 

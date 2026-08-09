@@ -24,6 +24,7 @@ import { registerUserSettingsRoutes } from './user-settings/user-settings-routes
 import { registerRunnerRoutes } from './runners/runner-routes';
 import { registerCanvasLayoutRoutes } from './canvas-layout/canvas-layout-routes';
 import { registerWorkflowRoutes } from './workflows/workflow-routes';
+import { registerMcpRoutes } from './mcp/mcp-routes';
 import { registerGithubRoutes } from './github/github-routes';
 import type { RepoService } from './repos/repo-service';
 import type { SessionRuntime } from './sessions/session-runtime';
@@ -82,6 +83,7 @@ export const buildApp = (deps: AppDeps): FastifyInstance => {
 
   registerAuth(app, {
     userService: deps.userService,
+    userSettingsService: deps.userSettingsService,
     sessionSecret: deps.config.sessionSecret,
   });
 
@@ -95,6 +97,9 @@ export const buildApp = (deps: AppDeps): FastifyInstance => {
   registerRunnerRoutes(app, deps);
   registerCanvasLayoutRoutes(app, deps);
   registerWorkflowRoutes(app, deps);
+  // MCP endpoint for agents (bearer-token auth, not the browser cookie). Mounted on the
+  // same app so its tools call the services above directly.
+  registerMcpRoutes(app, deps);
 
   registerStreamRoute(app, deps);
 

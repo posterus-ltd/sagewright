@@ -7,6 +7,7 @@ import { sessions } from '../db/schema';
 import { createEventBus } from '../events/event-bus';
 import { createEventStore } from '../events/event-store';
 import { createSessionService } from '../sessions/session-service';
+import { createMcpToken } from '../auth/mcp-token';
 import { fakeRunnerRegistry, makeTestApp } from '../test/make-test-app';
 import type { SpawnInput } from '../tasks/runner-spawner';
 import { createWorkflowService } from './workflow-service';
@@ -102,8 +103,9 @@ const setup = async (opts: {
     config,
     userEnvService: { get: async () => opts.envBlob ?? '' } as never,
     githubCredentialService: { resolve: async () => undefined } as never,
-    userSettingsService: { getDefaultRunner: async () => null } as never,
+    userSettingsService: { get: async () => ({ defaultRunnerImage: null, mcpEnabled: true }) } as never,
     runnerRegistry: fakeRunnerRegistry(),
+    mcpToken: createMcpToken(config.sessionSecret),
   });
 
   const driver = createWorkflowDriver({

@@ -7,13 +7,14 @@ import { loadConfig } from '../config';
 import { inboundMessages, scheduledPrompts, sessions } from '../db/schema';
 import { createSessionRuntime } from '../sessions/session-runtime';
 import { createSessionService } from '../sessions/session-service';
+import { createMcpToken } from '../auth/mcp-token';
 import { fakeVolume, fakeRunnerRegistry, makeTestApp } from '../test/make-test-app';
 import { createTaskService } from './task-service';
 import type { SpawnInput } from './runner-spawner';
 
 const fakeUserSettingsService = () => ({
-  getDefaultRunner: async () => null as string | null,
-  setDefaultRunner: async () => {},
+  get: async () => ({ defaultRunnerImage: null as string | null, mcpEnabled: true }),
+  update: async () => ({ defaultRunnerImage: null as string | null, mcpEnabled: true }),
 });
 
 const fakeGithubCredentialService = (token?: string) => ({
@@ -53,6 +54,7 @@ const buildService = (deps: BuildServiceDeps) => {
     githubCredentialService: (deps.githubCredentialService ?? fakeGithubCredentialService()) as never,
     userSettingsService: (deps.userSettingsService ?? fakeUserSettingsService()) as never,
     runnerRegistry: (deps.runnerRegistry ?? fakeRunnerRegistry()) as never,
+    mcpToken: createMcpToken('test-secret'),
   });
   const agentDriver = deps.agentDriver ?? { run: vi.fn(async () => {}), runInteractive: vi.fn(async () => 0), complete: vi.fn(async () => {}) };
   return createTaskService({
@@ -397,7 +399,7 @@ describe('task routes', () => {
     const headers = { cookie: `${cookie!.name}=${cookie!.value}` };
 
     // Seed the stored default to 'w2' — distinct from config RUNNER_IMAGE='w'
-    await app.inject({ method: 'PUT', url: '/api/settings/default-runner', headers, payload: { image: 'w2' } });
+    await app.inject({ method: 'PATCH', url: '/api/settings', headers, payload: { defaultRunnerImage: 'w2' } });
 
     const res = await app.inject({ method: 'POST', url: '/api/tasks', headers, payload: {} });
 

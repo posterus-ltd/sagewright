@@ -1,5 +1,5 @@
 {
-  "id": "74a94f71-f312-422c-9964-525d76ee7819",
+  "id": "234ac556-7d1a-4f6a-8d5c-2da9ead09df7",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -697,6 +697,13 @@
           "type": "text",
           "primaryKey": false,
           "notNull": false
+        },
+        "mcp_enabled": {
+          "name": "mcp_enabled",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
         },
         "updated_at": {
           "name": "updated_at",

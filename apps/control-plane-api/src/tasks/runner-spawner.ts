@@ -14,6 +14,11 @@ export interface SpawnInput {
   userEnv: Record<string, string>;
   // Optional per-session image override; falls back to the config default.
   runnerImage?: string;
+  // Session-scoped MCP bearer + endpoint URL. When present they are injected as
+  // SAGEWRIGHT_MCP_TOKEN / SAGEWRIGHT_MCP_URL so the agent's harness can call the
+  // control plane's /mcp tools back as this session's user (see session-service).
+  mcpToken?: string;
+  mcpUrl?: string;
 }
 
 type DockerLike = Pick<Docker, 'createContainer' | 'getContainer'>;
@@ -33,15 +38,18 @@ export const createRunnerSpawner = (config: AppConfig, dockerFactory: DockerFact
     spawn: async (input: SpawnInput): Promise<{ containerId: string }> => {
       // The runner is a generic box: it just comes up (keep-alive ENTRYPOINT) and the
       // control plane execs its predefined start script. We inject the run context the
-      // start script reads (PROMPT, cwd hints) plus harness creds — no callback token or
-      // control-plane URL, since the control plane drives the agent over `docker exec`.
-      const operationalEnv = {
+      // start script reads (PROMPT, cwd hints) plus harness creds. The control plane still
+      // drives the agent over `docker exec`; SAGEWRIGHT_MCP_* is the ONE callback path —
+      // an optional, session-scoped credential letting the agent reach the /mcp tools.
+      const operationalEnv: Record<string, string> = {
         TASK_ID: input.taskId,
         SESSION_DIR: input.sessionDir,
         REPO_MANIFEST: JSON.stringify(input.manifest),
         PROMPT: input.prompt ?? '',
         SESSION_MODE: input.mode,
       };
+      if (input.mcpUrl) operationalEnv.SAGEWRIGHT_MCP_URL = input.mcpUrl;
+      if (input.mcpToken) operationalEnv.SAGEWRIGHT_MCP_TOKEN = input.mcpToken;
       // Layering: image ENV (org base) < userEnv < operationalEnv. The container
       // Env array overrides the image's baked ENV, and operational vars win last.
       const env = { ...input.userEnv, ...operationalEnv };

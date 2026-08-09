@@ -300,6 +300,47 @@ to change the default model, add providers, or register MCP servers org-wide:
 The Dockerfile copies this to `/root/.config/opencode/opencode.json` so it applies globally. Secrets
 are injected at runtime via `{env:VAR}` placeholders (never hard-code them in this file).
 
+### Agent-driven orchestration (built-in MCP server)
+
+The control plane exposes its own **MCP server** at `POST /mcp`, letting an agent running inside a
+session drive the platform: **spawn child sessions, schedule jobs, and create/run workflows** — as
+the user who owns its session. This is how an agent grows the run graph (children appear under it via
+`parent_session_id`).
+
+How it works, given the control plane is **self-hosted** (no external identity provider):
+
+- **Auth is a token the control plane mints itself.** At spawn time the control plane injects two env
+  vars into every runner — `SAGEWRIGHT_MCP_URL` (the endpoint) and `SAGEWRIGHT_MCP_TOKEN` (a
+  short-lived, **session-scoped** bearer). The `/mcp` endpoint verifies the token and acts as that
+  session's user. Nothing else can reach it: it lives only on the internal `sagewright` network (no
+  published port), and every call requires the injected token.
+- **opencode is pre-wired** — see the `sagewright` entry in
+  [`runners/opencode/opencode.config.json`](./runners/opencode/opencode.config.json).
+- **Tools:** `spawn_session`, `schedule_job`, `create_workflow`, `run_workflow`, `list_runners`,
+  `get_session`. Inputs reuse the same schemas as the REST API.
+- **Guardrails** (agents spawning agents is a fork-bomb risk): a spawn-depth cap on the
+  `parent_session_id` chain, a concurrent-children cap per session, and an active-sessions cap per
+  user. Requests over a cap return a tool error instead of spawning.
+
+To wire a **different harness**, register the same server in that harness's MCP config, reading the
+two injected env vars — each harness has its own format:
+
+```toml
+# codex — runners/codex/config.toml
+[mcp_servers.sagewright]
+url = "http://control-plane:3001/mcp"      # matches MCP_PUBLIC_URL
+bearer_token_env_var = "SAGEWRIGHT_MCP_TOKEN"
+```
+
+```jsonc
+// claude-code — a baked .mcp.json passed via `claude --mcp-config`; supports ${VAR} expansion
+{ "mcpServers": { "sagewright": {
+  "type": "http",
+  "url": "${SAGEWRIGHT_MCP_URL}",
+  "headers": { "Authorization": "Bearer ${SAGEWRIGHT_MCP_TOKEN}" }
+} } }
+```
+
 ### Use a different model
 
 You are **not tied to OpenAI**. opencode supports every major provider — Anthropic, Google,

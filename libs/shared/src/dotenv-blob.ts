@@ -13,6 +13,11 @@ export const RESERVED_ENV_KEYS = new Set<string>([
   'REPO_MANIFEST',
   'PROMPT',
   'SESSION_MODE',
+  // The session-scoped MCP credential + endpoint the spawner injects. A user blob must
+  // not be able to supply a foreign token or repoint the /mcp URL (the spawner also
+  // overrides both, so this is defense-in-depth).
+  'SAGEWRIGHT_MCP_TOKEN',
+  'SAGEWRIGHT_MCP_URL',
 ]);
 
 // `KEY` (optionally `export KEY`) up to the first `=`, capturing key and value.

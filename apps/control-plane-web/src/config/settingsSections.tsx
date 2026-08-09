@@ -1,4 +1,5 @@
 import type { SvgIconComponent } from '@mui/icons-material';
+import ExtensionIcon from '@mui/icons-material/Extension';
 import GitHubIcon from '@mui/icons-material/GitHub';
 import GroupIcon from '@mui/icons-material/Group';
 import KeyIcon from '@mui/icons-material/Key';
@@ -10,6 +11,7 @@ import type { FC } from 'react';
 import { ChangePasswordSection } from './ChangePasswordSection';
 import { EnvironmentSection } from './EnvironmentSection';
 import { GithubSection } from './GithubSection';
+import { McpSection } from './McpSection';
 import { ReposSection } from './ReposSection';
 import { RunnerSection } from './RunnerSection';
 import { UserManagementSection } from './UserManagementSection';
@@ -19,6 +21,7 @@ export enum SettingsSectionId {
   REPOSITORIES = 'repositories',
   ENVIRONMENT = 'environment',
   RUNNER = 'runner',
+  MCP = 'mcp',
   CREDENTIALS = 'credentials',
   USERS = 'users',
 }
@@ -57,6 +60,12 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     label: 'Default runner',
     Icon: SmartToyIcon,
     Component: RunnerSection,
+  },
+  {
+    id: SettingsSectionId.MCP,
+    label: 'MCP access',
+    Icon: ExtensionIcon,
+    Component: McpSection,
   },
   {
     id: SettingsSectionId.CREDENTIALS,

@@ -1,6 +1,7 @@
 export * from './enums';
 export * from './dotenv-blob';
 export * from './user.schema';
+export * from './user-settings.schema';
 export * from './session.schema';
 export * from './workflow.schema';
 export * from './runner.schema';

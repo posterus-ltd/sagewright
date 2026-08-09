@@ -10,6 +10,7 @@ import type { SpawnInput } from '../tasks/runner-spawner';
 import { createEventBus } from '../events/event-bus';
 import { createEventStore } from '../events/event-store';
 import { fakeVolume, fakeRunnerRegistry, makeTestApp } from '../test/make-test-app';
+import { createMcpToken } from '../auth/mcp-token';
 import { createSessionService } from './session-service';
 
 const config = loadConfig({
@@ -54,8 +55,9 @@ const setup = async (opts: SetupOpts = {}) => {
     config,
     userEnvService: { get: async () => opts.envBlob ?? '' } as never,
     githubCredentialService: { resolve: async () => opts.credential } as never,
-    userSettingsService: { getDefaultRunner: async () => opts.defaultRunner ?? null } as never,
+    userSettingsService: { get: async () => ({ defaultRunnerImage: opts.defaultRunner ?? null, mcpEnabled: true }) } as never,
     runnerRegistry: fakeRunnerRegistry(),
+    mcpToken: createMcpToken(config.sessionSecret),
   });
 
   return { db, service, spawns, removeSessionWorktrees, retire: spawner.retire, userId };
@@ -82,6 +84,18 @@ describe('session-service spawnSession', () => {
     expect(spawns[0]!.userEnv.FOO).toBe('bar');
     expect(spawns[0]!.userEnv.RUNNER_TOKEN).toBeUndefined();
     expect(spawns[0]!.userEnv.GITHUB_TOKEN).toBe('ght');
+  });
+
+  it('injects a verifiable session-scoped MCP token + url into the runner', async () => {
+    const { service, spawns, userId } = await setup();
+
+    const result = await service.spawnSession({ kind: SessionKind.HEADLESS, createdBy: userId('al'), prompt: 'go' });
+
+    expect(spawns[0]!.mcpUrl).toBe(config.mcpPublicUrl);
+    // The injected token must verify back to exactly this user + session (it becomes the
+    // agent's identity and spawn-parent when it calls /mcp).
+    const claims = await createMcpToken(config.sessionSecret).verify(spawns[0]!.mcpToken!);
+    expect(claims).toEqual({ userId: userId('al'), sessionId: result.id });
   });
 
   it('persists the container id on the session row and returns it', async () => {

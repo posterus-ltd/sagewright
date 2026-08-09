@@ -16,6 +16,11 @@ const configSchema = z
     RUNNER_NETWORK: z.string().min(1).default('sage_default'),
     RUNNER_VOLUME: z.string().min(1).default('sagewright-repos'),
     PORT: z.coerce.number().default(3001),
+    // Advertised URL of the /mcp endpoint, injected into every runner as
+    // SAGEWRIGHT_MCP_URL so an agent's harness knows where to reach it. Defaults to the
+    // in-cluster Docker-DNS address (runners share the `sagewright` network); override
+    // only if the control plane is reachable at a different internal host/port.
+    MCP_PUBLIC_URL: z.string().min(1).default('http://control-plane:3001/mcp'),
     // Whether sessions may be permanently deleted after archiving. Deployments that
     // must retain session history for auditing set 'false' — archiving keeps working,
     // but DELETE /api/tasks/:id is refused. Strict 'true'/'false' so a typo fails at
@@ -56,6 +61,7 @@ export interface AppConfig {
   runnerNetwork: string;
   runnerVolume: string;
   port: number;
+  mcpPublicUrl: string;
   allowSessionDeletion: boolean;
   schedulerTimezone?: string;
 }
@@ -73,6 +79,7 @@ export const loadConfig = (env: NodeJS.ProcessEnv): AppConfig => {
     runnerNetwork: c.RUNNER_NETWORK,
     runnerVolume: c.RUNNER_VOLUME,
     port: c.PORT,
+    mcpPublicUrl: c.MCP_PUBLIC_URL,
     allowSessionDeletion: c.ALLOW_SESSION_DELETION === 'true',
     schedulerTimezone: c.SCHEDULER_TIMEZONE,
   };

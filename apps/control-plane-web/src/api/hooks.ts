@@ -15,6 +15,7 @@ import {
   type RunnerImage,
   type User,
   type UserRole,
+  type UserSettings,
   type Workflow,
   type WorkflowInput,
   type WorkflowRun,
@@ -100,11 +101,22 @@ export const useRunners = () =>
     queryFn: () => apiClient.get<{ runners: RunnerImage[]; defaultImage: string | null }>('/api/runners'),
   });
 
-export const useSetDefaultRunner = () => {
+// --- User settings -----------------------------------------------------------
+// One generic CRUD surface for every per-user setting: read the whole object, patch any
+// subset. Adding a setting needs no new hook — just a new field on UserSettings.
+
+export const useUserSettings = () =>
+  useQuery({ queryKey: ['settings'], queryFn: () => apiClient.get<UserSettings>('/api/settings') });
+
+export const useUpdateUserSettings = () => {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (image: string) => apiClient.put('/api/settings/default-runner', { image }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['runners'] }),
+    mutationFn: (patch: Partial<UserSettings>) => apiClient.patch<UserSettings>('/api/settings', patch),
+    onSuccess: (settings) => {
+      qc.setQueryData(['settings'], settings);
+      // The runner list echoes the effective default image, so keep it in sync too.
+      void qc.invalidateQueries({ queryKey: ['runners'] });
+    },
   });
 };
 

@@ -8,7 +8,9 @@ import {
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 
 import { UserServiceError, type UserService } from '../users/user-service';
+import type { UserSettingsService } from '../user-settings/user-settings-service';
 import { createSessionCookie } from './session-cookie';
+import { createMcpToken } from './mcp-token';
 
 const COOKIE_NAME = 'vm_session';
 
@@ -20,6 +22,9 @@ declare module 'fastify' {
   interface FastifyInstance {
     requireUser: (req: FastifyRequest, reply: FastifyReply) => Promise<void>;
     requireAdmin: (req: FastifyRequest, reply: FastifyReply) => Promise<void>;
+    // Bearer-token guard for the /mcp endpoint: authenticates a spawner-injected,
+    // session-scoped MCP token instead of the browser cookie. Sets userId + mcpSessionId.
+    requireMcpCaller: (req: FastifyRequest, reply: FastifyReply) => Promise<void>;
   }
   interface FastifyRequest {
     // The authenticated user's id — the identity key every per-user route keys on.
@@ -28,14 +33,20 @@ declare module 'fastify' {
     displayName?: string;
     // The authenticated user, loaded live from the DB by requireUser.
     user?: MeResponse;
+    // The session an MCP caller is running in (from its token's `sid` claim) — the
+    // parent for anything it spawns. Set only by requireMcpCaller.
+    mcpSessionId?: string;
   }
 }
 
 export const registerAuth = (
   app: FastifyInstance,
-  opts: { userService: UserService; sessionSecret: string },
+  opts: { userService: UserService; userSettingsService: UserSettingsService; sessionSecret: string },
 ): void => {
   const sc = createSessionCookie(opts.sessionSecret);
+  // Same signing secret as the cookie; a distinct audience keeps the two token
+  // families non-interchangeable (see mcp-token.ts).
+  const mcp = createMcpToken(opts.sessionSecret);
 
   if (!app.hasPlugin('@fastify/cookie')) {
     void app.register(cookie);
@@ -69,6 +80,28 @@ export const registerAuth = (
     if (!req.user || !isAdminRole(req.user.role)) {
       return reply.code(403).send({ error: 'forbidden' });
     }
+  });
+
+  // Authenticates an agent calling /mcp via `Authorization: Bearer <mcp-token>`. The
+  // token is the one the spawner injected into this caller's runner, so it resolves to
+  // the user who owns the session (loaded live, same as requireUser) and to that session
+  // as the spawn parent. Deliberately NOT the mustChangePassword gate: this is a machine
+  // identity acting for the user, and the human handles password changes via the web.
+  app.decorate('requireMcpCaller', async (req: FastifyRequest, reply: FastifyReply) => {
+    const header = req.headers['authorization'];
+    const token = typeof header === 'string' && header.startsWith('Bearer ') ? header.slice(7) : null;
+    const claims = token ? await mcp.verify(token) : null;
+    if (!claims) return reply.code(401).send({ error: 'unauthorized' });
+    const user = await opts.userService.findById(claims.userId);
+    if (!user) return reply.code(401).send({ error: 'unauthorized' });
+    // Per-user MCP kill switch, read live (like the user above): a session's token stays
+    // valid for 30d, so gating here — not at mint time — lets a user disabling MCP block
+    // even already-issued tokens on their very next call.
+    const { mcpEnabled } = await opts.userSettingsService.get(user.id);
+    if (!mcpEnabled) return reply.code(403).send({ error: 'mcp_disabled' });
+    req.userId = user.id;
+    req.displayName = user.username;
+    req.mcpSessionId = claims.sessionId;
   });
 
   app.post('/api/login', async (req, reply) => {

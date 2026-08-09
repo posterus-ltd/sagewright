@@ -25,6 +25,7 @@ import type { SpawnInput } from '../tasks/runner-spawner';
 import type { UserEnvService } from '../user-env/user-env-service';
 import type { UserSettingsService } from '../user-settings/user-settings-service';
 import type { RunnerRegistry } from '../runners/runner-registry';
+import type { McpTokenClaims } from '../auth/mcp-token';
 
 interface SessionServiceDeps {
   db: Db;
@@ -35,8 +36,10 @@ interface SessionServiceDeps {
   config: AppConfig;
   userEnvService: Pick<UserEnvService, 'get'>;
   githubCredentialService: Pick<GithubCredentialService, 'resolve'>;
-  userSettingsService: Pick<UserSettingsService, 'getDefaultRunner'>;
+  userSettingsService: Pick<UserSettingsService, 'get'>;
   runnerRegistry: RunnerRegistry;
+  // Mints the session-scoped MCP bearer injected into the runner (see mcp-token.ts).
+  mcpToken: { sign: (claims: McpTokenClaims) => Promise<string> };
 }
 
 export interface SpawnSessionInput {
@@ -109,7 +112,7 @@ export const createSessionService = (deps: SessionServiceDeps) => {
     const prompt = input.prompt ?? null;
 
     // Runner image precedence: explicit request → user's stored default → operator config fallback.
-    const stored = await deps.userSettingsService.getDefaultRunner(input.createdBy);
+    const { defaultRunnerImage: stored } = await deps.userSettingsService.get(input.createdBy);
     const runnerImage = input.runnerImage ?? stored ?? deps.config.runnerImage;
 
     // Insert the row up front so every failure path below leaves a visible FAILED
@@ -170,6 +173,11 @@ export const createSessionService = (deps: SessionServiceDeps) => {
         dir = sessionDir(row.id);
       }
 
+      // Mint a session-scoped MCP bearer so the agent can call the /mcp tools back as
+      // this session's user (spawn children, schedule jobs, create workflows). Scoped to
+      // this exact session id, which becomes the parent of anything it spawns.
+      const mcpToken = await deps.mcpToken.sign({ userId: input.createdBy, sessionId: row.id });
+
       const { containerId } = await deps.spawner.spawn({
         taskId: row.id,
         mode,
@@ -178,6 +186,8 @@ export const createSessionService = (deps: SessionServiceDeps) => {
         sessionDir: dir,
         userEnv,
         runnerImage,
+        mcpToken,
+        mcpUrl: deps.config.mcpPublicUrl,
       });
       // Adopt the container only if the session is still provisioning. A stop that
       // landed mid-spawn already settled the row terminal — adopting the box then

@@ -27,10 +27,10 @@ describe('runner routes', () => {
     const headers = await login(app);
     // Set user default
     await app.inject({
-      method: 'PUT',
-      url: '/api/settings/default-runner',
+      method: 'PATCH',
+      url: '/api/settings',
       headers,
-      payload: { image: 'w' },
+      payload: { defaultRunnerImage: 'w' },
     });
     const res = await app.inject({ method: 'GET', url: '/api/runners', headers });
     expect(res.statusCode).toBe(200);

@@ -59,6 +59,7 @@
     "@fontsource-variable/inter": "^5.2.8",
     "@fontsource-variable/jetbrains-mono": "^5.2.8",
     "@linear/sdk": "^87.0.0",
+    "@modelcontextprotocol/sdk": "^1.30.0",
     "@mui/icons-material": "^9.1.1",
     "@mui/material": "^9.1.2",
     "@mui/x-data-grid": "^9.7.0",

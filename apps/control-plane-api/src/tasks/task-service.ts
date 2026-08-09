@@ -24,6 +24,9 @@ interface TaskServiceDeps {
 
 interface CreateOpts {
   scheduledPromptId?: string;
+  // Set when an agent spawns a child session over MCP: the calling session's id. Makes
+  // the new session a headless child of it (grouped under it in the run graph).
+  parentSessionId?: string;
 }
 
 // `createdBy` is the creator's opaque user id; `createdByName` carries the resolved
@@ -70,10 +73,15 @@ export const createTaskService = (deps: TaskServiceDeps) => {
   };
 
   const create = async (input: CreateSessionInput, createdBy: string, opts: CreateOpts = {}): Promise<Session> => {
-    // The only signal this seam gets about origin is `scheduledPromptId` — the canvas and
-    // sessions-page routes never set it, so they always land on INTERACTIVE; a scheduled
-    // fire always sets it, so it always lands on SCHEDULED (headless, via `modeForKind`).
-    const kind: SessionKind = opts.scheduledPromptId ? SessionKind.SCHEDULED : SessionKind.INTERACTIVE;
+    // Origin signals steer the kind: a scheduled fire sets `scheduledPromptId` → SCHEDULED;
+    // an agent spawning over MCP sets `parentSessionId` → HEADLESS child; the canvas and
+    // sessions-page routes set neither → INTERACTIVE. All non-interactive kinds derive
+    // headless mode via `modeForKind`.
+    const kind: SessionKind = opts.scheduledPromptId
+      ? SessionKind.SCHEDULED
+      : opts.parentSessionId
+        ? SessionKind.HEADLESS
+        : SessionKind.INTERACTIVE;
     const mode: SessionMode = modeForKind(kind);
 
     // Provisioning (insert, image validation, env, worktrees, spawn, FAILED-on-throw)
@@ -84,6 +92,7 @@ export const createTaskService = (deps: TaskServiceDeps) => {
       prompt: input.prompt ?? null,
       runnerImage: input.runnerImage,
       scheduledPromptId: opts.scheduledPromptId,
+      parentSessionId: opts.parentSessionId,
     });
     const [row] = await deps.db
       .select()

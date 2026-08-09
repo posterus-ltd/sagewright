@@ -11,32 +11,35 @@ const login = async (app: App, displayName = 'al') => {
 };
 
 describe('user-settings routes', () => {
-  it('GET returns config default when no preference stored', async () => {
+  it('GET returns the defaults when nothing is stored', async () => {
     const { app } = await makeTestApp();
     const headers = await login(app);
-    const res = await app.inject({ method: 'GET', url: '/api/settings/default-runner', headers });
+    const res = await app.inject({ method: 'GET', url: '/api/settings', headers });
     expect(res.statusCode).toBe(200);
-    // config.runnerImage is 'w' in makeTestApp
-    expect(res.json()).toEqual({ defaultImage: 'w' });
+    expect(res.json()).toEqual({ defaultRunnerImage: null, mcpEnabled: true });
   });
 
-  it('PUT valid image then GET returns the stored value', async () => {
+  it('PATCH returns the merged settings and GET reflects them', async () => {
     const { app } = await makeTestApp();
     const headers = await login(app);
-    const put = await app.inject({
-      method: 'PUT',
-      url: '/api/settings/default-runner',
-      headers,
-      payload: { image: 'w' },
-    });
-    expect(put.statusCode).toBe(204);
+    const patch = await app.inject({ method: 'PATCH', url: '/api/settings', headers, payload: { defaultRunnerImage: 'w' } });
+    expect(patch.statusCode).toBe(200);
+    expect(patch.json()).toEqual({ defaultRunnerImage: 'w', mcpEnabled: true });
 
-    const get = await app.inject({ method: 'GET', url: '/api/settings/default-runner', headers });
-    expect(get.json()).toEqual({ defaultImage: 'w' });
+    const get = await app.inject({ method: 'GET', url: '/api/settings', headers });
+    expect(get.json()).toEqual({ defaultRunnerImage: 'w', mcpEnabled: true });
   });
 
-  it('PUT upserts — second PUT replaces the stored value', async () => {
-    // Need a registry that lists two images
+  it('PATCH updates only the provided keys, leaving the others untouched', async () => {
+    const { app } = await makeTestApp();
+    const headers = await login(app);
+    await app.inject({ method: 'PATCH', url: '/api/settings', headers, payload: { defaultRunnerImage: 'w' } });
+    // Toggling MCP must not clobber the stored runner image.
+    const patch = await app.inject({ method: 'PATCH', url: '/api/settings', headers, payload: { mcpEnabled: false } });
+    expect(patch.json()).toEqual({ defaultRunnerImage: 'w', mcpEnabled: false });
+  });
+
+  it('PATCH is an upsert — a later value replaces the earlier one', async () => {
     const { app } = await makeTestApp({
       runnerRegistry: fakeRunnerRegistry({
         list: async () => [
@@ -46,13 +49,29 @@ describe('user-settings routes', () => {
       }),
     });
     const headers = await login(app);
-    await app.inject({ method: 'PUT', url: '/api/settings/default-runner', headers, payload: { image: 'first:latest' } });
-    await app.inject({ method: 'PUT', url: '/api/settings/default-runner', headers, payload: { image: 'second:latest' } });
-    const get = await app.inject({ method: 'GET', url: '/api/settings/default-runner', headers });
-    expect(get.json()).toEqual({ defaultImage: 'second:latest' });
+    await app.inject({ method: 'PATCH', url: '/api/settings', headers, payload: { defaultRunnerImage: 'first:latest' } });
+    await app.inject({ method: 'PATCH', url: '/api/settings', headers, payload: { defaultRunnerImage: 'second:latest' } });
+    const get = await app.inject({ method: 'GET', url: '/api/settings', headers });
+    expect(get.json().defaultRunnerImage).toBe('second:latest');
   });
 
-  it('keeps each user\'s preference separate', async () => {
+  it('PATCH defaultRunnerImage: null resets to the operator default', async () => {
+    const { app } = await makeTestApp();
+    const headers = await login(app);
+    await app.inject({ method: 'PATCH', url: '/api/settings', headers, payload: { defaultRunnerImage: 'w' } });
+    const patch = await app.inject({ method: 'PATCH', url: '/api/settings', headers, payload: { defaultRunnerImage: null } });
+    expect(patch.json().defaultRunnerImage).toBeNull();
+  });
+
+  it('PATCH with an empty body is a no-op that returns current settings', async () => {
+    const { app } = await makeTestApp();
+    const headers = await login(app);
+    const res = await app.inject({ method: 'PATCH', url: '/api/settings', headers, payload: {} });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({ defaultRunnerImage: null, mcpEnabled: true });
+  });
+
+  it('keeps each user\'s settings separate', async () => {
     const { app } = await makeTestApp({
       runnerRegistry: fakeRunnerRegistry({
         list: async () => [
@@ -63,59 +82,43 @@ describe('user-settings routes', () => {
     });
     const al = await login(app, 'al');
     const bo = await login(app, 'bo');
-    await app.inject({ method: 'PUT', url: '/api/settings/default-runner', headers: al, payload: { image: 'img-a:latest' } });
-    await app.inject({ method: 'PUT', url: '/api/settings/default-runner', headers: bo, payload: { image: 'img-b:latest' } });
-    expect((await app.inject({ method: 'GET', url: '/api/settings/default-runner', headers: al })).json()).toEqual({ defaultImage: 'img-a:latest' });
-    expect((await app.inject({ method: 'GET', url: '/api/settings/default-runner', headers: bo })).json()).toEqual({ defaultImage: 'img-b:latest' });
+    await app.inject({ method: 'PATCH', url: '/api/settings', headers: al, payload: { defaultRunnerImage: 'img-a:latest', mcpEnabled: false } });
+    await app.inject({ method: 'PATCH', url: '/api/settings', headers: bo, payload: { defaultRunnerImage: 'img-b:latest' } });
+    expect((await app.inject({ method: 'GET', url: '/api/settings', headers: al })).json()).toEqual({ defaultRunnerImage: 'img-a:latest', mcpEnabled: false });
+    expect((await app.inject({ method: 'GET', url: '/api/settings', headers: bo })).json()).toEqual({ defaultRunnerImage: 'img-b:latest', mcpEnabled: true });
   });
 
-  it('PUT image NOT in registry returns 400', async () => {
+  it('PATCH a runner image NOT in the registry returns 400', async () => {
     const { app } = await makeTestApp();
     const headers = await login(app);
-    const res = await app.inject({
-      method: 'PUT',
-      url: '/api/settings/default-runner',
-      headers,
-      payload: { image: 'unknown:latest' },
-    });
+    const res = await app.inject({ method: 'PATCH', url: '/api/settings', headers, payload: { defaultRunnerImage: 'unknown:latest' } });
     expect(res.statusCode).toBe(400);
     expect(res.json().error).toBe('unknown runner image');
   });
 
-  it('PUT with empty string returns 400', async () => {
+  it('PATCH an empty-string runner image returns 400', async () => {
     const { app } = await makeTestApp();
     const headers = await login(app);
-    const res = await app.inject({
-      method: 'PUT',
-      url: '/api/settings/default-runner',
-      headers,
-      payload: { image: '' },
-    });
+    const res = await app.inject({ method: 'PATCH', url: '/api/settings', headers, payload: { defaultRunnerImage: '' } });
     expect(res.statusCode).toBe(400);
-    expect(res.json().error).toBe('image must be a non-empty string');
   });
 
-  it('PUT without image field returns 400', async () => {
+  it('PATCH a non-boolean mcpEnabled returns 400', async () => {
     const { app } = await makeTestApp();
     const headers = await login(app);
-    const res = await app.inject({
-      method: 'PUT',
-      url: '/api/settings/default-runner',
-      headers,
-      payload: { notImage: 'w' },
-    });
+    const res = await app.inject({ method: 'PATCH', url: '/api/settings', headers, payload: { mcpEnabled: 'nope' } });
     expect(res.statusCode).toBe(400);
   });
 
   it('GET requires auth', async () => {
     const { app } = await makeTestApp();
-    const res = await app.inject({ method: 'GET', url: '/api/settings/default-runner' });
+    const res = await app.inject({ method: 'GET', url: '/api/settings' });
     expect(res.statusCode).toBe(401);
   });
 
-  it('PUT requires auth', async () => {
+  it('PATCH requires auth', async () => {
     const { app } = await makeTestApp();
-    const res = await app.inject({ method: 'PUT', url: '/api/settings/default-runner', payload: { image: 'w' } });
+    const res = await app.inject({ method: 'PATCH', url: '/api/settings', payload: { mcpEnabled: false } });
     expect(res.statusCode).toBe(401);
   });
 });

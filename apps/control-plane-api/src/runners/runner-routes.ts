@@ -12,7 +12,7 @@ interface RunnerRouteDeps {
 export const registerRunnerRoutes = (app: FastifyInstance, deps: RunnerRouteDeps): void => {
   app.get('/api/runners', { preHandler: app.requireUser }, async (req) => {
     const runners = await deps.runnerRegistry.list();
-    const stored = await deps.userSettingsService.getDefaultRunner(req.userId!);
-    return { runners, defaultImage: stored ?? deps.config.runnerImage };
+    const { defaultRunnerImage } = await deps.userSettingsService.get(req.userId!);
+    return { runners, defaultImage: defaultRunnerImage ?? deps.config.runnerImage };
   });
 };

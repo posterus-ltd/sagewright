@@ -13,6 +13,14 @@
 # ─────────────────────────────────────────────────────────────────────────────
 set -euo pipefail
 
+# Sync Codex's built-in Sagewright MCP server url with the one the control plane injected
+# (codex can't read the url from env, only the bearer). Mirrors start-agent so a resumed
+# interactive session reaches /mcp at the same address; no-op when the var is unset.
+CODEX_CONFIG="/root/.codex/config.toml"
+if [ -n "${SAGEWRIGHT_MCP_URL:-}" ] && [ -f "$CODEX_CONFIG" ]; then
+  sed -i "s|^url = .*|url = \"${SAGEWRIGHT_MCP_URL}\"|" "$CODEX_CONFIG"
+fi
+
 # Harness: Codex. `codex resume --last` resumes the most recent session
 # interactively in the current working directory. tmux keeps it running when the
 # browser WebSocket disconnects; the next attach reconnects to it.

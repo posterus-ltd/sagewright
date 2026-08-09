@@ -21,3 +21,13 @@ base_url = "https://api.openai.com/v1"
 wire_api = "responses"
 env_key = "OPENAI_API_KEY"
 supports_websockets = false
+
+# Sagewright's built-in MCP server (spawn sessions / schedule jobs / create workflows).
+# The control plane injects SAGEWRIGHT_MCP_URL + SAGEWRIGHT_MCP_TOKEN per session. Codex
+# takes the bearer from the injected env var (bearer_token_env_var) but can't read the url
+# from env, so start-agent/continue-agent rewrite the line below from SAGEWRIGHT_MCP_URL at
+# launch — keeping codex in sync with MCP_PUBLIC_URL even when it's overridden. The value
+# here is just the default used if that env var is unset.
+[mcp_servers.sagewright]
+url = "http://control-plane:3001/mcp"
+bearer_token_env_var = "SAGEWRIGHT_MCP_TOKEN"

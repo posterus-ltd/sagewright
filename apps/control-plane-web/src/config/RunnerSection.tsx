@@ -1,13 +1,13 @@
 import { MenuItem, TextField, Typography } from '@mui/material';
 import { type FC } from 'react';
 
-import { useRunners, useSetDefaultRunner } from '../api/hooks';
+import { useRunners, useUpdateUserSettings } from '../api/hooks';
 
 export const RunnerSection: FC = () => {
   const { data } = useRunners();
   const runners = data?.runners ?? [];
   const defaultImage = data?.defaultImage ?? null;
-  const setDefaultRunner = useSetDefaultRunner();
+  const updateSettings = useUpdateUserSettings();
   const selected = runners.some((w) => w.image === defaultImage) ? defaultImage : '';
 
   return (
@@ -25,8 +25,8 @@ export const RunnerSection: FC = () => {
           fullWidth
           label="Runner image"
           value={selected ?? ''}
-          onChange={(e) => { void setDefaultRunner.mutateAsync(e.target.value); }}
-          disabled={setDefaultRunner.isPending}
+          onChange={(e) => { void updateSettings.mutateAsync({ defaultRunnerImage: e.target.value }); }}
+          disabled={updateSettings.isPending}
         >
           {runners.map((w) => (
             <MenuItem key={w.id} value={w.image}>

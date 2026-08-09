@@ -18,6 +18,15 @@
 # ─────────────────────────────────────────────────────────────────────────────
 set -euo pipefail
 
+# Point Codex's built-in Sagewright MCP server at the url the control plane injected.
+# Codex reads the bearer from an env var but not the url, so rewrite the static line in
+# the baked config to match SAGEWRIGHT_MCP_URL — this keeps codex consistent with the
+# other runners when MCP_PUBLIC_URL is overridden. No-op when the var is unset (MCP off).
+CODEX_CONFIG="/root/.codex/config.toml"
+if [ -n "${SAGEWRIGHT_MCP_URL:-}" ] && [ -f "$CODEX_CONFIG" ]; then
+  sed -i "s|^url = .*|url = \"${SAGEWRIGHT_MCP_URL}\"|" "$CODEX_CONFIG"
+fi
+
 if [ "${SESSION_MODE:-headless}" = "interactive" ]; then
   exec tmux new-session -A -s sagewright-agent "exec codex --dangerously-bypass-approvals-and-sandbox"
 fi

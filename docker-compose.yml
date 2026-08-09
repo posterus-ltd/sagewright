@@ -54,6 +54,13 @@ services:
       # uses, so worktree gitdir links (absolute paths) resolve inside the runner.
       RUNNER_VOLUME: sagewright-repos
       PORT: 3001
+      # Advertised URL of the /mcp endpoint, injected into every runner as
+      # SAGEWRIGHT_MCP_URL so an agent's harness can call the control plane's MCP tools
+      # (spawn sessions / schedule jobs / create workflows) back over the internal
+      # `sagewright` network. Defaults to this in-cluster address; override only if the
+      # control plane is reachable at a different internal host/port. Not published — the
+      # endpoint has no host port and every call needs the per-session injected token.
+      MCP_PUBLIC_URL: ${MCP_PUBLIC_URL:-http://control-plane:3001/mcp}
       # Set to 'false' on deployments that must retain session history for
       # auditing: archiving keeps working, permanent deletion is refused.
       ALLOW_SESSION_DELETION: ${ALLOW_SESSION_DELETION:-true}

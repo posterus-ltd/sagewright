@@ -22,6 +22,7 @@ import { createDockerClient, createContainerTerminal, createContainerExec } from
 import { createAgentDriver } from './tasks/agent-driver';
 import { createUserSettingsService } from './user-settings/user-settings-service';
 import { createRunnerRegistry } from './runners/runner-registry';
+import { createMcpToken } from './auth/mcp-token';
 import { buildApp } from './app';
 
 const config = loadConfig(process.env);
@@ -44,9 +45,12 @@ const repoService = createRepoService({ db, volume, githubCredentialService });
 const canvasLayoutService = createCanvasLayoutService({ db });
 const userSettingsService = createUserSettingsService({ db });
 const runnerRegistry = createRunnerRegistry({ docker });
+// Mints the session-scoped MCP bearer the spawner injects into every runner (same
+// HS256 secret as the browser cookie, distinct audience — see auth/mcp-token.ts).
+const mcpToken = createMcpToken(config.sessionSecret);
 // The single seam every run path provisions through. Owns insert→spawn→container_id
 // and the FAILED-on-throw contract; task/workflow services attach the drive policy.
-const sessionService = createSessionService({ db, eventStore, eventBus, spawner, volume, config, userEnvService, githubCredentialService, userSettingsService, runnerRegistry });
+const sessionService = createSessionService({ db, eventStore, eventBus, spawner, volume, config, userEnvService, githubCredentialService, userSettingsService, runnerRegistry, mcpToken });
 // In-process registry of live interactive agent execs, decoupled from the browser socket.
 const sessionRuntime = createSessionRuntime({ agentDriver });
 const taskService = createTaskService({ db, eventStore, eventBus, spawner, agentDriver, volume, sessionService, sessionRuntime });

@@ -10,6 +10,7 @@ import { createSecretCipher } from '../crypto/secret-cipher';
 import * as schema from '../db/schema';
 import { users } from '../db/schema';
 import { createUserService } from '../users/user-service';
+import { createMcpToken } from '../auth/mcp-token';
 import { createEventBus } from '../events/event-bus';
 import { createEventStore } from '../events/event-store';
 import type { Volume } from '../git/volume';
@@ -117,6 +118,7 @@ const TABLE_STMTS = [
     "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
     "user_id" uuid NOT NULL UNIQUE,
     "default_runner_image" text,
+    "mcp_enabled" boolean DEFAULT true NOT NULL,
     "updated_at" timestamp with time zone DEFAULT now() NOT NULL
   )`,
   `CREATE TABLE "users" (
@@ -277,6 +279,9 @@ export const makeTestApp = async (
   db: ReturnType<typeof drizzle>;
   /** The id of a seeded user, by username — for direct inserts/assertions keyed by uuid. */
   userId: (username: string) => string;
+  /** The wired AppDeps the app was built from — for tests that drive a service (or the
+   *  MCP server) directly without going through HTTP. */
+  deps: AppDeps;
 }> => {
   const pool = createPatchedPool();
   const db = drizzle(pool as never, { schema });
@@ -365,6 +370,7 @@ export const makeTestApp = async (
     githubCredentialService,
     userSettingsService,
     runnerRegistry,
+    mcpToken: createMcpToken(config.sessionSecret),
   });
 
   // Default task service wired to the test db
@@ -390,7 +396,7 @@ export const makeTestApp = async (
   // No-op driver by default — the orchestrator loop has its own unit tests.
   const defaultWorkflowDriver = { start: async () => null, resume: async () => undefined };
 
-  const app = buildApp({
+  const deps: AppDeps = {
     config,
     db: db as never,
     eventStore,
@@ -405,13 +411,14 @@ export const makeTestApp = async (
     userSettingsService,
     canvasLayoutService,
     workflowService,
-    workflowDriver: defaultWorkflowDriver,
-    containerTerminal: defaultContainerTerminal,
+    workflowDriver: defaultWorkflowDriver as never,
+    containerTerminal: defaultContainerTerminal as never,
     volume: defaultVolume,
     scheduler: defaultScheduler,
     runnerRegistry,
     ...overrides,
-  });
+  };
+  const app = buildApp(deps);
 
   const userId = (username: string): string => {
     const id = seededIds.get(username);
@@ -419,5 +426,5 @@ export const makeTestApp = async (
     return id;
   };
 
-  return { app, db, userId };
+  return { app, db, userId, deps };
 };
