@@ -56,6 +56,8 @@ const TABLE_STMTS = [
     "kind" text NOT NULL,
     "name" text,
     "prompt" text,
+    "command" text,
+    "origin" text DEFAULT 'user' NOT NULL,
     "status" text DEFAULT 'queued' NOT NULL,
     "branch" text,
     "pr_url" text,
@@ -119,6 +121,7 @@ const TABLE_STMTS = [
     "user_id" uuid NOT NULL UNIQUE,
     "default_runner_image" text,
     "mcp_enabled" boolean DEFAULT true NOT NULL,
+    "max_active_sessions" integer DEFAULT 25 NOT NULL,
     "updated_at" timestamp with time zone DEFAULT now() NOT NULL
   )`,
   `CREATE TABLE "users" (
@@ -309,6 +312,9 @@ export const makeTestApp = async (
     SESSION_SECRET: 'sec',
     SECRETS_KEY: '0123456789abcdef0123456789abcdef',
     RUNNER_IMAGE: 'w',
+    // Shell widgets default to this; point it at the (trusted) operator default so the
+    // image-validation check is skipped in tests, where the fake registry only lists 'w'.
+    CLI_RUNNER_IMAGE: 'w',
   });
 
   const eventStore = createEventStore(db as never);
@@ -373,6 +379,12 @@ export const makeTestApp = async (
     mcpToken: createMcpToken(config.sessionSecret),
   });
 
+  // No-op container exec — shell widgets `capture` a detached tmux start; tests that assert
+  // on it override `containerExec`. Default succeeds so a shell-session create resolves.
+  const defaultContainerExec = overrides.containerExec ?? {
+    capture: async () => ({ exitCode: 0, stdout: '', stderr: '' }),
+  };
+
   // Default task service wired to the test db
   const defaultTaskService = createTaskService({
     db: db as never,
@@ -380,6 +392,7 @@ export const makeTestApp = async (
     eventBus,
     spawner: spawner as never,
     agentDriver: defaultAgentDriver as never,
+    containerExec: defaultContainerExec as never,
     volume: defaultVolume,
     sessionService,
     sessionRuntime,
@@ -413,6 +426,7 @@ export const makeTestApp = async (
     workflowService,
     workflowDriver: defaultWorkflowDriver as never,
     containerTerminal: defaultContainerTerminal as never,
+    containerExec: defaultContainerExec as never,
     volume: defaultVolume,
     scheduler: defaultScheduler,
     runnerRegistry,

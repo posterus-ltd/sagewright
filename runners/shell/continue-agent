@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+# ─────────────────────────────────────────────────────────────────────────────
+# Fallback continue script for the basic CLI runner — there is NO agent to resume.
+#
+# A `shell`-kind session's terminal attaches to the widget's own tmux
+# (`sagewright-shell`) via the control plane, not to this script. This is only the
+# fallback for the interactive "agent" terminal on a non-shell use of the CLI image:
+# it attaches a plain shell in the `sagewright-agent` tmux (created if absent), which
+# tmux keeps alive across browser refreshes.
+# ─────────────────────────────────────────────────────────────────────────────
+set -euo pipefail
+
+exec tmux new-session -A -s sagewright-agent "exec bash"

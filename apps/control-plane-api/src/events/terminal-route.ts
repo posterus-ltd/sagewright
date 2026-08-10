@@ -5,7 +5,10 @@ import {
   parseTerminalSize,
   sessionDir,
   terminalResizeSchema,
+  SessionKind,
+  SHELL_TMUX_SESSION,
   TerminalKind,
+  type Session,
   type TerminalSize,
 } from '@sagewright/shared';
 
@@ -23,6 +26,17 @@ import type { TerminalSession } from '../tasks/docker-client';
  */
 export const cmdForKind = (kind: TerminalKind): string[] =>
   kind === TerminalKind.AGENT ? ['continue-agent'] : ['bash'];
+
+/**
+ * The PTY command a non-agent terminal opens for a session. A `shell`-kind session (a
+ * no-agent CLI widget) attaches to the persistent tmux its command already runs in
+ * (`new-session -A` re-creates it running the command if the box was restarted), so every
+ * viewer sees the one live process. Any other session's Shell tab gets a scratch `bash`.
+ */
+export const shellPtyCmd = (task: Pick<Session, 'kind' | 'command'>): string[] =>
+  task.kind === SessionKind.SHELL && task.command
+    ? ['tmux', 'new-session', '-A', '-s', SHELL_TMUX_SESSION, `exec ${task.command}`]
+    : ['bash'];
 
 export const KEEPALIVE_MS = 30_000;
 
@@ -155,11 +169,12 @@ export const registerTerminalRoute = (app: FastifyInstance, deps: AppDeps): void
       return;
     }
 
-    // Shell: a throwaway bash PTY bound to this socket (closing it tears the bash down).
+    // Shell: for a shell widget, attach to the persistent tmux running its CLI; otherwise a
+    // throwaway bash PTY bound to this socket (closing it tears the bash down).
     let session: TerminalSession;
     try {
       session = await deps.containerTerminal.exec(task.containerId, {
-        cmd: cmdForKind(kind.data),
+        cmd: shellPtyCmd(task),
         workingDir: sessionDir(task.id),
         env: ['TERM=xterm-256color'],
         initialSize,

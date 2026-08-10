@@ -10,6 +10,8 @@ import { useEffect, useState, type FC, type KeyboardEvent } from 'react';
 
 import { StatusChip } from '../components/StatusChip';
 import { RunnerChip } from '../components/RunnerChip';
+import { SessionTags } from '../components/SessionTags';
+import { Stack } from '@mui/material';
 
 const _1_MINUTE = 60 * 1000;
 
@@ -104,7 +106,14 @@ export const buildSessionColumns = ({
           inputProps={{ 'aria-label': 'Session name', maxLength: 200 }}
         />
       ) : (
-        sessionLabel(params.row, 80)
+        <Stack direction="row" spacing={1} sx={{ alignItems: 'center', minWidth: 0 }}>
+          <Box
+            sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+          >
+            {sessionLabel(params.row, 80)}
+          </Box>
+          <SessionTags session={params.row} />
+        </Stack>
       ),
   },
   {

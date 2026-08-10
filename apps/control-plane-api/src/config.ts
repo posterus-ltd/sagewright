@@ -13,6 +13,9 @@ const configSchema = z
     SECRETS_KEY: z.string().length(32),
     GITHUB_TOKEN: z.string().optional(),
     RUNNER_IMAGE: z.string().min(1),
+    // Image no-agent shell/CLI widget sessions (spawn_shell) run on — a basic box with
+    // tmux + common CLI tools and no harness. Defaults to the bundled `shell` runner.
+    CLI_RUNNER_IMAGE: z.string().min(1).default('sagewright-runner-shell:latest'),
     RUNNER_NETWORK: z.string().min(1).default('sage_default'),
     RUNNER_VOLUME: z.string().min(1).default('sagewright-repos'),
     PORT: z.coerce.number().default(3001),
@@ -58,6 +61,7 @@ export interface AppConfig {
   secretsKey: string;
   githubToken?: string;
   runnerImage: string;
+  cliRunnerImage: string;
   runnerNetwork: string;
   runnerVolume: string;
   port: number;
@@ -76,6 +80,7 @@ export const loadConfig = (env: NodeJS.ProcessEnv): AppConfig => {
     secretsKey: c.SECRETS_KEY,
     githubToken: c.GITHUB_TOKEN,
     runnerImage: c.RUNNER_IMAGE,
+    cliRunnerImage: c.CLI_RUNNER_IMAGE,
     runnerNetwork: c.RUNNER_NETWORK,
     runnerVolume: c.RUNNER_VOLUME,
     port: c.PORT,

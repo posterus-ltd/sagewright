@@ -1,5 +1,5 @@
 {
-  "id": "234ac556-7d1a-4f6a-8d5c-2da9ead09df7",
+  "id": "00e39d19-0a7d-4e54-9d84-1658255bf531",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -462,6 +462,19 @@
           "primaryKey": false,
           "notNull": false
         },
+        "command": {
+          "name": "command",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "origin": {
+          "name": "origin",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'user'"
+        },
         "status": {
           "name": "status",
           "type": "text",
@@ -704,6 +717,13 @@
           "primaryKey": false,
           "notNull": true,
           "default": true
+        },
+        "max_active_sessions": {
+          "name": "max_active_sessions",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 25
         },
         "updated_at": {
           "name": "updated_at",

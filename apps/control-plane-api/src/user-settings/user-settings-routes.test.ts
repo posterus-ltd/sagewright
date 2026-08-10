@@ -16,7 +16,7 @@ describe('user-settings routes', () => {
     const headers = await login(app);
     const res = await app.inject({ method: 'GET', url: '/api/settings', headers });
     expect(res.statusCode).toBe(200);
-    expect(res.json()).toEqual({ defaultRunnerImage: null, mcpEnabled: true });
+    expect(res.json()).toEqual({ defaultRunnerImage: null, mcpEnabled: true, maxActiveSessions: 25 });
   });
 
   it('PATCH returns the merged settings and GET reflects them', async () => {
@@ -24,10 +24,10 @@ describe('user-settings routes', () => {
     const headers = await login(app);
     const patch = await app.inject({ method: 'PATCH', url: '/api/settings', headers, payload: { defaultRunnerImage: 'w' } });
     expect(patch.statusCode).toBe(200);
-    expect(patch.json()).toEqual({ defaultRunnerImage: 'w', mcpEnabled: true });
+    expect(patch.json()).toEqual({ defaultRunnerImage: 'w', mcpEnabled: true, maxActiveSessions: 25 });
 
     const get = await app.inject({ method: 'GET', url: '/api/settings', headers });
-    expect(get.json()).toEqual({ defaultRunnerImage: 'w', mcpEnabled: true });
+    expect(get.json()).toEqual({ defaultRunnerImage: 'w', mcpEnabled: true, maxActiveSessions: 25 });
   });
 
   it('PATCH updates only the provided keys, leaving the others untouched', async () => {
@@ -36,7 +36,7 @@ describe('user-settings routes', () => {
     await app.inject({ method: 'PATCH', url: '/api/settings', headers, payload: { defaultRunnerImage: 'w' } });
     // Toggling MCP must not clobber the stored runner image.
     const patch = await app.inject({ method: 'PATCH', url: '/api/settings', headers, payload: { mcpEnabled: false } });
-    expect(patch.json()).toEqual({ defaultRunnerImage: 'w', mcpEnabled: false });
+    expect(patch.json()).toEqual({ defaultRunnerImage: 'w', mcpEnabled: false, maxActiveSessions: 25 });
   });
 
   it('PATCH is an upsert — a later value replaces the earlier one', async () => {
@@ -68,7 +68,7 @@ describe('user-settings routes', () => {
     const headers = await login(app);
     const res = await app.inject({ method: 'PATCH', url: '/api/settings', headers, payload: {} });
     expect(res.statusCode).toBe(200);
-    expect(res.json()).toEqual({ defaultRunnerImage: null, mcpEnabled: true });
+    expect(res.json()).toEqual({ defaultRunnerImage: null, mcpEnabled: true, maxActiveSessions: 25 });
   });
 
   it('keeps each user\'s settings separate', async () => {
@@ -82,10 +82,10 @@ describe('user-settings routes', () => {
     });
     const al = await login(app, 'al');
     const bo = await login(app, 'bo');
-    await app.inject({ method: 'PATCH', url: '/api/settings', headers: al, payload: { defaultRunnerImage: 'img-a:latest', mcpEnabled: false } });
+    await app.inject({ method: 'PATCH', url: '/api/settings', headers: al, payload: { defaultRunnerImage: 'img-a:latest', mcpEnabled: false, maxActiveSessions: 25 } });
     await app.inject({ method: 'PATCH', url: '/api/settings', headers: bo, payload: { defaultRunnerImage: 'img-b:latest' } });
-    expect((await app.inject({ method: 'GET', url: '/api/settings', headers: al })).json()).toEqual({ defaultRunnerImage: 'img-a:latest', mcpEnabled: false });
-    expect((await app.inject({ method: 'GET', url: '/api/settings', headers: bo })).json()).toEqual({ defaultRunnerImage: 'img-b:latest', mcpEnabled: true });
+    expect((await app.inject({ method: 'GET', url: '/api/settings', headers: al })).json()).toEqual({ defaultRunnerImage: 'img-a:latest', mcpEnabled: false, maxActiveSessions: 25 });
+    expect((await app.inject({ method: 'GET', url: '/api/settings', headers: bo })).json()).toEqual({ defaultRunnerImage: 'img-b:latest', mcpEnabled: true, maxActiveSessions: 25 });
   });
 
   it('PATCH a runner image NOT in the registry returns 400', async () => {

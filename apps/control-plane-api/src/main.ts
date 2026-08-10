@@ -53,7 +53,7 @@ const mcpToken = createMcpToken(config.sessionSecret);
 const sessionService = createSessionService({ db, eventStore, eventBus, spawner, volume, config, userEnvService, githubCredentialService, userSettingsService, runnerRegistry, mcpToken });
 // In-process registry of live interactive agent execs, decoupled from the browser socket.
 const sessionRuntime = createSessionRuntime({ agentDriver });
-const taskService = createTaskService({ db, eventStore, eventBus, spawner, agentDriver, volume, sessionService, sessionRuntime });
+const taskService = createTaskService({ db, eventStore, eventBus, spawner, agentDriver, containerExec, volume, sessionService, sessionRuntime });
 const workflowService = createWorkflowService({ db });
 const workflowDriver = createWorkflowDriver({ db, spawner, sessionService, agentDriver, exec: containerExec, volume, config, githubCredentialService });
 // Single-leader scheduling across replicas: only the instance that wins this advisory
@@ -125,7 +125,7 @@ const reconciler = createReconciler({
   resumeWorkflow: workflowDriver.resume,
 });
 
-const app = buildApp({ config, db, eventStore, eventBus, sessionService, sessionRuntime, taskService, repoService, userService, userEnvService, githubCredentialService, userSettingsService, canvasLayoutService, workflowService, workflowDriver, containerTerminal, volume, scheduler, runnerRegistry });
+const app = buildApp({ config, db, eventStore, eventBus, sessionService, sessionRuntime, taskService, repoService, userService, userEnvService, githubCredentialService, userSettingsService, canvasLayoutService, workflowService, workflowDriver, containerTerminal, containerExec, volume, scheduler, runnerRegistry });
 
 // The scheduler is built before the app (the app depends on it), so hand it the
 // Fastify logger now that the app exists — failed scheduled runs go to the app log.

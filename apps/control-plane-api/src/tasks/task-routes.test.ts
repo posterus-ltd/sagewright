@@ -63,6 +63,7 @@ const buildService = (deps: BuildServiceDeps) => {
     eventBus: eventBus as never,
     spawner: deps.spawner as never,
     agentDriver: agentDriver as never,
+    containerExec: { capture: vi.fn(async () => ({ exitCode: 0, stdout: '', stderr: '' })) } as never,
     volume: deps.volume as never,
     sessionService,
     sessionRuntime: createSessionRuntime({ agentDriver: agentDriver as never }),

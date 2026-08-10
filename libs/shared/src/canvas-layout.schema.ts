@@ -34,3 +34,11 @@ export const EMPTY_CANVAS_LAYOUT: CanvasLayout = {
   placements: [],
   viewport: { x: 0, y: 0, zoom: 1 },
 };
+
+/** The GET response: the layout plus when it last changed. `updatedAt` lets the canvas
+ *  detect an out-of-band rewrite (e.g. an agent arranging it over MCP) and re-seed live,
+ *  without it being part of the PUT contract (clients save bare `CanvasLayout`). */
+export const canvasLayoutResponseSchema = canvasLayoutSchema.extend({
+  updatedAt: z.string().nullable(),
+});
+export type CanvasLayoutResponse = z.infer<typeof canvasLayoutResponseSchema>;

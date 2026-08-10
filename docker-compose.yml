@@ -176,6 +176,18 @@ services:
         NODE_AUTH_TOKEN: ${NODE_AUTH_TOKEN:-}
         ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
 
+  # Basic CLI runner (no agent) — hosts shell/terminal widget sessions. No LLM
+  # provider key: it ships no harness, just CLI tools driven by the control plane.
+  runner-shell:
+    profiles: ["build"]
+    image: sagewright-runner-shell:latest
+    build:
+      context: .
+      dockerfile: runners/shell/Dockerfile
+      args:
+        GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+        NODE_AUTH_TOKEN: ${NODE_AUTH_TOKEN:-}
+
 networks:
   sagewright:
     name: sagewright

@@ -1,4 +1,4 @@
-import { EventType, SessionKind, SessionStatus, isTerminalStatus } from '@sagewright/shared';
+import { EventType, SessionKind, SessionOrigin, SessionStatus, isTerminalStatus } from '@sagewright/shared';
 import { eq } from 'drizzle-orm';
 
 import type { Db } from '../db/client';
@@ -38,10 +38,12 @@ export const createReconciler = (deps: ReconcilerDeps) => {
     for (const e of stored) deps.eventBus.publish(sessionId, e);
   };
 
-  const fail = async (id: string, message: string): Promise<void> => {
-    await emit(id, EventType.ERROR, { message });
-    await emit(id, EventType.STATUS, { status: SessionStatus.FAILED });
-    await deps.db.update(sessions).set({ status: SessionStatus.FAILED, endedAt: new Date(), updatedAt: new Date() }).where(eq(sessions.id, id));
+  const fail = async (row: Pick<typeof sessions.$inferSelect, 'id' | 'origin' | 'archivedAt'>, message: string): Promise<void> => {
+    await emit(row.id, EventType.ERROR, { message });
+    await emit(row.id, EventType.STATUS, { status: SessionStatus.FAILED });
+    // Delegated (agent-spawned) sessions archive themselves on any terminal transition.
+    const archiveStamp = row.origin === SessionOrigin.AGENT && !row.archivedAt ? { archivedAt: new Date() } : {};
+    await deps.db.update(sessions).set({ status: SessionStatus.FAILED, endedAt: new Date(), updatedAt: new Date(), ...archiveStamp }).where(eq(sessions.id, row.id));
   };
 
   const reconcileRow = async (row: typeof sessions.$inferSelect): Promise<void> => {
@@ -60,7 +62,18 @@ export const createReconciler = (deps: ReconcilerDeps) => {
         await emit(row.id, EventType.STATUS, { status: SessionStatus.DETACHED });
         await deps.db.update(sessions).set({ status: SessionStatus.DETACHED, updatedAt: new Date() }).where(eq(sessions.id, row.id));
       } else {
-        await fail(row.id, 'reconciler: container missing on restart');
+        await fail(row, 'reconciler: container missing on restart');
+        await deps.removeSessionWorktrees(row.id).catch(() => undefined);
+      }
+      return;
+    }
+
+    // A shell widget's CLI runs in a tmux inside its box, not in any in-process runtime, so
+    // it survives a control-plane restart untouched: if the box is up, leave it RUNNING (the
+    // terminal route re-attaches, re-creating the tmux if the container itself restarted).
+    if (row.kind === SessionKind.SHELL) {
+      if (!alive) {
+        await fail(row, 'reconciler: container missing on restart');
         await deps.removeSessionWorktrees(row.id).catch(() => undefined);
       }
       return;
@@ -72,14 +85,14 @@ export const createReconciler = (deps: ReconcilerDeps) => {
     // current step against it and owns its cleanup. Removing it here (or keying removal by
     // the step id) would either no-op wrongly or yank the worktree out from under the resume.
     if (row.kind === SessionKind.WORKFLOW_STEP) {
-      await fail(row.id, 'reconciler: workflow step interrupted by a control-plane restart');
+      await fail(row, 'reconciler: workflow step interrupted by a control-plane restart');
       if (alive && row.containerId) await deps.retire(row.containerId).catch(() => undefined);
       return;
     }
 
     // headless / scheduled: a control-plane-driven run whose driver died on restart.
     // There's no way to re-attach the exit, so settle it FAILED.
-    await fail(row.id, 'reconciler: run interrupted by a control-plane restart');
+    await fail(row, 'reconciler: run interrupted by a control-plane restart');
     if (alive && row.containerId) await deps.retire(row.containerId).catch(() => undefined);
     else await deps.removeSessionWorktrees(row.id).catch(() => undefined);
   };

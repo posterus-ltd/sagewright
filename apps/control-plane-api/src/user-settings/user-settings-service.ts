@@ -13,7 +13,7 @@ export const createUserSettingsService = (deps: UserSettingsServiceDeps) => {
   const get = async (userId: string): Promise<UserSettings> => {
     const [row] = await deps.db.select().from(userSettings).where(eq(userSettings.userId, userId)).limit(1);
     if (!row) return { ...DEFAULT_USER_SETTINGS };
-    return { defaultRunnerImage: row.defaultRunnerImage, mcpEnabled: row.mcpEnabled };
+    return { defaultRunnerImage: row.defaultRunnerImage, mcpEnabled: row.mcpEnabled, maxActiveSessions: row.maxActiveSessions };
   };
 
   // Upsert only the keys present in `patch`; unspecified columns keep their stored value
@@ -23,6 +23,7 @@ export const createUserSettingsService = (deps: UserSettingsServiceDeps) => {
     const changes: UserSettingsPatch = {};
     if (patch.defaultRunnerImage !== undefined) changes.defaultRunnerImage = patch.defaultRunnerImage;
     if (patch.mcpEnabled !== undefined) changes.mcpEnabled = patch.mcpEnabled;
+    if (patch.maxActiveSessions !== undefined) changes.maxActiveSessions = patch.maxActiveSessions;
     if (Object.keys(changes).length > 0) {
       await deps.db
         .insert(userSettings)

@@ -7,7 +7,7 @@ import {
   Typography,
   useTheme,
 } from '@mui/material';
-import { sessionLabel, type CanvasLayout, type Session } from '@sagewright/shared';
+import { sessionLabel, type CanvasLayoutResponse, type Session, type SessionPlacement } from '@sagewright/shared';
 import {
   Background,
   Controls,
@@ -48,6 +48,24 @@ const STAGGER = 36;
 
 const nodeTypes: NodeTypes = { session: SessionNode };
 
+// A stable fingerprint of the widget placements (position, size, color) — viewport
+// excluded so panning/zooming doesn't read as a layout change. Used to tell whether a
+// polled server layout is an out-of-band rewrite (e.g. an agent's set_canvas) versus this
+// client's own echoed save, so we only re-seed for real external changes.
+const placementsSignature = (placements: SessionPlacement[]): string =>
+  JSON.stringify(
+    [...placements]
+      .map((p) => ({
+        id: p.sessionId,
+        x: Math.round(p.x),
+        y: Math.round(p.y),
+        w: p.width ? Math.round(p.width) : null,
+        h: p.height ? Math.round(p.height) : null,
+        c: p.borderColor ?? null,
+      }))
+      .sort((a, b) => a.id.localeCompare(b.id)),
+  );
+
 // Changes worth persisting — ignore pure selection/hover churn.
 const PERSISTABLE_CHANGE_TYPES = new Set([
   'position',
@@ -59,13 +77,13 @@ const PERSISTABLE_CHANGE_TYPES = new Set([
 const isActive = (t: Session): boolean => t.archivedAt === null;
 
 interface BoardProps {
-  initialLayout: CanvasLayout;
+  serverLayout: CanvasLayoutResponse;
   tasks: Session[];
 }
 
-const CanvasBoard: FC<BoardProps> = ({ initialLayout, tasks }) => {
+const CanvasBoard: FC<BoardProps> = ({ serverLayout, tasks }) => {
   const theme = useTheme();
-  const { getViewport, screenToFlowPosition } = useReactFlow();
+  const { getViewport, setViewport, screenToFlowPosition } = useReactFlow();
   const updateLayout = useUpdateCanvasLayout();
   const wrapperRef = useRef<HTMLDivElement>(null);
 
@@ -76,7 +94,7 @@ const CanvasBoard: FC<BoardProps> = ({ initialLayout, tasks }) => {
 
   // Seed nodes once from the saved layout, keeping only still-active sessions.
   const [initialNodes] = useState<Node<SessionNodeData>[]>(() =>
-    initialLayout.placements
+    serverLayout.placements
       .filter((p) => activeIds.has(p.sessionId))
       .map(placementToNode),
   );
@@ -87,15 +105,49 @@ const CanvasBoard: FC<BoardProps> = ({ initialLayout, tasks }) => {
   const nodesRef = useRef(nodes);
   nodesRef.current = nodes;
 
+  // Signatures of layouts this client has recently SAVED, so a polled layout that is just
+  // our own write echoing back is never mistaken for an external change. True while a node
+  // is mid-drag so a live reconcile never yanks it out from under the pointer.
+  const savedSignaturesRef = useRef<Set<string>>(
+    new Set([placementsSignature(serverLayout.placements)]),
+  );
+  const draggingRef = useRef(false);
+
   const saveTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const scheduleSave = useCallback(() => {
     clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(() => {
-      updateLayout.mutate(buildLayout(nodesRef.current, getViewport()));
+      const layout = buildLayout(nodesRef.current, getViewport());
+      // Remember what we're about to persist so its poll echo doesn't trigger a re-seed.
+      const sig = placementsSignature(layout.placements);
+      savedSignaturesRef.current.add(sig);
+      if (savedSignaturesRef.current.size > 20) {
+        // Bound the memory of echoes to the most recent handful of saves.
+        savedSignaturesRef.current = new Set([...savedSignaturesRef.current].slice(-10));
+      }
+      updateLayout.mutate(layout);
     }, SAVE_DEBOUNCE_MS);
   }, [getViewport, updateLayout]);
 
   useEffect(() => () => clearTimeout(saveTimer.current), []);
+
+  // Adopt an out-of-band layout (an agent's set_canvas, or another tab) live: when the
+  // polled server placements differ from what we show AND aren't one of our own recent
+  // saves, re-seed nodes + viewport from the server. Skipped while dragging or with a save
+  // pending, so we never fight the user's in-flight edit; the next poll re-evaluates.
+  useEffect(() => {
+    const serverSig = placementsSignature(serverLayout.placements);
+    const localSig = placementsSignature(buildLayout(nodesRef.current, getViewport()).placements);
+    if (serverSig === localSig) return; // already in sync
+    if (savedSignaturesRef.current.has(serverSig)) return; // our own save echoing back
+    if (draggingRef.current || saveTimer.current) return; // don't interrupt an active edit
+    setNodes(
+      serverLayout.placements
+        .filter((p) => activeIds.has(p.sessionId))
+        .map(placementToNode),
+    );
+    setViewport(serverLayout.viewport);
+  }, [serverLayout, activeIds, getViewport, setNodes, setViewport]);
 
   // Drop widgets whose session was archived elsewhere. (Stopping only flips
   // status, not archivedAt, so a stop closes its own widget via onStopped.)
@@ -203,8 +255,10 @@ const CanvasBoard: FC<BoardProps> = ({ initialLayout, tasks }) => {
           nodes={nodes}
           edges={[]}
           onNodesChange={handleNodesChange}
+          onNodeDragStart={() => { draggingRef.current = true; }}
+          onNodeDragStop={() => { draggingRef.current = false; }}
           onMoveEnd={scheduleSave}
-          defaultViewport={initialLayout.viewport}
+          defaultViewport={serverLayout.viewport}
           colorMode={theme.palette.mode}
           minZoom={0.2}
           maxZoom={2}
@@ -290,7 +344,7 @@ export const CanvasPage: FC = () => {
   return (
     <MainContainer flush>
       <ReactFlowProvider>
-        <CanvasBoard initialLayout={layout} tasks={tasks} />
+        <CanvasBoard serverLayout={layout} tasks={tasks} />
       </ReactFlowProvider>
     </MainContainer>
   );

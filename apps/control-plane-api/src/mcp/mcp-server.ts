@@ -1,13 +1,18 @@
 import { Server } from '@modelcontextprotocol/sdk/server';
 import { CallToolRequestSchema, ListToolsRequestSchema, type Tool } from '@modelcontextprotocol/sdk/types.js';
 import {
+  SessionOrigin,
   TERMINAL_STATUSES,
   TriggerType,
+  canvasLayoutSchema,
   createScheduledPromptSchema,
+  createSessionSchema,
+  createShellSessionSchema,
+  sessionLabel,
   workflowInputSchema,
   type ScheduledPrompt,
 } from '@sagewright/shared';
-import { and, eq, notInArray } from 'drizzle-orm';
+import { and, eq, inArray, notInArray } from 'drizzle-orm';
 import { z } from 'zod';
 
 import type { AppDeps } from '../app';
@@ -22,11 +27,10 @@ export interface McpCallerContext {
 }
 
 // Guardrails against runaway agents-spawning-agents (a genuine fork-bomb risk once an
-// agent can spawn more agents). Conservative fixed caps; promote to config if a
-// deployment needs to tune them.
+// agent can spawn more agents). The per-chain caps are fixed; the per-USER ceiling is
+// configurable in user settings (`maxActiveSessions`), read live per spawn.
 const MAX_SPAWN_DEPTH = 3; // a session this deep in the parent chain may not spawn further
 const MAX_ACTIVE_CHILDREN = 5; // concurrent non-terminal children of one session
-const MAX_ACTIVE_PER_USER = 25; // concurrent non-terminal sessions per user
 
 const NON_TERMINAL = () => notInArray(sessions.status, [...TERMINAL_STATUSES]);
 
@@ -50,6 +54,15 @@ const ancestorDepth = async (deps: AppDeps, sessionId: string): Promise<number> 
 
 const countRows = async (deps: AppDeps, where: ReturnType<typeof and>): Promise<number> =>
   (await deps.db.select({ id: sessions.id }).from(sessions).where(where)).length;
+
+/** The user's live cap on concurrent non-terminal sessions (from user settings). Returns
+ *  the cap when the user is already at or over it (so the caller refuses the spawn), else
+ *  null. Read per spawn so a settings change takes effect on the next call. */
+const perUserCapReached = async (deps: AppDeps, userId: string): Promise<number | null> => {
+  const { maxActiveSessions } = await deps.userSettingsService.get(userId);
+  const active = await countRows(deps, and(eq(sessions.createdBy, userId), NON_TERMINAL()));
+  return active >= maxActiveSessions ? maxActiveSessions : null;
+};
 
 const rowToScheduled = (r: typeof scheduledPrompts.$inferSelect): ScheduledPrompt => ({
   id: r.id,
@@ -83,16 +96,25 @@ const runWorkflowArgs = z.object({
   input: z.string().optional().describe('Optional seed input for step 1.'),
 });
 const getSessionArgs = z.object({ id: z.string().min(1).describe('The session id.') });
+const archiveSessionArgs = z.object({ id: z.string().min(1).describe('The session id to archive.') });
 const listRunnersArgs = z.object({});
+const listSessionsArgs = z.object({});
+const getCanvasArgs = z.object({});
 
 /** The tools this server exposes; the values are the wire names an MCP client calls by. */
 enum McpToolName {
   SPAWN_SESSION = 'spawn_session',
+  SPAWN_INTERACTIVE_SESSION = 'spawn_interactive_session',
+  SPAWN_SHELL = 'spawn_shell',
+  ARCHIVE_SESSION = 'archive_session',
   SCHEDULE_JOB = 'schedule_job',
   CREATE_WORKFLOW = 'create_workflow',
   RUN_WORKFLOW = 'run_workflow',
   LIST_RUNNERS = 'list_runners',
+  LIST_SESSIONS = 'list_sessions',
   GET_SESSION = 'get_session',
+  GET_CANVAS = 'get_canvas',
+  SET_CANVAS = 'set_canvas',
 }
 
 interface McpToolDef {
@@ -112,6 +134,25 @@ const TOOL_DEFS = {
       'runs the given prompt to completion and appears under this session in the run graph.',
     schema: spawnSessionArgs,
   },
+  [McpToolName.SPAWN_INTERACTIVE_SESSION]: {
+    description:
+      'Spawn a standalone, persisted INTERACTIVE agent session on the user\'s behalf (tagged ' +
+      '"delegated"). Unlike spawn_session it is not a headless child: it appears in the Sessions ' +
+      'list, can be placed on the canvas, and stays resumable between turns. Omit the prompt to ' +
+      'start an empty session. Returns its id.',
+    schema: createSessionSchema,
+  },
+  [McpToolName.SPAWN_SHELL]: {
+    description:
+      'Spawn a no-agent CLI widget: the given command runs in a persistent terminal on the basic ' +
+      'CLI runner (e.g. "watch -n1 date" for a clock, "htop", "npm run dev"). It appears in the ' +
+      'Sessions list and can be placed on the canvas, tagged "delegated". Returns its id.',
+    schema: createShellSessionSchema,
+  },
+  [McpToolName.ARCHIVE_SESSION]: {
+    description: 'Archive one of your sessions by id — hides it from the active list; the row and its history remain.',
+    schema: archiveSessionArgs,
+  },
   [McpToolName.SCHEDULE_JOB]: {
     description: 'Schedule a recurring headless prompt on a cron expression. Fires as your user.',
     schema: createScheduledPromptSchema,
@@ -130,9 +171,26 @@ const TOOL_DEFS = {
     description: 'List the runner images available to spawn sessions / workflow steps with.',
     schema: listRunnersArgs,
   },
+  [McpToolName.LIST_SESSIONS]: {
+    description:
+      'List your standalone sessions (id, kind, label, status, origin) — the ones placeable on the ' +
+      'canvas. Use it to find session ids to arrange with set_canvas.',
+    schema: listSessionsArgs,
+  },
   [McpToolName.GET_SESSION]: {
     description: 'Fetch the status of one of your sessions by id (e.g. one you spawned).',
     schema: getSessionArgs,
+  },
+  [McpToolName.GET_CANVAS]: {
+    description: 'Read the user\'s current canvas layout: the placed session widgets (id, x, y, size, color) and the viewport.',
+    schema: getCanvasArgs,
+  },
+  [McpToolName.SET_CANVAS]: {
+    description:
+      'Replace the user\'s canvas layout: position session widgets (placements) and set the viewport. ' +
+      'Every placement.sessionId must be one of your own sessions. Combine with spawn_interactive_session / ' +
+      'spawn_shell to build and arrange a working dev canvas. Changes are visible to the user live.',
+    schema: canvasLayoutSchema,
   },
 } satisfies Record<McpToolName, McpToolDef>;
 
@@ -183,12 +241,45 @@ export const buildMcpServer = (deps: AppDeps, ctx: McpCallerContext): Server => 
         if ((await countRows(deps, and(eq(sessions.parentSessionId, ctx.callerSessionId), NON_TERMINAL()))) >= MAX_ACTIVE_CHILDREN) {
           return fail(`too many active child sessions (max ${MAX_ACTIVE_CHILDREN})`);
         }
-        if ((await countRows(deps, and(eq(sessions.createdBy, ctx.userId), NON_TERMINAL()))) >= MAX_ACTIVE_PER_USER) {
-          return fail(`too many active sessions for this user (max ${MAX_ACTIVE_PER_USER})`);
-        }
+        const cap = await perUserCapReached(deps, ctx.userId);
+        if (cap !== null) return fail(`too many active sessions for this user (max ${cap})`);
 
         const session = await deps.taskService.create(parsed.data, ctx.userId, { parentSessionId: ctx.callerSessionId });
         return ok({ sessionId: session.id, status: session.status, parentSessionId: ctx.callerSessionId });
+      }
+
+      case McpToolName.SPAWN_INTERACTIVE_SESSION: {
+        const parsed = TOOL_DEFS[McpToolName.SPAWN_INTERACTIVE_SESSION].schema.safeParse(args);
+        if (!parsed.success) return fail(`invalid input: ${parsed.error.issues[0]?.message ?? 'bad request'}`);
+        // Standalone (no parentSessionId) so it lands in the Sessions list / canvas; the
+        // per-user cap is the fork-bomb backstop for these.
+        const cap = await perUserCapReached(deps, ctx.userId);
+        if (cap !== null) return fail(`too many active sessions for this user (max ${cap})`);
+        const session = await deps.taskService.create(parsed.data, ctx.userId, { origin: SessionOrigin.AGENT });
+        return ok({ sessionId: session.id, kind: session.kind, status: session.status });
+      }
+
+      case McpToolName.SPAWN_SHELL: {
+        const parsed = TOOL_DEFS[McpToolName.SPAWN_SHELL].schema.safeParse(args);
+        if (!parsed.success) return fail(`invalid input: ${parsed.error.issues[0]?.message ?? 'bad request'}`);
+        const cap = await perUserCapReached(deps, ctx.userId);
+        if (cap !== null) return fail(`too many active sessions for this user (max ${cap})`);
+        const session = await deps.taskService.create(
+          { runnerImage: parsed.data.runnerImage },
+          ctx.userId,
+          { command: parsed.data.command, origin: SessionOrigin.AGENT },
+        );
+        return ok({ sessionId: session.id, kind: session.kind, status: session.status });
+      }
+
+      case McpToolName.ARCHIVE_SESSION: {
+        const parsed = TOOL_DEFS[McpToolName.ARCHIVE_SESSION].schema.safeParse(args);
+        if (!parsed.success) return fail(`invalid input: ${parsed.error.issues[0]?.message ?? 'bad request'}`);
+        const session = await deps.taskService.get(parsed.data.id);
+        // Owner-scoped, mirroring the HTTP routes: someone else's session reads as absent.
+        if (!session || session.createdBy !== ctx.userId) return fail('not found');
+        await deps.taskService.archive(parsed.data.id);
+        return ok({ id: parsed.data.id, archived: true });
       }
 
       case McpToolName.SCHEDULE_JOB: {
@@ -235,6 +326,44 @@ export const buildMcpServer = (deps: AppDeps, ctx: McpCallerContext): Server => 
       case McpToolName.LIST_RUNNERS: {
         const runners = await deps.runnerRegistry.list();
         return ok(runners);
+      }
+
+      case McpToolName.LIST_SESSIONS: {
+        // Standalone sessions only (same scope as the Sessions page / canvas), owned by the caller.
+        const list = await deps.taskService.list(ctx.userId);
+        return ok(
+          list.map((s) => ({
+            id: s.id,
+            kind: s.kind,
+            label: sessionLabel(s),
+            status: s.status,
+            origin: s.origin,
+            archived: s.archivedAt !== null,
+          })),
+        );
+      }
+
+      case McpToolName.GET_CANVAS: {
+        return ok(await deps.canvasLayoutService.get(ctx.userId));
+      }
+
+      case McpToolName.SET_CANVAS: {
+        const parsed = TOOL_DEFS[McpToolName.SET_CANVAS].schema.safeParse(args);
+        if (!parsed.success) return fail(`invalid canvas layout: ${parsed.error.issues[0]?.message ?? 'bad request'}`);
+        // Only the caller's own sessions may be placed — reject a layout that references a
+        // foreign or non-existent session id, so the agent can't surface another user's work.
+        const ids = [...new Set(parsed.data.placements.map((p) => p.sessionId))];
+        if (ids.length) {
+          const owned = await deps.db
+            .select({ id: sessions.id })
+            .from(sessions)
+            .where(and(inArray(sessions.id, ids), eq(sessions.createdBy, ctx.userId)));
+          const ownedIds = new Set(owned.map((r) => r.id));
+          const foreign = ids.find((id) => !ownedIds.has(id));
+          if (foreign) return fail(`placement references a session you don't own or that doesn't exist: ${foreign}`);
+        }
+        await deps.canvasLayoutService.set(ctx.userId, parsed.data);
+        return ok({ placements: parsed.data.placements.length });
       }
 
       case McpToolName.GET_SESSION: {

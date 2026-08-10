@@ -61,6 +61,12 @@ export const sessions = pgTable('sessions', {
   kind: text('kind').notNull(),
   name: text('name'),
   prompt: text('prompt'),
+  // The CLI a `shell`-kind session runs in its persistent terminal; null otherwise.
+  command: text('command'),
+  // Who initiated the session: 'user' (a human directly) or 'agent' (spawned over MCP,
+  // surfaced as a "delegated" tag). Defaults 'user' so existing rows and the human-driven
+  // create paths read as user-initiated without touching them.
+  origin: text('origin').notNull().default('user'),
   status: text('status').notNull().default('queued'),
   branch: text('branch'),
   prUrl: text('pr_url'),
@@ -136,6 +142,9 @@ export const userSettings = pgTable('user_settings', {
   // capability stays on for everyone unless the user explicitly opts out; read live
   // in the MCP guard so a toggle takes effect on the next call (see auth-plugin.ts).
   mcpEnabled: boolean('mcp_enabled').notNull().default(true),
+  // Cap on concurrent non-terminal sessions this user's agents may spawn over MCP.
+  // Read live in the MCP spawn guardrails so a change takes effect on the next call.
+  maxActiveSessions: integer('max_active_sessions').notNull().default(25),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
 

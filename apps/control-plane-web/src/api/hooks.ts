@@ -3,6 +3,7 @@ import {
   RepoStatus,
   SessionStatus,
   type CanvasLayout,
+  type CanvasLayoutResponse,
   type CreateScheduledPromptInput,
   type CreateSessionInput,
   type CreateUserResult,
@@ -210,10 +211,17 @@ export const useDeleteTask = () => {
   });
 };
 
-// The user's canvas arrangement (session placements + viewport). Served as an
-// empty layout when nothing is stored, so the query never 404s.
+// The user's canvas arrangement (session placements + viewport + updatedAt). Served as
+// an empty layout when nothing is stored, so the query never 404s. Polled so an agent
+// arranging the canvas over MCP (set_canvas) shows up live; `updatedAt` lets the board
+// tell an agent/other-tab rewrite apart from its own echoed save.
 export const useCanvasLayout = () =>
-  useQuery({ queryKey: ['canvas-layout'], queryFn: () => apiClient.get<CanvasLayout>('/api/canvas-layout') });
+  useQuery({
+    queryKey: ['canvas-layout'],
+    queryFn: () => apiClient.get<CanvasLayoutResponse>('/api/canvas-layout'),
+    refetchInterval: 2500,
+    refetchOnWindowFocus: true,
+  });
 
 export const useUpdateCanvasLayout = () => {
   const qc = useQueryClient();

@@ -11,6 +11,7 @@ import { useState, type FC, type KeyboardEvent, type MouseEvent } from 'react';
 import { useTask, useUpdateTask } from '../api/hooks';
 import { StatusChip } from '../components/StatusChip';
 import { RunnerChip } from '../components/RunnerChip';
+import { SessionTags } from '../components/SessionTags';
 import { SessionPanel } from '../tasks/SessionPanel';
 import { effectiveBorderColor, glowColor } from './border-colors';
 import { useCanvasActions, type SessionNodeData } from './canvas-actions';
@@ -124,6 +125,7 @@ export const SessionNode: FC<NodeProps> = ({ id, data, selected }) => {
           sx={{ display: 'flex', alignItems: 'center', gap: 0.5, opacity: colorAnchor ? 1 : undefined }}
         >
           {task != null && <StatusChip status={task.status} />}
+          {task != null && <SessionTags session={task} />}
           {task?.runnerImage != null && <RunnerChip image={task.runnerImage} />}
           <Tooltip title="Rename">
             <IconButton className="nodrag" size="small" aria-label="Rename session" onClick={startEditing}>

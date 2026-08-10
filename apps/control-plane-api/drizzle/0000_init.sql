@@ -61,6 +61,8 @@ CREATE TABLE "sessions" (
 	"kind" text NOT NULL,
 	"name" text,
 	"prompt" text,
+	"command" text,
+	"origin" text DEFAULT 'user' NOT NULL,
 	"status" text DEFAULT 'queued' NOT NULL,
 	"branch" text,
 	"pr_url" text,
@@ -95,6 +97,7 @@ CREATE TABLE "user_settings" (
 	"user_id" uuid NOT NULL,
 	"default_runner_image" text,
 	"mcp_enabled" boolean DEFAULT true NOT NULL,
+	"max_active_sessions" integer DEFAULT 25 NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "user_settings_user_id_unique" UNIQUE("user_id")
 );

@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+# ─────────────────────────────────────────────────────────────────────────────
+# Fallback start script for the basic CLI runner — there is NO agent here.
+#
+# `shell`-kind sessions never reach this script: the control plane runs the widget's
+# command in a persistent tmux itself (over `docker exec`), then the terminal route
+# attaches to it. This file is only reached if the CLI runner image is picked for a
+# regular session, and it deliberately drops into a plain shell instead of an agent.
+#
+#   - interactive: a live shell in the `sagewright-agent` tmux, so a later browser
+#     attach (continue-agent) reconnects to the same session.
+#   - headless (default): run "$PROMPT" as a shell command if one was given, else
+#     no-op cleanly. The exit code decides the task outcome (0 → DONE).
+# ─────────────────────────────────────────────────────────────────────────────
+set -euo pipefail
+
+if [ "${SESSION_MODE:-headless}" = "interactive" ]; then
+  exec tmux new-session -A -s sagewright-agent "exec bash"
+fi
+
+# No agent to run a prompt through — treat the prompt as a shell command when present.
+exec bash -lc "${PROMPT:-true}"

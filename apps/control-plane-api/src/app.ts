@@ -36,7 +36,7 @@ import type { UserEnvService } from './user-env/user-env-service';
 import type { UserService } from './users/user-service';
 import type { UserSettingsService } from './user-settings/user-settings-service';
 import type { CanvasLayoutService } from './canvas-layout/canvas-layout-service';
-import type { ContainerTerminal } from './tasks/docker-client';
+import type { ContainerExec, ContainerTerminal } from './tasks/docker-client';
 import type { RunnerRegistry } from './runners/runner-registry';
 import type { GithubCredentialService } from './github/github-credential-service';
 
@@ -57,6 +57,9 @@ export interface AppDeps {
   workflowService: WorkflowService;
   workflowDriver: WorkflowDriver;
   containerTerminal: ContainerTerminal;
+  // Higher-level docker exec (capture / startAgent). Carried on AppDeps so tests can
+  // override it and the task service's shell-widget path can be exercised end-to-end.
+  containerExec: ContainerExec;
   volume: Volume;
   scheduler: Scheduler;
   runnerRegistry: RunnerRegistry;

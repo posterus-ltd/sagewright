@@ -1,4 +1,4 @@
-import { canvasLayoutSchema, EMPTY_CANVAS_LAYOUT, type CanvasLayout } from '@sagewright/shared';
+import { canvasLayoutSchema, EMPTY_CANVAS_LAYOUT, type CanvasLayout, type CanvasLayoutResponse } from '@sagewright/shared';
 import { eq } from 'drizzle-orm';
 
 import type { Db } from '../db/client';
@@ -12,10 +12,13 @@ interface CanvasLayoutServiceDeps {
  *  `userId`. One row per user; reads fall back
  *  to an empty layout so the client never has to special-case "never saved". */
 export const createCanvasLayoutService = (deps: CanvasLayoutServiceDeps) => ({
-  /** The user's saved layout, or an empty layout if none stored. */
-  get: async (userId: string): Promise<CanvasLayout> => {
+  /** The user's saved layout with its last-changed time (null if never saved), or an empty
+   *  layout. `updatedAt` lets the canvas detect an out-of-band rewrite (e.g. an agent
+   *  arranging it over MCP) and re-seed live. */
+  get: async (userId: string): Promise<CanvasLayoutResponse> => {
     const [row] = await deps.db.select().from(canvasLayouts).where(eq(canvasLayouts.userId, userId)).limit(1);
-    return row ? canvasLayoutSchema.parse(row.layout) : EMPTY_CANVAS_LAYOUT;
+    if (!row) return { ...EMPTY_CANVAS_LAYOUT, updatedAt: null };
+    return { ...canvasLayoutSchema.parse(row.layout), updatedAt: row.updatedAt.toISOString() };
   },
 
   /** Validate and upsert the user's layout. Throws if the shape is invalid;

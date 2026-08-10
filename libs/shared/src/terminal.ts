@@ -29,6 +29,11 @@ export const runWorktreeDir = (runId: string, slug: string): string =>
 /** The shared branch every step of a run commits onto; pushed once at run end. */
 export const runBranch = (runId: string): string => `workflow/${runId}`;
 
+/** tmux session name a no-agent shell widget's command runs under inside its container.
+ *  The control plane starts the command detached under this name; the terminal route
+ *  attaches to the same name so every viewer sees the one running process. */
+export const SHELL_TMUX_SESSION = 'sagewright-shell';
+
 /** Terminal flavours exposed on a session. */
 export enum TerminalKind {
   SHELL = 'shell',
@@ -69,6 +74,9 @@ export const parseTerminalSize = (q: {
 export enum SessionMode {
   INTERACTIVE = 'interactive',
   HEADLESS = 'headless',
+  /** A raw CLI command in a PTY, no agent. The control plane starts it in a persistent
+   *  tmux over `docker exec`; there is nothing for the runner's start-agent to do. */
+  SHELL = 'shell',
 }
 
 /**
@@ -84,9 +92,16 @@ export enum SessionKind {
   SCHEDULED = 'scheduled',
   WORKFLOW_STEP = 'workflow_step',
   WORKFLOW = 'workflow',
+  /** A no-agent CLI widget: a chosen command runs in a persistent terminal (e.g. a clock).
+   *  Spawned on the basic CLI runner and driven by the control plane, not an agent. */
+  SHELL = 'shell',
 }
 
-/** Derive the runner-facing lifecycle mode from a session kind. Only an interactive
- *  session keeps a human at the PTY; everything else is driven headless. */
-export const modeForKind = (kind: SessionKind): SessionMode =>
-  kind === SessionKind.INTERACTIVE ? SessionMode.INTERACTIVE : SessionMode.HEADLESS;
+/** Derive the runner-facing lifecycle mode from a session kind. An interactive session
+ *  keeps a human at the agent PTY; a shell session runs a raw CLI in a PTY; everything
+ *  else is driven headless. */
+export const modeForKind = (kind: SessionKind): SessionMode => {
+  if (kind === SessionKind.INTERACTIVE) return SessionMode.INTERACTIVE;
+  if (kind === SessionKind.SHELL) return SessionMode.SHELL;
+  return SessionMode.HEADLESS;
+};

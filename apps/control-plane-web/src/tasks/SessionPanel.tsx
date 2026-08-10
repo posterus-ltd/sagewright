@@ -133,11 +133,17 @@ export const SessionPanel: FC<{
 
   // Headless runs (scheduled tasks, workflow steps — anything but a canvas/sessions-page
   // session) are driven by the control plane and stream their PTY as the transcript;
-  // only an interactive session is driven by the human over Agent/Shell PTYs.
-  const headless = task != null && modeForKind(task.kind) === SessionMode.HEADLESS;
-  const tabValues: TabValue[] = headless
-    ? [TabValue.TRANSCRIPT, TabValue.SHELL, TabValue.LOG]
-    : [TabValue.AGENT, TabValue.SHELL, TabValue.LOG];
+  // an interactive session is driven by the human over Agent/Shell PTYs; a shell widget
+  // has no agent at all — just its CLI terminal (the "Shell" tab, which attaches to the
+  // running command) and the event log.
+  const mode = task != null ? modeForKind(task.kind) : null;
+  const headless = mode === SessionMode.HEADLESS;
+  const shell = mode === SessionMode.SHELL;
+  const tabValues: TabValue[] = shell
+    ? [TabValue.SHELL, TabValue.LOG]
+    : headless
+      ? [TabValue.TRANSCRIPT, TabValue.SHELL, TabValue.LOG]
+      : [TabValue.AGENT, TabValue.SHELL, TabValue.LOG];
   // Once a session has stopped its container is gone, so the agent/shell PTYs can't be
   // opened — those tabs are disabled. Keep them out of the selectable set so the active
   // view falls back to the log (the one tab that's always readable) rather than landing
@@ -243,7 +249,7 @@ export const SessionPanel: FC<{
                 },
               }}
             >
-              {headless ? (
+              {headless && (
                 <Button
                   variant={current === TabValue.TRANSCRIPT ? 'contained' : 'outlined'}
                   aria-pressed={current === TabValue.TRANSCRIPT}
@@ -251,7 +257,8 @@ export const SessionPanel: FC<{
                 >
                   Transcript
                 </Button>
-              ) : (
+              )}
+              {!headless && !shell && (
                 <Button
                   variant={current === TabValue.AGENT ? 'contained' : 'outlined'}
                   disabled={!live}
@@ -267,7 +274,7 @@ export const SessionPanel: FC<{
                 aria-pressed={current === TabValue.SHELL}
                 onClick={() => setTab(TabValue.SHELL)}
               >
-                Shell
+                {shell ? 'Terminal' : 'Shell'}
               </Button>
               <Button
                 variant={current === TabValue.LOG ? 'contained' : 'outlined'}
@@ -281,7 +288,7 @@ export const SessionPanel: FC<{
               there's no room for a dedicated bottom row. No popover container:
               canvas nodes sit in a transformed ancestor, which would break the
               customize popover's positioning, so it portals to the body. */}
-          {compact && !headless && (
+          {compact && !headless && !shell && (
             <SessionQuickActionsBar
               dense
               isTerminalInputAvailable={live && current === TabValue.AGENT}
@@ -371,10 +378,10 @@ export const SessionPanel: FC<{
         </Box>
       )}
 
-      {/* Headless runs have no agent PTY to drive, so no quick actions bar;
-          widgets host it in their header instead of a bottom row. The popover
-          portals into the panel so it stays visible in native fullscreen. */}
-      {!compact && !headless && (
+      {/* Headless runs and shell widgets have no agent PTY to drive, so no quick
+          actions bar; interactive widgets host it in their header instead of a bottom
+          row. The popover portals into the panel so it stays visible in fullscreen. */}
+      {!compact && !headless && !shell && (
         <SessionQuickActionsBar
           isTerminalInputAvailable={live && current === TabValue.AGENT}
           onTerminalInput={(data) => terminalInputRef.current?.(data)}

@@ -20,7 +20,8 @@ describe('canvas-layout routes', () => {
   it('returns an empty layout when nothing is stored', async () => {
     const { app } = await makeTestApp();
     const headers = await login(app);
-    expect((await app.inject({ method: 'GET', url: '/api/canvas-layout', headers })).json()).toEqual(EMPTY_CANVAS_LAYOUT);
+    // The GET response carries `updatedAt` (null when never saved) on top of the layout.
+    expect((await app.inject({ method: 'GET', url: '/api/canvas-layout', headers })).json()).toEqual({ ...EMPTY_CANVAS_LAYOUT, updatedAt: null });
   });
 
   it('stores a layout and returns it', async () => {
@@ -28,7 +29,7 @@ describe('canvas-layout routes', () => {
     const headers = await login(app);
     const put = await app.inject({ method: 'PUT', url: '/api/canvas-layout', headers, payload: sampleLayout });
     expect(put.statusCode).toBe(204);
-    expect((await app.inject({ method: 'GET', url: '/api/canvas-layout', headers })).json()).toEqual(sampleLayout);
+    expect((await app.inject({ method: 'GET', url: '/api/canvas-layout', headers })).json()).toEqual({ ...sampleLayout, updatedAt: expect.any(String) });
   });
 
   it('upserts (a second PUT replaces the layout)', async () => {
@@ -37,7 +38,7 @@ describe('canvas-layout routes', () => {
     await app.inject({ method: 'PUT', url: '/api/canvas-layout', headers, payload: sampleLayout });
     const next = { placements: [], viewport: { x: 0, y: 0, zoom: 2 } };
     await app.inject({ method: 'PUT', url: '/api/canvas-layout', headers, payload: next });
-    expect((await app.inject({ method: 'GET', url: '/api/canvas-layout', headers })).json()).toEqual(next);
+    expect((await app.inject({ method: 'GET', url: '/api/canvas-layout', headers })).json()).toEqual({ ...next, updatedAt: expect.any(String) });
   });
 
   it('keeps each user\'s layout separate', async () => {
@@ -45,7 +46,7 @@ describe('canvas-layout routes', () => {
     const al = await login(app, 'al');
     const bo = await login(app, 'bo');
     await app.inject({ method: 'PUT', url: '/api/canvas-layout', headers: al, payload: sampleLayout });
-    expect((await app.inject({ method: 'GET', url: '/api/canvas-layout', headers: bo })).json()).toEqual(EMPTY_CANVAS_LAYOUT);
+    expect((await app.inject({ method: 'GET', url: '/api/canvas-layout', headers: bo })).json()).toEqual({ ...EMPTY_CANVAS_LAYOUT, updatedAt: null });
   });
 
   it('rejects a malformed body', async () => {

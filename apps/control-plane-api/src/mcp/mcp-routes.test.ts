@@ -1,11 +1,11 @@
 import { Client } from '@modelcontextprotocol/sdk/client';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
-import { SessionKind, SessionStatus, TriggerType, WorkflowStepKind } from '@sagewright/shared';
+import { SessionKind, SessionOrigin, SessionStatus, TriggerType, WorkflowStepKind } from '@sagewright/shared';
 import { eq } from 'drizzle-orm';
 import { describe, expect, it, vi } from 'vitest';
 
 import { createMcpToken } from '../auth/mcp-token';
-import { scheduledPrompts, sessions, workflows } from '../db/schema';
+import { canvasLayouts, scheduledPrompts, sessions, workflows } from '../db/schema';
 import { fakeScheduler, makeTestApp } from '../test/make-test-app';
 import { buildMcpServer, type McpCallerContext } from './mcp-server';
 import type { AppDeps } from '../app';
@@ -86,7 +86,20 @@ describe('mcp tools', () => {
     const client = await connect(deps, { userId: userId('al'), callerSessionId: 'sess-1' });
     const { tools } = await client.listTools();
     expect(tools.map((t) => t.name).sort()).toEqual(
-      ['create_workflow', 'get_session', 'list_runners', 'run_workflow', 'schedule_job', 'spawn_session'],
+      [
+        'archive_session',
+        'create_workflow',
+        'get_canvas',
+        'get_session',
+        'list_runners',
+        'list_sessions',
+        'run_workflow',
+        'schedule_job',
+        'set_canvas',
+        'spawn_interactive_session',
+        'spawn_session',
+        'spawn_shell',
+      ],
     );
   });
 
@@ -205,5 +218,135 @@ describe('mcp tools', () => {
     const res = await client.callTool({ name: 'list_runners', arguments: {} });
     const out = resultJson(res) as { image: string }[];
     expect(out.some((r) => r.image === 'w')).toBe(true);
+  });
+
+  it('spawn_interactive_session creates a standalone delegated interactive session', async () => {
+    const { db, deps, userId } = await makeTestApp();
+    const caller = await insertSession(db, userId('al'));
+    const client = await connect(deps, { userId: userId('al'), callerSessionId: caller });
+
+    const res = await client.callTool({ name: 'spawn_interactive_session', arguments: { prompt: 'help me build' } });
+    const out = resultJson(res) as { sessionId: string; kind: string };
+    expect(out.kind).toBe(SessionKind.INTERACTIVE);
+
+    const [row] = await db.select().from(sessions).where(eq(sessions.id, out.sessionId)).limit(1);
+    // Standalone (no parent, unlike spawn_session) so it shows in the Sessions list / canvas,
+    // and tagged delegated.
+    expect(row!.parentSessionId).toBeNull();
+    expect(row!.origin).toBe(SessionOrigin.AGENT);
+    expect(row!.createdBy).toBe(userId('al'));
+  });
+
+  it('spawn_shell creates a no-agent shell session carrying its command', async () => {
+    const { db, deps, userId } = await makeTestApp();
+    const client = await connect(deps, { userId: userId('al'), callerSessionId: 'sess-1' });
+
+    const res = await client.callTool({ name: 'spawn_shell', arguments: { command: 'watch -n1 date' } });
+    const out = resultJson(res) as { sessionId: string; kind: string; status: string };
+    expect(out.kind).toBe(SessionKind.SHELL);
+
+    const [row] = await db.select().from(sessions).where(eq(sessions.id, out.sessionId)).limit(1);
+    expect(row!.kind).toBe(SessionKind.SHELL);
+    expect(row!.command).toBe('watch -n1 date');
+    expect(row!.origin).toBe(SessionOrigin.AGENT);
+    expect(row!.status).toBe(SessionStatus.RUNNING);
+  });
+
+  it('spawn_shell rejects a missing or empty command', async () => {
+    const { deps, userId } = await makeTestApp();
+    const client = await connect(deps, { userId: userId('al'), callerSessionId: 'sess-1' });
+    expect(isError(await client.callTool({ name: 'spawn_shell', arguments: {} }))).toBe(true);
+    expect(isError(await client.callTool({ name: 'spawn_shell', arguments: { command: '' } }))).toBe(true);
+  });
+
+  it('spawn_shell starts the command in a persistent tmux over docker exec', async () => {
+    const capture = vi.fn(async (_id: string, _opts: { cmd: string[] }) => ({ exitCode: 0, stdout: '', stderr: '' }));
+    const { deps, userId } = await makeTestApp({ containerExec: { capture } as never });
+    const client = await connect(deps, { userId: userId('al'), callerSessionId: 'sess-1' });
+
+    await client.callTool({ name: 'spawn_shell', arguments: { command: 'htop' } });
+    expect(capture).toHaveBeenCalledTimes(1);
+    expect(capture.mock.calls[0]![1].cmd).toEqual(['tmux', 'new-session', '-d', '-s', 'sagewright-shell', 'exec htop']);
+  });
+
+  it('a delegated session auto-archives when it stops', async () => {
+    const { db, deps, userId } = await makeTestApp();
+    const client = await connect(deps, { userId: userId('al'), callerSessionId: 'sess-1' });
+    const res = await client.callTool({ name: 'spawn_shell', arguments: { command: 'sleep 1000' } });
+    const { sessionId } = resultJson(res) as { sessionId: string };
+
+    await deps.taskService.stop(sessionId);
+    const [row] = await db.select().from(sessions).where(eq(sessions.id, sessionId)).limit(1);
+    expect(row!.status).toBe(SessionStatus.STOPPED);
+    // Short-lived delegated sessions leave a trace in history, archived, not in the active list.
+    expect(row!.archivedAt).not.toBeNull();
+  });
+
+  it('spawn tools enforce the user-configurable active-session cap', async () => {
+    const { db, deps, userId } = await makeTestApp();
+    await deps.userSettingsService.update(userId('al'), { maxActiveSessions: 1 });
+    // One active session already puts the user at the cap of 1.
+    await insertSession(db, userId('al'));
+    const client = await connect(deps, { userId: userId('al'), callerSessionId: 'sess-1' });
+
+    const res = await client.callTool({ name: 'spawn_interactive_session', arguments: {} });
+    expect(isError(res)).toBe(true);
+    expect(text0(res)).toMatch(/too many active sessions/i);
+  });
+
+  it('archive_session archives your session and hides another user\'s', async () => {
+    const { db, deps, userId } = await makeTestApp();
+    const mine = await insertSession(db, userId('al'));
+    const theirs = await insertSession(db, userId('bob'));
+    const client = await connect(deps, { userId: userId('al'), callerSessionId: 'sess-1' });
+
+    const ok = await client.callTool({ name: 'archive_session', arguments: { id: mine } });
+    expect(isError(ok)).toBe(false);
+    const [row] = await db.select().from(sessions).where(eq(sessions.id, mine)).limit(1);
+    expect(row!.archivedAt).not.toBeNull();
+
+    const denied = await client.callTool({ name: 'archive_session', arguments: { id: theirs } });
+    expect(isError(denied)).toBe(true);
+    expect(text0(denied)).toBe('not found');
+  });
+
+  it('set_canvas persists placements and get_canvas returns them', async () => {
+    const { db, deps, userId } = await makeTestApp();
+    const s = await insertSession(db, userId('al'));
+    const client = await connect(deps, { userId: userId('al'), callerSessionId: 'sess-1' });
+
+    const layout = { placements: [{ sessionId: s, x: 10, y: 20 }], viewport: { x: 0, y: 0, zoom: 1 } };
+    const setRes = await client.callTool({ name: 'set_canvas', arguments: layout });
+    expect(isError(setRes)).toBe(false);
+
+    const getRes = await client.callTool({ name: 'get_canvas', arguments: {} });
+    const out = resultJson(getRes) as { placements: { sessionId: string; x: number }[] };
+    expect(out.placements).toHaveLength(1);
+    expect(out.placements[0]!.sessionId).toBe(s);
+  });
+
+  it('set_canvas rejects a placement referencing a session you don\'t own', async () => {
+    const { db, deps, userId } = await makeTestApp();
+    const theirs = await insertSession(db, userId('bob'));
+    const client = await connect(deps, { userId: userId('al'), callerSessionId: 'sess-1' });
+
+    const layout = { placements: [{ sessionId: theirs, x: 0, y: 0 }], viewport: { x: 0, y: 0, zoom: 1 } };
+    const res = await client.callTool({ name: 'set_canvas', arguments: layout });
+    expect(isError(res)).toBe(true);
+    // Nothing was persisted for the caller.
+    const rows = await db.select().from(canvasLayouts).where(eq(canvasLayouts.userId, userId('al')));
+    expect(rows).toHaveLength(0);
+  });
+
+  it('list_sessions returns the caller\'s standalone sessions with origin', async () => {
+    const { db, deps, userId } = await makeTestApp();
+    await insertSession(db, userId('al'));
+    await insertSession(db, userId('bob')); // another user's — must not leak
+    const client = await connect(deps, { userId: userId('al'), callerSessionId: 'sess-1' });
+
+    const res = await client.callTool({ name: 'list_sessions', arguments: {} });
+    const out = resultJson(res) as { id: string; origin: string }[];
+    expect(out).toHaveLength(1);
+    expect(out[0]!.origin).toBe(SessionOrigin.USER);
   });
 });

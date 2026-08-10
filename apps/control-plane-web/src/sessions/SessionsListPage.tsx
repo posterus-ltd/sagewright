@@ -1,6 +1,6 @@
 import { Stack, ToggleButton, ToggleButtonGroup } from '@mui/material';
 import { DataGrid, type GridRowParams } from '@mui/x-data-grid';
-import type { Session } from '@sagewright/shared';
+import { SessionOrigin, type Session } from '@sagewright/shared';
 import { useMemo, useState, type FC, type KeyboardEvent } from 'react';
 import { useNavigate } from 'react-router';
 
@@ -24,12 +24,15 @@ enum SessionView {
 
 enum SessionScope {
   MINE = 'mine',
+  DELEGATED = 'delegated',
   ALL = 'all',
 }
 
 export const SessionsListPage: FC = () => {
   const [scope, setScope] = useState<SessionScope>(SessionScope.MINE);
-  const { data: tasks = [] } = useTasks(scope === SessionScope.MINE);
+  // MINE and DELEGATED both list the user's own sessions (DELEGATED narrows to
+  // agent-spawned ones client-side); ALL lists everyone's.
+  const { data: tasks = [] } = useTasks(scope !== SessionScope.ALL);
   const { userId } = useAuth();
   const stopTask = useStopTask();
   const archiveTask = useArchiveTask();
@@ -42,12 +45,14 @@ export const SessionsListPage: FC = () => {
 
   const visible = useMemo(
     () =>
-      tasks.filter((t) =>
-        view === SessionView.ARCHIVED
-          ? t.archivedAt !== null
-          : t.archivedAt === null,
-      ),
-    [tasks, view],
+      tasks
+        .filter((t) =>
+          view === SessionView.ARCHIVED
+            ? t.archivedAt !== null
+            : t.archivedAt === null,
+        )
+        .filter((t) => scope !== SessionScope.DELEGATED || t.origin === SessionOrigin.AGENT),
+    [tasks, view, scope],
   );
 
   const startRename = (t: Session): void => {
@@ -138,6 +143,9 @@ export const SessionsListPage: FC = () => {
                 aria-label="Session scope"
               >
                 <ToggleButton value={SessionScope.MINE}>Mine</ToggleButton>
+                <ToggleButton value={SessionScope.DELEGATED}>
+                  Delegated
+                </ToggleButton>
                 <ToggleButton value={SessionScope.ALL}>All</ToggleButton>
               </ToggleButtonGroup>
             </Stack>

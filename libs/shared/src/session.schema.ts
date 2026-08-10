@@ -49,11 +49,30 @@ export const createSessionSchema = z.object({
 });
 export type CreateSessionInput = z.infer<typeof createSessionSchema>;
 
+/** A no-agent CLI session: the command runs in a persistent terminal on the basic CLI
+ *  runner. `runnerImage` overrides which box hosts it (defaults to the CLI runner). */
+export const createShellSessionSchema = z.object({
+  command: z.string().min(1),
+  runnerImage: z.string().optional(),
+});
+export type CreateShellSessionInput = z.infer<typeof createShellSessionSchema>;
+
+/** Who initiated a session: a human directly (`user`), or an agent acting for them over
+ *  MCP (`agent` — surfaced as a "delegated" tag). */
+export enum SessionOrigin {
+  USER = 'user',
+  AGENT = 'agent',
+}
+
 export const sessionSchema = z.object({
   id: z.string(),
   kind: z.enum(SessionKind),
   name: z.string().nullable(),
   prompt: z.string().nullable(),
+  // The CLI a `shell` session runs in its terminal; null for every other kind.
+  command: z.string().nullable(),
+  // Who initiated the session: a human (`user`) or an agent over MCP (`agent`/delegated).
+  origin: z.enum(SessionOrigin),
   runnerImage: z.string().nullable(),
   status: z.enum(SessionStatus),
   branch: z.string().nullable(),
@@ -87,14 +106,16 @@ export const updateSessionSchema = z.object({
 });
 export type UpdateSessionInput = z.infer<typeof updateSessionSchema>;
 
-/** The human label for a session: its custom name, else a prompt preview, else a generic fallback. */
+/** The human label for a session: its custom name, else a prompt preview, else the shell
+ *  command (for CLI sessions, which have no prompt), else a generic fallback. */
 export const sessionLabel = (
-  session: Pick<Session, 'name' | 'prompt'>,
+  session: Pick<Session, 'name' | 'prompt'> & Partial<Pick<Session, 'command'>>,
   max = 60,
 ): string => {
   const name = session.name?.trim();
   if (name) return name;
   if (session.prompt) return session.prompt.slice(0, max);
+  if (session.command) return session.command.slice(0, max);
   return 'Interactive session';
 };
 

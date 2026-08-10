@@ -2,6 +2,7 @@ import {
   EventType,
   RESERVED_ENV_KEYS,
   SessionKind,
+  SessionOrigin,
   SessionStatus,
   TERMINAL_STATUSES,
   isTerminalStatus,
@@ -46,6 +47,11 @@ export interface SpawnSessionInput {
   kind: SessionKind;
   createdBy: string;
   prompt?: string | null;
+  /** The CLI a `shell`-kind session runs in its persistent terminal; null otherwise. */
+  command?: string | null;
+  /** Who initiated the session: 'user' (a human) or 'agent' (spawned over MCP / delegated).
+   *  Defaults to 'user' at the column, so omitting it keeps the human-created contract. */
+  origin?: SessionOrigin;
   /** Explicit per-session image override; falls back to the user's stored default then the operator config. */
   runnerImage?: string;
   /** A workflow step's parent run/session id (persisted on the row for grouping). */
@@ -111,9 +117,13 @@ export const createSessionService = (deps: SessionServiceDeps) => {
     const mode = modeForKind(input.kind);
     const prompt = input.prompt ?? null;
 
-    // Runner image precedence: explicit request → user's stored default → operator config fallback.
+    // Runner image precedence: explicit request → user's stored default → operator config
+    // fallback. A no-agent SHELL widget instead defaults to the basic CLI runner (skipping
+    // the user's agent default), since it hosts a plain command, not a harness.
     const { defaultRunnerImage: stored } = await deps.userSettingsService.get(input.createdBy);
-    const runnerImage = input.runnerImage ?? stored ?? deps.config.runnerImage;
+    const runnerImage =
+      input.runnerImage ??
+      (input.kind === SessionKind.SHELL ? deps.config.cliRunnerImage : stored ?? deps.config.runnerImage);
 
     // Insert the row up front so every failure path below leaves a visible FAILED
     // session (with the reason in its transcript) rather than throwing before any
@@ -123,6 +133,8 @@ export const createSessionService = (deps: SessionServiceDeps) => {
       .values({
         kind: input.kind,
         prompt,
+        command: input.command ?? null,
+        origin: input.origin ?? SessionOrigin.USER,
         runnerImage,
         status: SessionStatus.QUEUED,
         createdBy: input.createdBy,
@@ -209,9 +221,12 @@ export const createSessionService = (deps: SessionServiceDeps) => {
       // Flip to FAILED only from a non-terminal state so a user's STOPPED (or another
       // settled outcome) is never overwritten; emit the failure events only when the
       // flip actually happened, keeping the transcript consistent with the row.
+      // A delegated (agent-spawned) session archives itself the moment it settles, so a
+      // short-lived one leaves a trace in history without cluttering the active list.
+      const archiveStamp = row.origin === SessionOrigin.AGENT ? { archivedAt: new Date() } : {};
       const flipped = await deps.db
         .update(sessions)
-        .set({ status: SessionStatus.FAILED })
+        .set({ status: SessionStatus.FAILED, ...archiveStamp })
         .where(and(eq(sessions.id, row.id), notInArray(sessions.status, [...TERMINAL_STATUSES])))
         .returning();
       if (flipped.length) {

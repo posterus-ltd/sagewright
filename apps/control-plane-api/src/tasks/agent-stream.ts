@@ -1,4 +1,4 @@
-import { EventType, SessionStatus, isTerminalStatus, type RepoManifestEntry } from '@sagewright/shared';
+import { EventType, SessionOrigin, SessionStatus, isTerminalStatus, type RepoManifestEntry } from '@sagewright/shared';
 import { and, eq, isNull } from 'drizzle-orm';
 
 import type { Db } from '../db/client';
@@ -68,12 +68,17 @@ export const createAgentStreaming = (deps: AgentStreamingDeps) => {
         if (current && TERMINAL_GUARD.has(current.status as SessionStatus)) continue;
         // Lifecycle stamps ride along with the status mirror: the FIRST running
         // transition starts the clock (a resumed turn keeps the original), and any
-        // terminal transition stops it.
+        // terminal transition stops it. A delegated (agent-spawned) session also
+        // archives itself on that terminal transition, so short-lived MCP runs leave a
+        // trace in history without cluttering the active list.
         const stamps =
           status === SessionStatus.RUNNING
             ? { startedAt: current?.startedAt ?? new Date() }
             : isTerminalStatus(status)
-              ? { endedAt: new Date() }
+              ? {
+                  endedAt: new Date(),
+                  ...(current?.origin === SessionOrigin.AGENT && !current.archivedAt ? { archivedAt: new Date() } : {}),
+                }
               : {};
         await deps.db.update(sessions).set({ status, ...stamps }).where(eq(sessions.id, taskId));
       }
