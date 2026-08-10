@@ -85,49 +85,56 @@ const runWorkflowArgs = z.object({
 const getSessionArgs = z.object({ id: z.string().min(1).describe('The session id.') });
 const listRunnersArgs = z.object({});
 
+/** The tools this server exposes; the values are the wire names an MCP client calls by. */
+enum McpToolName {
+  SPAWN_SESSION = 'spawn_session',
+  SCHEDULE_JOB = 'schedule_job',
+  CREATE_WORKFLOW = 'create_workflow',
+  RUN_WORKFLOW = 'run_workflow',
+  LIST_RUNNERS = 'list_runners',
+  GET_SESSION = 'get_session',
+}
+
 interface McpToolDef {
-  name: string;
   description: string;
   /** Serialized to the wire `inputSchema` AND used to validate calls in the handler. */
   schema: z.ZodType;
 }
 
-const TOOL_DEFS: McpToolDef[] = [
-  {
-    name: 'spawn_session',
+// Keyed by tool name so the CallTool handler can fetch a tool's schema by id in O(1).
+// `satisfies` (rather than a `: Record<…>` annotation) preserves each entry's NARROW schema
+// type, so `parsed.data` stays typed at the call sites; the Record constraint still forces
+// every McpToolName to have a definition.
+const TOOL_DEFS = {
+  [McpToolName.SPAWN_SESSION]: {
     description:
       'Spawn a new headless agent session as a child of the current session. The child ' +
       'runs the given prompt to completion and appears under this session in the run graph.',
     schema: spawnSessionArgs,
   },
-  {
-    name: 'schedule_job',
+  [McpToolName.SCHEDULE_JOB]: {
     description: 'Schedule a recurring headless prompt on a cron expression. Fires as your user.',
     schema: createScheduledPromptSchema,
   },
-  {
-    name: 'create_workflow',
+  [McpToolName.CREATE_WORKFLOW]: {
     description:
       'Create a multi-step workflow definition (a sequenced, self-validating run). ' +
       'Returns its id; use run_workflow to execute it. At least one validation step is required.',
     schema: workflowInputSchema,
   },
-  {
-    name: 'run_workflow',
+  [McpToolName.RUN_WORKFLOW]: {
     description: 'Trigger a run of an existing workflow by id. Optional input seeds the first step.',
     schema: runWorkflowArgs,
   },
-  {
-    name: 'list_runners',
+  [McpToolName.LIST_RUNNERS]: {
     description: 'List the runner images available to spawn sessions / workflow steps with.',
     schema: listRunnersArgs,
   },
-  {
-    name: 'get_session',
+  [McpToolName.GET_SESSION]: {
     description: 'Fetch the status of one of your sessions by id (e.g. one you spawned).',
     schema: getSessionArgs,
   },
-];
+} satisfies Record<McpToolName, McpToolDef>;
 
 /** Serializes a tool's zod schema into the JSON-Schema `inputSchema` MCP advertises.
  *  `io: 'input'` renders the caller-facing shape, so fields with a default (e.g.
@@ -140,7 +147,7 @@ const toInputSchema = (schema: z.ZodType): Tool['inputSchema'] => {
   return json as Tool['inputSchema'];
 };
 
-const TOOLS: Tool[] = TOOL_DEFS.map(({ name, description, schema }) => ({
+const TOOLS: Tool[] = Object.entries(TOOL_DEFS).map(([name, { description, schema }]) => ({
   name,
   description,
   inputSchema: toInputSchema(schema),
@@ -166,8 +173,8 @@ export const buildMcpServer = (deps: AppDeps, ctx: McpCallerContext): Server => 
     const args = rawArgs ?? {};
 
     switch (name) {
-      case 'spawn_session': {
-        const parsed = spawnSessionArgs.safeParse(args);
+      case McpToolName.SPAWN_SESSION: {
+        const parsed = TOOL_DEFS[McpToolName.SPAWN_SESSION].schema.safeParse(args);
         if (!parsed.success) return fail(`invalid input: ${parsed.error.issues[0]?.message ?? 'bad request'}`);
 
         // Guardrails BEFORE spawning so a rejected request never leaves a FAILED row.
@@ -184,8 +191,8 @@ export const buildMcpServer = (deps: AppDeps, ctx: McpCallerContext): Server => 
         return ok({ sessionId: session.id, status: session.status, parentSessionId: ctx.callerSessionId });
       }
 
-      case 'schedule_job': {
-        const parsed = createScheduledPromptSchema.safeParse(args);
+      case McpToolName.SCHEDULE_JOB: {
+        const parsed = TOOL_DEFS[McpToolName.SCHEDULE_JOB].schema.safeParse(args);
         if (!parsed.success) return fail(`invalid input: ${parsed.error.issues[0]?.message ?? 'bad request'}`);
         const body = parsed.data;
         if (!deps.scheduler.isValidCron(body.cron)) return fail('invalid cron');
@@ -201,8 +208,8 @@ export const buildMcpServer = (deps: AppDeps, ctx: McpCallerContext): Server => 
         return ok(rowToScheduled(row!));
       }
 
-      case 'create_workflow': {
-        const parsed = workflowInputSchema.safeParse(args);
+      case McpToolName.CREATE_WORKFLOW: {
+        const parsed = TOOL_DEFS[McpToolName.CREATE_WORKFLOW].schema.safeParse(args);
         if (!parsed.success) return fail(`invalid workflow: ${parsed.error.issues[0]?.message ?? 'bad request'}`);
         const def = parsed.data.definition;
         const runners = await deps.runnerRegistry.list();
@@ -217,21 +224,21 @@ export const buildMcpServer = (deps: AppDeps, ctx: McpCallerContext): Server => 
         return ok({ id: wf.id, name: wf.name, enabled: wf.enabled });
       }
 
-      case 'run_workflow': {
-        const parsed = runWorkflowArgs.safeParse(args);
+      case McpToolName.RUN_WORKFLOW: {
+        const parsed = TOOL_DEFS[McpToolName.RUN_WORKFLOW].schema.safeParse(args);
         if (!parsed.success) return fail(`invalid input: ${parsed.error.issues[0]?.message ?? 'bad request'}`);
         const run = await deps.workflowDriver.start(parsed.data.id, ctx.userId, parsed.data.input);
         if (!run) return fail('workflow not found');
         return ok({ runId: run.id, workflowId: run.workflowId, status: run.status });
       }
 
-      case 'list_runners': {
+      case McpToolName.LIST_RUNNERS: {
         const runners = await deps.runnerRegistry.list();
         return ok(runners);
       }
 
-      case 'get_session': {
-        const parsed = getSessionArgs.safeParse(args);
+      case McpToolName.GET_SESSION: {
+        const parsed = TOOL_DEFS[McpToolName.GET_SESSION].schema.safeParse(args);
         if (!parsed.success) return fail(`invalid input: ${parsed.error.issues[0]?.message ?? 'bad request'}`);
         const session = await deps.taskService.get(parsed.data.id);
         // Owner-scoped, mirroring the HTTP routes: someone else's session reads as absent.
