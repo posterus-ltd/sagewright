@@ -27,6 +27,8 @@ import { useState, type FC } from 'react';
 
 import { commandsToText, textToCommands } from './workflow-builder';
 
+const LOOP_BACK_TO_STEP_ONE = '__loop_back_to_step_one__';
+
 interface WorkflowStepCardProps {
   step: WorkflowStep;
   index: number;
@@ -196,16 +198,23 @@ export const WorkflowStepCard: FC<WorkflowStepCardProps> = ({
               <TextField
                 select
                 label="Loop back to"
-                value={step.onFailureGoTo ?? ''}
+                value={step.onFailureGoTo ?? LOOP_BACK_TO_STEP_ONE}
                 onChange={(e) =>
-                  onChange({ onFailureGoTo: e.target.value || undefined })
+                  onChange({
+                    onFailureGoTo:
+                      e.target.value === LOOP_BACK_TO_STEP_ONE
+                        ? undefined
+                        : e.target.value,
+                  })
                 }
                 error={Boolean(fieldErrors.onFailureGoTo)}
                 helperText={fieldErrors.onFailureGoTo}
                 slotProps={{ select: { displayEmpty: true } }}
                 fullWidth
               >
-                <MenuItem value="">Restart from step 1 (default)</MenuItem>
+                <MenuItem value={LOOP_BACK_TO_STEP_ONE}>
+                  Restart from step 1 (default)
+                </MenuItem>
                 {otherSteps.map((s) => (
                   <MenuItem key={s.key} value={s.key}>
                     {s.name}

@@ -140,6 +140,11 @@ describe('WorkflowEditorDialog', () => {
       name: 'Loop back to',
     });
     expect(loopSelect.textContent).toMatch(/restart from step 1/i);
+    expect(
+      within(stepCard(1))
+        .getAllByText('Loop back to')
+        .some((el) => el.className.includes('MuiInputLabel-shrink')),
+    ).toBe(true);
   });
 
   it('shows loop-back-only fields only when a step is a loop-back check', async () => {
