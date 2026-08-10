@@ -1,5 +1,5 @@
 import { Server } from '@modelcontextprotocol/sdk/server';
-import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
+import { CallToolRequestSchema, ListToolsRequestSchema, type Tool } from '@modelcontextprotocol/sdk/types.js';
 import {
   TERMINAL_STATUSES,
   TriggerType,
@@ -66,94 +66,85 @@ const rowToScheduled = (r: typeof scheduledPrompts.$inferSelect): ScheduledPromp
 const ok = (data: unknown) => ({ content: [{ type: 'text' as const, text: JSON.stringify(data) }] });
 const fail = (message: string) => ({ content: [{ type: 'text' as const, text: message }], isError: true });
 
+// Each tool's argument schema is a zod schema — the single source of truth that is both
+// serialized into the JSON-Schema `inputSchema` the model sees (see TOOLS below) and used
+// to validate incoming arguments in the CallTool handler. Keeping one schema per tool means
+// the advertised shape and the enforced shape can never drift.
+
 // A spawned session runs headless to completion, so a prompt is REQUIRED here (unlike the
 // interactive createSessionSchema, where an empty session just drops the user into the
 // harness). Without one the child would come up with PROMPT='' and do nothing.
-const spawnSessionArgs = z.object({ prompt: z.string().min(1), runnerImage: z.string().optional() });
-const runWorkflowArgs = z.object({ id: z.string().min(1), input: z.string().optional() });
-const getSessionArgs = z.object({ id: z.string().min(1) });
+const spawnSessionArgs = z.object({
+  prompt: z.string().min(1).describe('What the spawned agent should do.'),
+  runnerImage: z.string().optional().describe('Optional runner image override; defaults to your default runner.'),
+});
+const runWorkflowArgs = z.object({
+  id: z.string().min(1).describe('The workflow id to run.'),
+  input: z.string().optional().describe('Optional seed input for step 1.'),
+});
+const getSessionArgs = z.object({ id: z.string().min(1).describe('The session id.') });
+const listRunnersArgs = z.object({});
 
-const TOOLS = [
+interface McpToolDef {
+  name: string;
+  description: string;
+  /** Serialized to the wire `inputSchema` AND used to validate calls in the handler. */
+  schema: z.ZodType;
+}
+
+const TOOL_DEFS: McpToolDef[] = [
   {
     name: 'spawn_session',
     description:
       'Spawn a new headless agent session as a child of the current session. The child ' +
       'runs the given prompt to completion and appears under this session in the run graph.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        prompt: { type: 'string', description: 'What the spawned agent should do.' },
-        runnerImage: { type: 'string', description: 'Optional runner image override; defaults to your default runner.' },
-      },
-      required: ['prompt'],
-      additionalProperties: false,
-    },
+    schema: spawnSessionArgs,
   },
   {
     name: 'schedule_job',
     description: 'Schedule a recurring headless prompt on a cron expression. Fires as your user.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        cron: { type: 'string', description: 'Standard 5-field cron expression.' },
-        prompt: { type: 'string', description: 'The prompt the scheduled agent runs each fire.' },
-        enabled: { type: 'boolean', description: 'Whether the schedule is active (default true).' },
-        runnerImage: { type: 'string', description: 'Optional runner image override.' },
-      },
-      required: ['cron', 'prompt'],
-      additionalProperties: false,
-    },
+    schema: createScheduledPromptSchema,
   },
   {
     name: 'create_workflow',
     description:
       'Create a multi-step workflow definition (a sequenced, self-validating run). ' +
-      'Returns its id; use run_workflow to execute it.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        definition: {
-          type: 'object',
-          description:
-            'WorkflowDefinition: { name, trigger:{ type:"manual"|"cron", cron? }, maxIterations>=1, ' +
-            'steps:[{ key, name, goal, runnerImage, kind:"work"|"validation", onFailureGoTo?, validateCommands? }] }. ' +
-            'At least one validation step is required.',
-        },
-        enabled: { type: 'boolean', description: 'Whether the workflow is active (default true).' },
-      },
-      required: ['definition'],
-      additionalProperties: false,
-    },
+      'Returns its id; use run_workflow to execute it. At least one validation step is required.',
+    schema: workflowInputSchema,
   },
   {
     name: 'run_workflow',
     description: 'Trigger a run of an existing workflow by id. Optional input seeds the first step.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        id: { type: 'string', description: 'The workflow id to run.' },
-        input: { type: 'string', description: 'Optional seed input for step 1.' },
-      },
-      required: ['id'],
-      additionalProperties: false,
-    },
+    schema: runWorkflowArgs,
   },
   {
     name: 'list_runners',
     description: 'List the runner images available to spawn sessions / workflow steps with.',
-    inputSchema: { type: 'object', properties: {}, additionalProperties: false },
+    schema: listRunnersArgs,
   },
   {
     name: 'get_session',
     description: 'Fetch the status of one of your sessions by id (e.g. one you spawned).',
-    inputSchema: {
-      type: 'object',
-      properties: { id: { type: 'string', description: 'The session id.' } },
-      required: ['id'],
-      additionalProperties: false,
-    },
+    schema: getSessionArgs,
   },
 ];
+
+/** Serializes a tool's zod schema into the JSON-Schema `inputSchema` MCP advertises.
+ *  `io: 'input'` renders the caller-facing shape, so fields with a default (e.g.
+ *  schedule_job's `enabled`) are advertised optional rather than required. Zod refinements
+ *  (the workflow definition's superRefine, the trigger's refine) don't map to JSON Schema
+ *  and are omitted here — they still run when the handler parses the arguments. The stray
+ *  `$schema` dialect marker is dropped to keep the advertised shape lean. */
+const toInputSchema = (schema: z.ZodType): Tool['inputSchema'] => {
+  const { $schema: _dialect, ...json } = z.toJSONSchema(schema, { io: 'input' });
+  return json as Tool['inputSchema'];
+};
+
+const TOOLS: Tool[] = TOOL_DEFS.map(({ name, description, schema }) => ({
+  name,
+  description,
+  inputSchema: toInputSchema(schema),
+}));
 
 /**
  * Builds an MCP server exposing the control plane's session / scheduling / workflow
