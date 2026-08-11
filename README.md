@@ -570,6 +570,32 @@ DATABASE_URL=postgres://postgres:postgres@localhost:5432/sage \
   node apps/control-plane-api/dist/db/migrate.js
 ```
 
+#### Changing the schema (incremental migrations)
+
+Migrations are **incremental and additive** — each schema change adds a new numbered
+file, applied on top of the existing database without touching data. To make a change:
+
+1. Edit `apps/control-plane-api/src/db/schema.ts`.
+2. Generate a migration:
+
+   ```bash
+   npm run db:generate                 # → drizzle/NNNN_<name>.sql + journal entry
+   ```
+
+3. Commit the generated `.sql` and `meta/` files alongside the schema change.
+4. Deploy / restart. The migrate step applies only the new files (see `migrate.ts`).
+
+**Do not** `rm -rf drizzle` or regenerate `0000_init` — that rewrites the baseline's
+journal timestamp, which makes Drizzle try to re-create tables that already exist
+(`relation "..." already exists`). Keep `0000_init` frozen and let each change land as
+its own file. A database from the older squashed-baseline era that still hits that error
+can be recovered with a **one-time** `DB_RESET` (see below) to re-apply migrations from a
+clean slate; after that, incremental migrations apply non-destructively.
+
+> **Column renames** are the one case `drizzle-kit generate` can't do headlessly — it
+> prompts "rename vs. drop+create" and needs a TTY. Run `npm run db:generate` in an
+> interactive terminal and answer the prompt, or hand-author the `.sql` + journal entry.
+
 #### Browse the database (Drizzle Studio)
 
 To inspect the current database state — every table with typed column headers and
@@ -596,12 +622,12 @@ point it elsewhere.
 applying migrations, so **all data is lost**. It is **off by default** and must be set
 explicitly.
 
-It exists for one situation: the migration history was squashed into a single `0000`
-baseline, so a database that already ran the old numbered migrations conflicts (its
-tables still exist and its `__drizzle_migrations` log no longer matches the journal,
-making the fresh `CREATE TABLE`s fail). Set `DB_RESET` once to wipe such a database so
-the squashed baseline applies cleanly, then leave it unset. It's also handy for
-resetting a throwaway dev database.
+It is **not** part of the normal schema-change flow — those are incremental migrations
+that apply non-destructively (see "Changing the schema" above). `DB_RESET` is a
+last-resort escape hatch: rebuilding a throwaway dev database from scratch, or getting a
+database that can't migrate forward (e.g. a pre-squash one hitting
+`relation "..." already exists`) back to a clean, running state. Do the single reset,
+then leave it unset and continue with incremental migrations.
 
 > **Never** set `DB_RESET` against a database whose contents you need.
 

@@ -23,15 +23,16 @@ const run = async (): Promise<void> => {
   const config = loadConfig(process.env);
   const { db, pool } = createDb(config.databaseUrl);
 
-  // One-time clean slate. The migration history was squashed into a single 0000
-  // baseline, so a database that already ran the old numbered migrations conflicts:
-  // its tables still exist and its __drizzle_migrations log no longer matches the
-  // journal, so the fresh CREATE TABLEs fail. Setting DB_RESET drops the whole public
-  // schema first, letting the squashed baseline apply to an empty database.
+  // Last-resort clean slate. Schema changes are normally incremental, additive
+  // migrations that apply non-destructively (edit schema.ts → `npm run db:generate` →
+  // a new NNNN_*.sql file). DB_RESET exists only to recover a database that can't
+  // migrate forward — e.g. one from the old squashed-baseline era whose tables and
+  // __drizzle_migrations log no longer line up (`relation "..." already exists`). Set
+  // it once to wipe and re-apply the migrations from scratch, then leave it unset and
+  // continue with incremental migrations.
   //
   // DESTRUCTIVE: this wipes ALL data. It is OFF by default and must be opted into
-  // explicitly (the schema-squash transition, or a throwaway dev DB) — never set it
-  // against a database whose contents you need.
+  // explicitly — never set it against a database whose contents you need.
   if (isEnabled(process.env.DB_RESET)) {
     console.warn('DB_RESET set — dropping and re-creating the "public" schema (ALL data will be lost)');
     await pool.query('DROP SCHEMA public CASCADE; CREATE SCHEMA public;');
