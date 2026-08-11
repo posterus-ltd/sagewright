@@ -233,3 +233,51 @@ describe('session-service spawnSession', () => {
     expect(spawns[0]!.manifest).toEqual(manifest);
   });
 });
+
+describe('session-service reserve/provision split', () => {
+  it('reserveSession inserts a provisioning row without spawning a container', async () => {
+    const { db, service, spawns, userId } = await setup();
+
+    const reservation = await service.reserveSession({ kind: SessionKind.INTERACTIVE, createdBy: userId('al') });
+
+    // Reserving alone spawns nothing — that's the point of the split: the interactive HTTP
+    // path can return this row while the container comes up later via provisionSession.
+    expect(spawns).toHaveLength(0);
+    expect(reservation.branch).toBe(`task/${reservation.id}`);
+    const [row] = await db.select().from(sessions).where(eq(sessions.id, reservation.id)).limit(1);
+    expect(row!.status).toBe(SessionStatus.PROVISIONING);
+    expect(row!.containerId).toBeNull();
+  });
+
+  it('provisionSession spawns and adopts the container for a reservation', async () => {
+    const { db, service, spawns, userId } = await setup();
+
+    const reservation = await service.reserveSession({ kind: SessionKind.INTERACTIVE, createdBy: userId('al') });
+    const result = await service.provisionSession(reservation);
+
+    expect(result.containerId).toBe('cid');
+    expect(spawns).toHaveLength(1);
+    const [row] = await db.select().from(sessions).where(eq(sessions.id, reservation.id)).limit(1);
+    expect(row!.containerId).toBe('cid');
+  });
+
+  it('provisionSession stamps FAILED, tears down worktrees, and rethrows when the spawner throws', async () => {
+    const { db, service, removeSessionWorktrees, userId } = await setup({
+      spawn: async () => {
+        throw new Error('boom');
+      },
+    });
+
+    const reservation = await service.reserveSession({ kind: SessionKind.INTERACTIVE, createdBy: userId('al') });
+    await expect(service.provisionSession(reservation)).rejects.toThrow('boom');
+
+    const [row] = await db.select().from(sessions).where(eq(sessions.id, reservation.id)).limit(1);
+    expect(row!.status).toBe(SessionStatus.FAILED);
+    expect(removeSessionWorktrees).toHaveBeenCalledWith(reservation.id);
+    const evs = await eventsFor(db, reservation.id);
+    expect(evs.some((e) => e.type === EventType.ERROR)).toBe(true);
+    expect(
+      evs.some((e) => e.type === EventType.STATUS && (e.payload as { status?: string }).status === SessionStatus.FAILED),
+    ).toBe(true);
+  });
+});

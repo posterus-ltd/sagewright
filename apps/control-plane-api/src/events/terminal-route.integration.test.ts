@@ -42,6 +42,14 @@ describe('terminal route (live websocket)', () => {
       await app.inject({ method: 'POST', url: '/api/tasks', headers: { cookie }, payload: {} })
     ).json();
 
+    // Interactive provisioning is async: the POST returns while the container is still
+    // coming up. Wait until it's adopted onto the row so the terminal route has a box to
+    // attach to before we open the socket.
+    await vi.waitFor(async () => {
+      const res = await app.inject({ method: 'GET', url: `/api/tasks/${task.id}`, headers: { cookie } });
+      expect(res.json().containerId).toBe('test-container');
+    });
+
     return { port: addr.port, cookie, taskId: task.id, stream, exec, app };
   };
 

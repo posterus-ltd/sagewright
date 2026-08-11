@@ -129,8 +129,19 @@ export const useTasks = (mine: boolean) =>
 export const useTaskGraph = () =>
   useQuery({ queryKey: ['tasks', 'graph'], queryFn: () => apiClient.get<Session[]>('/api/tasks/graph'), refetchInterval: 5000 });
 
+// Poll only while a session is launching (queued/provisioning) so it advances to
+// running — and gains its real containerId — on the detail page and canvas widget, which
+// created it before its container was up. Once running, streaming/PTY takes over and we
+// stop polling, preserving the cheap fetch-once behavior for the rest of its life.
 export const useTask = (id: string) =>
-  useQuery({ queryKey: ['task', id], queryFn: () => apiClient.get<Session>(`/api/tasks/${id}`) });
+  useQuery({
+    queryKey: ['task', id],
+    queryFn: () => apiClient.get<Session>(`/api/tasks/${id}`),
+    refetchInterval: (query) => {
+      const status = query.state.data?.status;
+      return status === SessionStatus.QUEUED || status === SessionStatus.PROVISIONING ? 1500 : false;
+    },
+  });
 
 // Repos carry live reconcile status; poll faster while any clone is in flight.
 export const useRepos = () =>
@@ -171,7 +182,13 @@ export const useCreateSession = () => {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (input: CreateSessionInput = {}) => apiClient.post<Session>('/api/tasks', input),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['tasks'] }),
+    // The session comes back already launching (queued/provisioning); seed the detail-page
+    // cache so navigating to it (or dropping its canvas widget) shows the launching state
+    // with no fetch flash, then poll it to running via useTask's refetchInterval.
+    onSuccess: (task) => {
+      qc.setQueryData(['task', task.id], task);
+      void qc.invalidateQueries({ queryKey: ['tasks'] });
+    },
   });
 };
 

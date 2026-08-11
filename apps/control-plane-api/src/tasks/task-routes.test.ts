@@ -186,11 +186,15 @@ describe('task routes', () => {
     });
 
     const task = await service.create({}, userId('al'));
-    expect(task.status).toBe(SessionStatus.RUNNING);
+    // Interactive create returns as soon as the row is reserved; the container comes up
+    // in the background, so the session is still provisioning at this point.
+    expect(task.status).toBe(SessionStatus.PROVISIONING);
     expect(task.kind).toBe('interactive');
     expect(task.prompt).toBeNull();
-    expect(addSessionWorktrees).toHaveBeenCalledOnce();
-    expect(spawn).toHaveBeenCalledOnce();
+    await vi.waitFor(() => {
+      expect(addSessionWorktrees).toHaveBeenCalledOnce();
+      expect(spawn).toHaveBeenCalledOnce();
+    });
   });
 
   it('uses the resolved GitHub credential for worktrees and runner env', async () => {
@@ -208,8 +212,11 @@ describe('task routes', () => {
 
     await service.create({}, userId('al'));
 
-    expect(addSessionWorktrees).toHaveBeenCalledWith(expect.any(String), [], 'resolved-token');
-    expect(spawn.mock.calls[0]![0].userEnv).toMatchObject({ GITHUB_TOKEN: 'resolved-token', OTHER: 'ok' });
+    // Interactive provisioning runs in the background — wait for the spawn to land.
+    await vi.waitFor(() => {
+      expect(addSessionWorktrees).toHaveBeenCalledWith(expect.any(String), [], 'resolved-token');
+      expect(spawn.mock.calls[0]![0].userEnv).toMatchObject({ GITHUB_TOKEN: 'resolved-token', OTHER: 'ok' });
+    });
   });
 
   it('creates a headless task from the scheduler with a prompt', async () => {
@@ -250,16 +257,21 @@ describe('task routes', () => {
       volume: fakeVolume({ removeSessionWorktrees }),
     });
 
-    await expect(service.create({}, userId('al'))).rejects.toThrow('docker unavailable');
-    expect(removeSessionWorktrees).toHaveBeenCalledOnce();
+    // Interactive create returns immediately (provisioning); the spawn error surfaces in
+    // the background as a FAILED session with an ERROR/STATUS event — not a rejected create.
+    const task = await service.create({}, userId('al'));
+    expect(task.status).toBe(SessionStatus.PROVISIONING);
 
-    const [taskRow] = await (db as never as import('drizzle-orm/node-postgres').NodePgDatabase<typeof import('../db/schema')>)
-      .select().from(sessions).orderBy(sessions.createdAt);
-    expect(taskRow!.status).toBe(SessionStatus.FAILED);
+    await vi.waitFor(async () => {
+      expect(removeSessionWorktrees).toHaveBeenCalledOnce();
+      const [taskRow] = await (db as never as import('drizzle-orm/node-postgres').NodePgDatabase<typeof import('../db/schema')>)
+        .select().from(sessions).orderBy(sessions.createdAt);
+      expect(taskRow!.status).toBe(SessionStatus.FAILED);
 
-    const allEvents = await eventStore.readSince(taskRow!.id, 0);
-    const statusEvent = allEvents.find((e) => e.type === EventType.STATUS);
-    expect((statusEvent!.payload as { status: string }).status).toBe(SessionStatus.FAILED);
+      const allEvents = await eventStore.readSince(task.id, 0);
+      const statusEvent = allEvents.find((e) => e.type === EventType.STATUS);
+      expect((statusEvent!.payload as { status: string }).status).toBe(SessionStatus.FAILED);
+    });
   });
 
   it('archives a session by stamping archivedAt without removing the row', async () => {
@@ -293,6 +305,12 @@ describe('task routes', () => {
     });
 
     const task = await service.create({}, userId('al'));
+    // Interactive provisioning is async; wait until the container is adopted onto the row
+    // so remove() has a containerId to retire.
+    await vi.waitFor(async () => {
+      const [r] = await db.select().from(sessions).where(eq(sessions.id, task.id));
+      expect(r!.containerId).toBe('c1');
+    });
     await eventStore.append(task.id, [{ type: EventType.LOG, payload: { line: 'hi' } }]);
 
     await service.remove(task.id);
@@ -344,7 +362,7 @@ describe('task routes', () => {
     expect(await db.select().from(sessions).where(eq(sessions.id, row!.id))).toHaveLength(1);
   });
 
-  it('POST /api/tasks returns 201 with createdBy and status=running', async () => {
+  it('POST /api/tasks returns 201 with createdBy and status=provisioning', async () => {
     const { app } = await makeTestApp();
     const cookie = (
       await app.inject({ method: 'POST', url: '/api/login', payload: { username: 'alice', password: 'pw' } })
@@ -353,10 +371,12 @@ describe('task routes', () => {
 
     const res = await app.inject({ method: 'POST', url: '/api/tasks', headers, payload: {} });
 
+    // Interactive create responds as soon as the row is reserved — the container is still
+    // coming up in the background, so the freshly created session reads as provisioning.
     expect(res.statusCode).toBe(201);
     const task = res.json();
     expect(task.createdByName).toBe('alice');
-    expect(task.status).toBe(SessionStatus.RUNNING);
+    expect(task.status).toBe(SessionStatus.PROVISIONING);
   });
 
   it('explicit runnerImage in request wins and is persisted on the task', async () => {
@@ -376,7 +396,8 @@ describe('task routes', () => {
     expect(res.statusCode).toBe(201);
     const task = res.json();
     expect(task.runnerImage).toBe('w');
-    expect(spawnCalls[0]?.runnerImage).toBe('w');
+    // Spawn happens during background provisioning for interactive sessions.
+    await vi.waitFor(() => expect(spawnCalls[0]?.runnerImage).toBe('w'));
   });
 
   it('uses stored default runner when no runnerImage in request', async () => {
@@ -405,8 +426,8 @@ describe('task routes', () => {
     const res = await app.inject({ method: 'POST', url: '/api/tasks', headers, payload: {} });
 
     expect(res.statusCode).toBe(201);
-    expect(spawnCalls[0]?.runnerImage).toBe('w2');
     expect(res.json().runnerImage).toBe('w2');
+    await vi.waitFor(() => expect(spawnCalls[0]?.runnerImage).toBe('w2'));
   });
 
   it('falls back to config runnerImage when no request or stored default', async () => {
@@ -425,11 +446,11 @@ describe('task routes', () => {
 
     expect(res.statusCode).toBe(201);
     // config RUNNER_IMAGE='w' is the fallback in makeTestApp
-    expect(spawnCalls[0]?.runnerImage).toBe('w');
     expect(res.json().runnerImage).toBe('w');
+    await vi.waitFor(() => expect(spawnCalls[0]?.runnerImage).toBe('w'));
   });
 
-  it('rejects an unknown runnerImage and does not call spawn', async () => {
+  it('surfaces an unknown runnerImage as a FAILED session without calling spawn', async () => {
     const spawnCalls: import('../tasks/runner-spawner').SpawnInput[] = [];
     const capturingSpawner = {
       spawn: async (i: import('../tasks/runner-spawner').SpawnInput) => { spawnCalls.push(i); return { containerId: 'cap-c4' }; },
@@ -443,16 +464,18 @@ describe('task routes', () => {
 
     const res = await app.inject({ method: 'POST', url: '/api/tasks', headers, payload: { runnerImage: 'evil:latest' } });
 
-    // create() throws → Fastify surfaces as 500
-    expect(res.statusCode).toBe(500);
-    expect(spawnCalls).toHaveLength(0);
+    // Interactive create responds 201 immediately; the bad image is rejected during
+    // background provisioning, which settles the row FAILED without ever spawning — the
+    // failed attempt is still visible in the session list rather than vanishing silently.
+    expect(res.statusCode).toBe(201);
 
-    // The row is still persisted as FAILED so the failed attempt is visible in the
-    // session list — the symptom that made scheduled runs vanish silently.
-    const [taskRow] = await (db as never as import('drizzle-orm/node-postgres').NodePgDatabase<typeof import('../db/schema')>)
-      .select().from(sessions).orderBy(sessions.createdAt);
-    expect(taskRow!.status).toBe(SessionStatus.FAILED);
-    expect(taskRow!.runnerImage).toBe('evil:latest');
+    await vi.waitFor(async () => {
+      const [taskRow] = await (db as never as import('drizzle-orm/node-postgres').NodePgDatabase<typeof import('../db/schema')>)
+        .select().from(sessions).orderBy(sessions.createdAt);
+      expect(taskRow!.status).toBe(SessionStatus.FAILED);
+      expect(taskRow!.runnerImage).toBe('evil:latest');
+    });
+    expect(spawnCalls).toHaveLength(0);
   });
 
   it('listGraph returns every session including workflow parents and steps', async () => {

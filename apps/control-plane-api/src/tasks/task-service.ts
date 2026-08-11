@@ -95,9 +95,9 @@ export const createTaskService = (deps: TaskServiceDeps) => {
           : SessionKind.INTERACTIVE;
     const mode: SessionMode = modeForKind(kind);
 
-    // Provisioning (insert, image validation, env, worktrees, spawn, FAILED-on-throw)
-    // is owned by the single session seam; here we only attach the drive policy.
-    const { id, containerId, sessionDir: dir, manifest, githubCredential } = await deps.sessionService.spawnSession({
+    // Provisioning (insert, image validation, env, worktrees, spawn, FAILED-on-throw) is
+    // owned by the single session seam; here we only attach the drive policy.
+    const spawnInput = {
       kind,
       createdBy,
       prompt: input.prompt ?? null,
@@ -106,7 +106,41 @@ export const createTaskService = (deps: TaskServiceDeps) => {
       runnerImage: input.runnerImage,
       scheduledPromptId: opts.scheduledPromptId,
       parentSessionId: opts.parentSessionId,
-    });
+    };
+
+    // Interactive sessions have a human waiting on the browser, so return as soon as the
+    // row is reserved (status PROVISIONING, no container yet) and bring the container up in
+    // the background: the client polls the row to RUNNING and its panel shows a "launching"
+    // state meanwhile. provisionSession owns the FAILED-on-throw contract, so a bring-up
+    // failure settles the row FAILED (with an ERROR event) on its own — we only need to
+    // start the persistent agent runtime once the box is actually up.
+    if (mode === SessionMode.INTERACTIVE) {
+      const reservation = await deps.sessionService.reserveSession(spawnInput);
+      const [reserved] = await deps.db
+        .select()
+        .from(sessions)
+        .leftJoin(users, eq(sessions.createdBy, users.id))
+        .where(eq(sessions.id, reservation.id))
+        .limit(1);
+      void deps.sessionService
+        .provisionSession(reservation)
+        .then(({ containerId, manifest, sessionDir: dir, githubCredential }) =>
+          deps.sessionRuntime.start({
+            sessionId: reservation.id,
+            containerId,
+            manifest,
+            sessionDir: dir,
+            githubIdentity: githubCredential,
+          }),
+        )
+        .catch(() => undefined);
+      return joinedToSession(reserved!);
+    }
+
+    // Headless and shell runs have no browser blocked on them, so they provision
+    // synchronously — the box must be up before we can drive the agent or launch the CLI.
+    const { id, containerId, sessionDir: dir, manifest, githubCredential } =
+      await deps.sessionService.spawnSession(spawnInput);
     const [row] = await deps.db
       .select()
       .from(sessions)
@@ -139,25 +173,19 @@ export const createTaskService = (deps: TaskServiceDeps) => {
       return { ...joinedToSession(row!), status: SessionStatus.RUNNING };
     }
 
-    if (mode === SessionMode.HEADLESS) {
-      // The box is up; drive the agent over `docker exec` and stream it as the transcript.
-      // Fire-and-forget: the run owns its own status/PR events; surface a crash as FAILED.
-      void deps.agentDriver
-        .run({ taskId: id, containerId, manifest, sessionDir: dir, githubIdentity: githubCredential })
-        .catch(async (err) => {
-          await emit(id, [
-            { type: EventType.ERROR, payload: { message: String(err) } },
-            { type: EventType.STATUS, payload: { status: SessionStatus.FAILED } },
-          ]);
-          await deps.db.update(sessions).set({ status: SessionStatus.FAILED, endedAt: new Date() }).where(eq(sessions.id, id));
-        });
-      return { ...joinedToSession(row!), status: SessionStatus.RUNNING };
-    }
-
-    // Interactive: bring up the persistent agent runtime. Its first turn streams to the
-    // durable event log AND to any attached socket, and the agent's life is decoupled from
-    // the browser — closing the tab leaves it DETACHED and resumable, not destroyed.
-    deps.sessionRuntime.start({ sessionId: id, containerId, manifest, sessionDir: dir, githubIdentity: githubCredential });
+    // Headless (scheduled / workflow step / agent-spawned child): the box is up; drive the
+    // agent over `docker exec` and stream it as the transcript. Fire-and-forget — the run
+    // owns its own status/PR events; surface a crash as FAILED. This is the only mode left
+    // once interactive and shell have returned above.
+    void deps.agentDriver
+      .run({ taskId: id, containerId, manifest, sessionDir: dir, githubIdentity: githubCredential })
+      .catch(async (err) => {
+        await emit(id, [
+          { type: EventType.ERROR, payload: { message: String(err) } },
+          { type: EventType.STATUS, payload: { status: SessionStatus.FAILED } },
+        ]);
+        await deps.db.update(sessions).set({ status: SessionStatus.FAILED, endedAt: new Date() }).where(eq(sessions.id, id));
+      });
     return { ...joinedToSession(row!), status: SessionStatus.RUNNING };
   };
 

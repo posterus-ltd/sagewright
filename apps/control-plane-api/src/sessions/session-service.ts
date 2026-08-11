@@ -87,6 +87,20 @@ export interface SpawnSessionResult {
   githubCredential?: ResolvedGithubCredential;
 }
 
+/** A session row reserved (inserted + flipped to PROVISIONING) but not yet spawned.
+ *  Carries everything `provisionSession` needs so the heavy container bring-up can run
+ *  after the caller has already returned the row (e.g. an interactive HTTP response). */
+export interface SessionReservation {
+  id: string;
+  createdBy: string;
+  origin: SessionOrigin;
+  runnerImage: string;
+  mode: SessionMode;
+  prompt: string | null;
+  branch: string;
+  worktrees?: { sessionDir: string; manifest: RepoManifestEntry[] };
+}
+
 // Parse the requester's stored blob and drop operational keys so a user's `.env`
 // can't hijack the runner token or repoint the control plane.
 const resolveUserEnv = async (
@@ -113,7 +127,12 @@ export const createSessionService = (deps: SessionServiceDeps) => {
     for (const e of appended) deps.eventBus.publish(sessionId, e);
   };
 
-  const spawnSession = async (input: SpawnSessionInput): Promise<SpawnSessionResult> => {
+  // Reserve a session row without provisioning it: the cheap prefix that gives a caller
+  // an id (and a returnable row) immediately, so an interactive HTTP request can respond
+  // before the multi-second container bring-up. Inserting up front also means every
+  // downstream failure leaves a visible FAILED session rather than throwing before any
+  // row exists — which is invisible to callers like the scheduler.
+  const reserveSession = async (input: SpawnSessionInput): Promise<SessionReservation> => {
     const mode = modeForKind(input.kind);
     const prompt = input.prompt ?? null;
 
@@ -125,9 +144,6 @@ export const createSessionService = (deps: SessionServiceDeps) => {
       input.runnerImage ??
       (input.kind === SessionKind.SHELL ? deps.config.cliRunnerImage : stored ?? deps.config.runnerImage);
 
-    // Insert the row up front so every failure path below leaves a visible FAILED
-    // session (with the reason in its transcript) rather than throwing before any
-    // row exists — which is invisible to callers like the scheduler.
     const [row] = await deps.db
       .insert(sessions)
       .values({
@@ -150,6 +166,24 @@ export const createSessionService = (deps: SessionServiceDeps) => {
     const branch = input.branch ?? `task/${row.id}`;
     await deps.db.update(sessions).set({ status: SessionStatus.PROVISIONING, branch }).where(eq(sessions.id, row.id));
 
+    return {
+      id: row.id,
+      createdBy: input.createdBy,
+      origin: row.origin as SessionOrigin,
+      runnerImage,
+      mode,
+      prompt,
+      branch,
+      worktrees: input.worktrees,
+    };
+  };
+
+  // The heavy half: validate image → resolve env → materialise worktrees → spawn →
+  // adopt the container. Owns the FAILED-on-throw contract (cleanup worktrees, flip the
+  // row FAILED from a non-terminal state, emit ERROR+STATUS, rethrow). Safe to run
+  // detached from the request that reserved the session.
+  const provisionSession = async (reservation: SessionReservation): Promise<SpawnSessionResult> => {
+    const { id, createdBy, origin, runnerImage, mode, prompt, branch, worktrees } = reservation;
     try {
       // Reject an unknown user-chosen image (security: can't spawn an arbitrary image). The operator's
       // config default is trusted and skips this check so the default path never breaks when no images
@@ -164,34 +198,34 @@ export const createSessionService = (deps: SessionServiceDeps) => {
       // The requester's stored env overrides the runner's baked secrets AND the
       // runner image defaults. GitHub auth is resolved structurally so the same
       // user credential drives control-plane git, runner git/gh, and PR commits.
-      const userEnv = await resolveUserEnv(deps.userEnvService, input.createdBy);
-      const githubCredential = await deps.githubCredentialService.resolve(input.createdBy);
+      const userEnv = await resolveUserEnv(deps.userEnvService, createdBy);
+      const githubCredential = await deps.githubCredentialService.resolve(createdBy);
       if (githubCredential) userEnv.GITHUB_TOKEN = githubCredential.token;
 
       // Standalone sessions materialise their own per-session worktrees; a workflow
       // step reuses the run's one shared worktree (passed in) so code carries over.
-      let dir = input.worktrees?.sessionDir ?? sessionDir(row.id);
-      let manifest = input.worktrees?.manifest;
+      let dir = worktrees?.sessionDir ?? sessionDir(id);
+      let manifest = worktrees?.manifest;
       if (!manifest) {
         // Standalone sessions always branch as `task/<id>` — which is exactly the
         // volume's default — so we don't pass `branch` here; the workflow-step path
         // (which needs `workflow/<runId>`) supplies its own pre-made worktrees above.
-        const configured = await deps.db.select().from(repos).where(eq(repos.userId, input.createdBy));
+        const configured = await deps.db.select().from(repos).where(eq(repos.userId, createdBy));
         manifest = await deps.volume.addSessionWorktrees(
-          row.id,
+          id,
           configured.map((r) => ({ url: r.url, slug: r.slug })),
           githubCredential?.token,
         );
-        dir = sessionDir(row.id);
+        dir = sessionDir(id);
       }
 
       // Mint a session-scoped MCP bearer so the agent can call the /mcp tools back as
       // this session's user (spawn children, schedule jobs, create workflows). Scoped to
       // this exact session id, which becomes the parent of anything it spawns.
-      const mcpToken = await deps.mcpToken.sign({ userId: input.createdBy, sessionId: row.id });
+      const mcpToken = await deps.mcpToken.sign({ userId: createdBy, sessionId: id });
 
       const { containerId } = await deps.spawner.spawn({
-        taskId: row.id,
+        taskId: id,
         mode,
         prompt: prompt ?? undefined,
         manifest,
@@ -208,29 +242,29 @@ export const createSessionService = (deps: SessionServiceDeps) => {
       const adopted = await deps.db
         .update(sessions)
         .set({ containerId })
-        .where(and(eq(sessions.id, row.id), eq(sessions.status, SessionStatus.PROVISIONING)))
+        .where(and(eq(sessions.id, id), eq(sessions.status, SessionStatus.PROVISIONING)))
         .returning();
       if (!adopted.length) {
         await deps.spawner.retire(containerId).catch(() => undefined);
-        throw new Error(`session ${row.id} settled during provisioning`);
+        throw new Error(`session ${id} settled during provisioning`);
       }
 
-      return { id: row.id, containerId, branch, sessionDir: dir, manifest, mode, githubCredential };
+      return { id, containerId, branch, sessionDir: dir, manifest, mode, githubCredential };
     } catch (err) {
-      await deps.volume.removeSessionWorktrees(row.id).catch(() => undefined);
+      await deps.volume.removeSessionWorktrees(id).catch(() => undefined);
       // Flip to FAILED only from a non-terminal state so a user's STOPPED (or another
       // settled outcome) is never overwritten; emit the failure events only when the
       // flip actually happened, keeping the transcript consistent with the row.
       // A delegated (agent-spawned) session archives itself the moment it settles, so a
       // short-lived one leaves a trace in history without cluttering the active list.
-      const archiveStamp = row.origin === SessionOrigin.AGENT ? { archivedAt: new Date() } : {};
+      const archiveStamp = origin === SessionOrigin.AGENT ? { archivedAt: new Date() } : {};
       const flipped = await deps.db
         .update(sessions)
         .set({ status: SessionStatus.FAILED, ...archiveStamp })
-        .where(and(eq(sessions.id, row.id), notInArray(sessions.status, [...TERMINAL_STATUSES])))
+        .where(and(eq(sessions.id, id), notInArray(sessions.status, [...TERMINAL_STATUSES])))
         .returning();
       if (flipped.length) {
-        await emit(row.id, [
+        await emit(id, [
           { type: EventType.ERROR, payload: { message: String(err) } },
           { type: EventType.STATUS, payload: { status: SessionStatus.FAILED } },
         ]);
@@ -238,6 +272,12 @@ export const createSessionService = (deps: SessionServiceDeps) => {
       throw err;
     }
   };
+
+  // The single seam every synchronous run path goes through: reserve then provision in
+  // one awaited call. The interactive HTTP path instead calls the two halves separately
+  // so it can return the reserved row before provisioning finishes.
+  const spawnSession = async (input: SpawnSessionInput): Promise<SpawnSessionResult> =>
+    provisionSession(await reserveSession(input));
 
   /** Rebuild an interactive session's runtime input from persistent state so a
    *  DETACHED session survives a control-plane restart: the container id comes from
@@ -269,7 +309,7 @@ export const createSessionService = (deps: SessionServiceDeps) => {
     };
   };
 
-  return { spawnSession, hydrateSession };
+  return { spawnSession, reserveSession, provisionSession, hydrateSession };
 };
 
 export type SessionService = ReturnType<typeof createSessionService>;

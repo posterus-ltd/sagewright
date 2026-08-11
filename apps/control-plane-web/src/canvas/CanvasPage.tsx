@@ -7,7 +7,12 @@ import {
   Typography,
   useTheme,
 } from '@mui/material';
-import { sessionLabel, type CanvasLayoutResponse, type Session, type SessionPlacement } from '@sagewright/shared';
+import {
+  sessionLabel,
+  type CanvasLayoutResponse,
+  type Session,
+  type SessionPlacement,
+} from '@sagewright/shared';
 import {
   Background,
   Controls,
@@ -123,7 +128,9 @@ const CanvasBoard: FC<BoardProps> = ({ serverLayout, tasks }) => {
       savedSignaturesRef.current.add(sig);
       if (savedSignaturesRef.current.size > 20) {
         // Bound the memory of echoes to the most recent handful of saves.
-        savedSignaturesRef.current = new Set([...savedSignaturesRef.current].slice(-10));
+        savedSignaturesRef.current = new Set(
+          [...savedSignaturesRef.current].slice(-10),
+        );
       }
       updateLayout.mutate(layout);
     }, SAVE_DEBOUNCE_MS);
@@ -137,7 +144,9 @@ const CanvasBoard: FC<BoardProps> = ({ serverLayout, tasks }) => {
   // pending, so we never fight the user's in-flight edit; the next poll re-evaluates.
   useEffect(() => {
     const serverSig = placementsSignature(serverLayout.placements);
-    const localSig = placementsSignature(buildLayout(nodesRef.current, getViewport()).placements);
+    const localSig = placementsSignature(
+      buildLayout(nodesRef.current, getViewport()).placements,
+    );
     if (serverSig === localSig) return; // already in sync
     if (savedSignaturesRef.current.has(serverSig)) return; // our own save echoing back
     if (draggingRef.current || saveTimer.current) return; // don't interrupt an active edit
@@ -255,8 +264,12 @@ const CanvasBoard: FC<BoardProps> = ({ serverLayout, tasks }) => {
           nodes={nodes}
           edges={[]}
           onNodesChange={handleNodesChange}
-          onNodeDragStart={() => { draggingRef.current = true; }}
-          onNodeDragStop={() => { draggingRef.current = false; }}
+          onNodeDragStart={() => {
+            draggingRef.current = true;
+          }}
+          onNodeDragStop={() => {
+            draggingRef.current = false;
+          }}
           onMoveEnd={scheduleSave}
           defaultViewport={serverLayout.viewport}
           colorMode={theme.palette.mode}
@@ -271,10 +284,7 @@ const CanvasBoard: FC<BoardProps> = ({ serverLayout, tasks }) => {
 
           <Panel position="top-left">
             <Box sx={{ display: 'flex', gap: 1 }}>
-              <NewSessionButton
-                label="New session"
-                onCreated={(task) => addSession(task.id)}
-              />
+              <NewSessionButton onCreated={(task) => addSession(task.id)} />
               {addableSessions.length > 0 && (
                 <>
                   <Button

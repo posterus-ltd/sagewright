@@ -51,10 +51,34 @@ describe('SessionPanel', () => {
     vi.stubGlobal('EventSource', FakeEventSource as never);
   });
 
-  it('disables the terminals and explains why when the session has no running container', async () => {
+  it('shows a launching spinner while the session is queued/provisioning', async () => {
+    // The base fixture is 'queued': a just-created session hasn't got a container yet, so
+    // the body shows a launching spinner rather than the "no running container" note.
     vi.stubGlobal(
       'fetch',
       vi.fn(async () => new Response(JSON.stringify(task), { status: 200, headers: { 'content-type': 'application/json' } })),
+    );
+
+    render(<SessionPanel taskId="t1" />, { wrapper });
+
+    expect(await screen.findByText(/launching session/i)).toBeTruthy();
+    expect(screen.queryByText(/agent terminal is unavailable/i)).toBeNull();
+    // Stop still appears — a launching (non-terminal) session is stoppable.
+    expect(await screen.findByRole('button', { name: 'Stop' })).toBeTruthy();
+  });
+
+  it('disables the terminals and explains why when a running session has no container', async () => {
+    // A non-terminal session that isn't launching but has lost its container (e.g. running
+    // with the box gone) falls through to the unavailable note, not the launching spinner.
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        async () =>
+          new Response(JSON.stringify({ ...task, status: 'running' }), {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          }),
+      ),
     );
 
     render(<SessionPanel taskId="t1" />, { wrapper });

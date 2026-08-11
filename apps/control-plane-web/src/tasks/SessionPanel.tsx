@@ -3,6 +3,7 @@ import {
   Button,
   ButtonGroup,
   Chip,
+  CircularProgress,
   IconButton,
   Link as MuiLink,
   Stack,
@@ -66,7 +67,7 @@ export const SessionPanel: FC<{
   compact?: boolean;
   onStopped?: () => void;
 }> = ({ taskId, compact = false, onStopped }) => {
-  const { data: task } = useTask(taskId);
+  const { data: task, isLoading } = useTask(taskId);
   const { events } = useTaskStream(taskId);
   const stopTask = useStopTask();
   const { confirm } = useConfirmation();
@@ -130,6 +131,15 @@ export const SessionPanel: FC<{
 
   const live =
     !!task?.containerId && !TERMINAL_DEAD_STATUSES.includes(task.status);
+
+  // A just-created session is reserved before its container is up: it navigates here (or
+  // drops a canvas widget) immediately in queued/provisioning, then polls to running. Show
+  // a spinner while it launches — and while the first fetch is still in flight — instead of
+  // the "no running container" fallback, which only fits a finished/stopped session.
+  const launching =
+    isLoading ||
+    task?.status === SessionStatus.QUEUED ||
+    task?.status === SessionStatus.PROVISIONING;
 
   // Headless runs (scheduled tasks, workflow steps — anything but a canvas/sessions-page
   // session) are driven by the control plane and stream their PTY as the transcript;
@@ -329,53 +339,72 @@ export const SessionPanel: FC<{
         </Stack>
       )}
 
-      {current === TabValue.TRANSCRIPT && (
-        <TranscriptTerminal key={`${taskId}-transcript`} events={events} />
-      )}
-
-      {current === TabValue.AGENT &&
-        (live ? (
-          <Terminal
-            key={`${taskId}-agent`}
-            taskId={taskId}
-            kind={TerminalKind.AGENT}
-            events={events}
-            inputRef={terminalInputRef}
-          />
-        ) : (
-          <Typography color="text.secondary">
-            No running container — the agent terminal is unavailable.
-          </Typography>
-        ))}
-
-      {current === TabValue.SHELL &&
-        (live ? (
-          <Terminal
-            key={`${taskId}-shell`}
-            taskId={taskId}
-            kind={TerminalKind.SHELL}
-          />
-        ) : (
-          <Typography color="text.secondary">
-            No running container — the shell is unavailable.
-          </Typography>
-        ))}
-
-      {current === TabValue.LOG && (
+      {launching ? (
         <Box
           sx={{
-            fontFamily: 'monospace',
-            whiteSpace: 'pre-wrap',
-            maxHeight: '60vh',
-            overflow: 'auto',
+            flexGrow: 1,
+            minHeight: 0,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 2,
           }}
         >
-          {events.map((e) => (
-            <div key={e.seq}>
-              [{e.type}] {JSON.stringify(e.payload)}
-            </div>
-          ))}
+          <CircularProgress />
+          <Typography color="text.secondary">Launching session…</Typography>
         </Box>
+      ) : (
+        <>
+          {current === TabValue.TRANSCRIPT && (
+            <TranscriptTerminal key={`${taskId}-transcript`} events={events} />
+          )}
+
+          {current === TabValue.AGENT &&
+            (live ? (
+              <Terminal
+                key={`${taskId}-agent`}
+                taskId={taskId}
+                kind={TerminalKind.AGENT}
+                events={events}
+                inputRef={terminalInputRef}
+              />
+            ) : (
+              <Typography color="text.secondary">
+                No running container — the agent terminal is unavailable.
+              </Typography>
+            ))}
+
+          {current === TabValue.SHELL &&
+            (live ? (
+              <Terminal
+                key={`${taskId}-shell`}
+                taskId={taskId}
+                kind={TerminalKind.SHELL}
+              />
+            ) : (
+              <Typography color="text.secondary">
+                No running container — the shell is unavailable.
+              </Typography>
+            ))}
+
+          {current === TabValue.LOG && (
+            <Box
+              sx={{
+                fontFamily: 'monospace',
+                whiteSpace: 'pre-wrap',
+                maxHeight: '60vh',
+                overflow: 'auto',
+              }}
+            >
+              {events.map((e) => (
+                <div key={e.seq}>
+                  [{e.type}] {JSON.stringify(e.payload)}
+                </div>
+              ))}
+            </Box>
+          )}
+        </>
       )}
 
       {/* Headless runs and shell widgets have no agent PTY to drive, so no quick
