@@ -19,14 +19,14 @@ import { ResponsiveToggle } from '../components/ResponsiveToggle';
 import { buildSessionColumns } from './session-list-columns';
 
 enum SessionView {
-  ACTIVE = 'active',
-  ARCHIVED = 'archived',
+  ACTIVE = 'ACTIVE',
+  ARCHIVED = 'ARCHIVED',
 }
 
 enum SessionScope {
-  MINE = 'mine',
-  DELEGATED = 'delegated',
-  ALL = 'all',
+  MINE = 'MINE',
+  DELEGATED = 'DELEGATED',
+  ALL = 'ALL',
 }
 
 export const SessionsListPage: FC = () => {
