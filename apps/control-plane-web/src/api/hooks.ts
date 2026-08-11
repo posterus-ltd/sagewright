@@ -182,11 +182,19 @@ export const useCreateSession = () => {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (input: CreateSessionInput = {}) => apiClient.post<Session>('/api/tasks', input),
-    // The session comes back already launching (queued/provisioning); seed the detail-page
-    // cache so navigating to it (or dropping its canvas widget) shows the launching state
-    // with no fetch flash, then poll it to running via useTask's refetchInterval.
-    onSuccess: (task) => {
+    // The session comes back already launching (queued/provisioning). Seed the caches so the
+    // UI reflects it immediately: the detail page (['task', id]) shows the launching state
+    // with no fetch flash, and every task list (['tasks', …]) that feeds the sessions grid
+    // and the canvas gains the row right away. Seeding the list is what lets a freshly
+    // dropped canvas widget survive — the board prunes any node whose session isn't in the
+    // list, which otherwise wouldn't include this one until the next 5s refetch. Cancel any
+    // in-flight list fetch first so a stale response can't clobber the optimistic entry.
+    onSuccess: async (task) => {
       qc.setQueryData(['task', task.id], task);
+      await qc.cancelQueries({ queryKey: ['tasks'] });
+      qc.setQueriesData<Session[]>({ queryKey: ['tasks'] }, (old) =>
+        old && !old.some((t) => t.id === task.id) ? [task, ...old] : old,
+      );
       void qc.invalidateQueries({ queryKey: ['tasks'] });
     },
   });
