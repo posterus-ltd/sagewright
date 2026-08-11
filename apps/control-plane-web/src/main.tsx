@@ -1,8 +1,10 @@
 import '@fontsource-variable/inter';
 import '@fontsource-variable/jetbrains-mono';
 
+import CloseRounded from '@mui/icons-material/CloseRounded';
+import { IconButton } from '@mui/material';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { SnackbarProvider } from 'notistack';
+import { closeSnackbar, SnackbarProvider } from 'notistack';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 
@@ -20,7 +22,18 @@ createRoot(document.getElementById('root')!).render(
       <ThemeModeProvider>
         <ErrorBoundary>
           <QueryClientProvider client={queryClient}>
-            <SnackbarProvider>
+            <SnackbarProvider
+              action={(snackbarId) => (
+                <IconButton
+                  size="small"
+                  aria-label="Dismiss"
+                  onClick={() => closeSnackbar(snackbarId)}
+                  sx={{ color: 'inherit' }}
+                >
+                  <CloseRounded fontSize="small" />
+                </IconButton>
+              )}
+            >
               <ConfirmDialogProvider>
                 <AppRouter />
               </ConfirmDialogProvider>
