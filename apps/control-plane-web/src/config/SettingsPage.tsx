@@ -13,10 +13,11 @@ import { useSearchParams } from 'react-router';
 import { useMe } from '../api/hooks';
 import { MainContainer } from '../components/MainContainer';
 import {
-  SETTINGS_SECTIONS,
+  settingsSectionsFactory,
   SettingsSectionId,
   type SettingsSection,
 } from './settingsSections';
+import { useComponentTranslation } from '../i18n';
 
 const SECTION_PARAM = 'section';
 const NAV_WIDTH = 220;
@@ -25,11 +26,14 @@ export const SettingsPage: FC = () => {
   const { data: me } = useMe();
   const isAdmin = !!me && isAdminRole(me.role);
   const [searchParams, setSearchParams] = useSearchParams();
+  const { t } = useComponentTranslation('SettingsPage');
 
   // Non-admins never see admin-only sections — in the nav or by deep link.
   const sections = useMemo<SettingsSection[]>(
     () =>
-      SETTINGS_SECTIONS.filter((section) => !section.isAdminOnly || isAdmin),
+      settingsSectionsFactory(t).filter(
+        (section) => !section.isAdminOnly || isAdmin,
+      ),
     [isAdmin],
   );
 
@@ -60,7 +64,7 @@ export const SettingsPage: FC = () => {
         select
         fullWidth
         size="small"
-        label="Section"
+        label={t('section')}
         value={active.id}
         onChange={(e) => select(e.target.value as SettingsSectionId)}
         sx={{ display: { xs: 'flex', md: 'none' }, mb: 3 }}

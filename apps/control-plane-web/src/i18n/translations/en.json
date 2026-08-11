@@ -3,6 +3,16 @@
     "components": {
       "NewSessionButton": {
         "label": "New session"
+      },
+      "SettingsPage": {
+        "section": "Section",
+        "github": "GitHub",
+        "repositories": "Repositories",
+        "environment": "Environment",
+        "runner": "Default runner",
+        "mcp": "MCP access",
+        "credentials": "Credentials",
+        "users": "User management"
       }
     },
     "enums": {

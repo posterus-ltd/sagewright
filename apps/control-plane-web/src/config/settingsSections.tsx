@@ -4,7 +4,7 @@ import GitHubIcon from '@mui/icons-material/GitHub';
 import GroupIcon from '@mui/icons-material/Group';
 import KeyIcon from '@mui/icons-material/Key';
 import LockIcon from '@mui/icons-material/Lock';
-import SmartToyIcon from '@mui/icons-material/SmartToy';
+import TerminalIcon from '@mui/icons-material/Terminal';
 import SourceIcon from '@mui/icons-material/Source';
 import type { FC } from 'react';
 
@@ -36,46 +36,48 @@ export interface SettingsSection {
 }
 
 // The order here is the order shown in the left-hand nav.
-export const SETTINGS_SECTIONS: SettingsSection[] = [
+export const settingsSectionsFactory = (
+  t: (key: string) => string,
+): SettingsSection[] => [
   {
     id: SettingsSectionId.GITHUB,
-    label: 'GitHub',
+    label: t('github'),
     Icon: GitHubIcon,
     Component: GithubSection,
   },
   {
     id: SettingsSectionId.REPOSITORIES,
-    label: 'Repositories',
+    label: t('repositories'),
     Icon: SourceIcon,
     Component: ReposSection,
   },
   {
     id: SettingsSectionId.ENVIRONMENT,
-    label: 'Environment',
+    label: t('environment'),
     Icon: KeyIcon,
     Component: EnvironmentSection,
   },
   {
     id: SettingsSectionId.RUNNER,
-    label: 'Default runner',
-    Icon: SmartToyIcon,
+    label: t('runner'),
+    Icon: TerminalIcon,
     Component: RunnerSection,
   },
   {
     id: SettingsSectionId.MCP,
-    label: 'MCP access',
+    label: t('mcp'),
     Icon: ExtensionIcon,
     Component: McpSection,
   },
   {
     id: SettingsSectionId.CREDENTIALS,
-    label: 'Credentials',
+    label: t('credentials'),
     Icon: LockIcon,
     Component: ChangePasswordSection,
   },
   {
     id: SettingsSectionId.USERS,
-    label: 'User management',
+    label: t('users'),
     Icon: GroupIcon,
     Component: UserManagementSection,
     isAdminOnly: true,

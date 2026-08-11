@@ -1,4 +1,10 @@
-import { Box, FormControlLabel, Switch, TextField, Typography } from '@mui/material';
+import {
+  Box,
+  FormControlLabel,
+  Switch,
+  TextField,
+  Typography,
+} from '@mui/material';
 import { MAX_ACTIVE_SESSIONS_LIMIT } from '@sagewright/shared';
 import { useEffect, useState, type FC } from 'react';
 
@@ -33,18 +39,27 @@ export const McpSection: FC = () => {
 
   return (
     <>
-      <Typography variant="h6" gutterBottom>MCP access</Typography>
-      <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-        When enabled, your agents can call the control plane's MCP tools to spawn sessions, schedule
-        jobs, create workflows, and arrange your canvas on your behalf. Turn this off to block all MCP
-        access for your account — it takes effect on the next call.
+      <Typography variant="h6" gutterBottom>
+        MCP access
       </Typography>
-      <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 3 }}>
+      <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+        When enabled, your agents can call the control plane's MCP tools to
+        spawn sessions, schedule jobs, create workflows, and arrange your canvas
+        on your behalf. Turn this off to block all MCP access for your account —
+        it takes effect on the next call.
+      </Typography>
+      <Box
+        sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 3 }}
+      >
         <FormControlLabel
           control={
             <Switch
               checked={enabled}
-              onChange={(e) => { void updateSettings.mutateAsync({ mcpEnabled: e.target.checked }); }}
+              onChange={(e) => {
+                void updateSettings.mutateAsync({
+                  mcpEnabled: e.target.checked,
+                });
+              }}
               // Disabled until the current value has loaded, so the toggle never renders
               // a misleading "off" that a stray click would then persist.
               disabled={data === undefined || updateSettings.isPending}
@@ -55,14 +70,21 @@ export const McpSection: FC = () => {
         <TextField
           type="number"
           size="small"
-          label="Max active sessions"
+          label={`Max active sessions (1–${MAX_ACTIVE_SESSIONS_LIMIT})`}
           value={maxDraft}
           onChange={(e) => setMaxDraft(e.target.value)}
           onBlur={commitMax}
-          onKeyDown={(e) => { if (e.key === 'Enter') commitMax(); }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') commitMax();
+          }}
           disabled={data === undefined || !enabled}
-          helperText={`Cap on concurrent sessions your agents may spawn (1–${MAX_ACTIVE_SESSIONS_LIMIT}).`}
-          slotProps={{ htmlInput: { min: 1, max: MAX_ACTIVE_SESSIONS_LIMIT, 'aria-label': 'Max active sessions' } }}
+          slotProps={{
+            htmlInput: {
+              min: 1,
+              max: MAX_ACTIVE_SESSIONS_LIMIT,
+              'aria-label': 'Max active sessions',
+            },
+          }}
           sx={{ width: 220 }}
         />
       </Box>
