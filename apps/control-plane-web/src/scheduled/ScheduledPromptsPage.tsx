@@ -200,7 +200,7 @@ export const ScheduledPromptsPage: FC = () => {
           title="Scheduled tasks"
           actions={
             <Button variant="contained" onClick={() => setEditing('new')}>
-              New Session
+              New Task
             </Button>
           }
         />
