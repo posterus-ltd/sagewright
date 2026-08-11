@@ -1,9 +1,11 @@
 import { type ButtonProps } from '@mui/material';
 import { type Session } from '@sagewright/shared';
 import { type FC, type ReactNode } from 'react';
+import TerminalIcon from '@mui/icons-material/Terminal';
 
 import { useCreateSession, useRunners } from '../api/hooks';
 import { SplitButton } from './SplitButton';
+import { useComponentTranslation } from '../i18n';
 
 interface Props {
   onCreated: (task: Session) => void;
@@ -15,11 +17,12 @@ interface Props {
 
 export const NewSessionButton: FC<Props> = ({
   onCreated,
-  label = 'New session',
+  label,
   size,
   variant,
-  startIcon = undefined,
+  startIcon = <TerminalIcon />,
 }) => {
+  const { t } = useComponentTranslation('NewSessionButton');
   const { data } = useRunners();
   const runners = data?.runners ?? [];
   const defaultImage = data?.defaultImage ?? null;
@@ -34,7 +37,8 @@ export const NewSessionButton: FC<Props> = ({
   // The configured default only applies if it maps to a real, available image; otherwise the
   // first available runner leads. This avoids ever launching the operator fallback blindly when
   // its image isn't built (which would 404 at container create).
-  const primary = runners.find((w) => w.image === defaultImage) ?? runners[0] ?? null;
+  const primary =
+    runners.find((w) => w.image === defaultImage) ?? runners[0] ?? null;
   const rest = runners.filter((w) => w.image !== primary?.image);
 
   const options = (primary ? [primary, ...rest] : []).map((w) => ({
@@ -47,7 +51,7 @@ export const NewSessionButton: FC<Props> = ({
 
   return (
     <SplitButton
-      label={label}
+      label={label ?? t('label')}
       onPrimary={() => {
         if (primary) void create(primary.image);
       }}

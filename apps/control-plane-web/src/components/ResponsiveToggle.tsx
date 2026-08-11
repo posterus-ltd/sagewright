@@ -2,11 +2,7 @@ import { ToggleButton, ToggleButtonGroup } from '@mui/material';
 import { type ReactElement } from 'react';
 
 import { useResponsive } from '../common';
-
-export interface ToggleOption<T extends string> {
-  value: T;
-  label: string;
-}
+import { useEnumTranslation } from '../i18n';
 
 /**
  * Exclusive single-choice toggle. On wide viewports it renders a standard MUI
@@ -16,34 +12,38 @@ export interface ToggleOption<T extends string> {
  */
 export const ResponsiveToggle = <T extends string>({
   value,
-  options,
+  enumName,
+  enumType,
   onChange,
-  ariaLabel,
   size = 'small',
+  ariaLabel,
 }: {
   value: T;
-  options: readonly ToggleOption<T>[];
+  enumType: Record<string, T>;
+  enumName: string;
   onChange: (value: T) => void;
-  ariaLabel?: string;
   size?: 'small' | 'medium';
+  ariaLabel?: string;
 }): ReactElement => {
   const { dense } = useResponsive();
+  const { t } = useEnumTranslation(enumName);
+  const options = Object.values(enumType) as T[];
 
   if (dense) {
-    const found = options.findIndex((o) => o.value === value);
+    const found = options.findIndex((o) => o === value);
     const index = found >= 0 ? found : 0;
     const current = options[index];
     if (current == null) return <></>;
     const next = options[(index + 1) % options.length] ?? current;
     return (
       <ToggleButton
-        value={current.value}
+        value={current}
         selected
         size={size}
-        onClick={() => onChange(next.value)}
-        aria-label={ariaLabel}
+        onClick={() => onChange(next)}
+        aria-label={ariaLabel || t(current)}
       >
-        {current.label}
+        {t(current)}
       </ToggleButton>
     );
   }
@@ -54,11 +54,11 @@ export const ResponsiveToggle = <T extends string>({
       size={size}
       value={value}
       onChange={(_, v: T | null) => v != null && onChange(v)}
-      aria-label={ariaLabel}
+      aria-label={ariaLabel || t(value)}
     >
       {options.map((option) => (
-        <ToggleButton key={option.value} value={option.value}>
-          {option.label}
+        <ToggleButton key={option} value={option}>
+          {t(option)}
         </ToggleButton>
       ))}
     </ToggleButtonGroup>

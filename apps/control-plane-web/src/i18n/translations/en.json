@@ -1,0 +1,20 @@
+{
+  "webvibes": {
+    "components": {
+      "NewSessionButton": {
+        "label": "New session"
+      }
+    },
+    "enums": {
+      "SessionView": {
+        "ACTIVE": "Active",
+        "ARCHIVED": "Archived"
+      },
+      "SessionScope": {
+        "MINE": "Mine",
+        "DELEGATED": "Delegated",
+        "ALL": "All"
+      }
+    }
+  }
+}

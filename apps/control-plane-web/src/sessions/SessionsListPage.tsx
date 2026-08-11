@@ -15,12 +15,8 @@ import { useAuth } from '../auth/useAuth';
 import { Header } from '../components/Header';
 import { MainContainer } from '../components/MainContainer';
 import { NewSessionButton } from '../components/NewSessionButton';
-import {
-  ResponsiveToggle,
-  type ToggleOption,
-} from '../components/ResponsiveToggle';
+import { ResponsiveToggle } from '../components/ResponsiveToggle';
 import { buildSessionColumns } from './session-list-columns';
-import TerminalIcon from '@mui/icons-material/Terminal';
 
 enum SessionView {
   ACTIVE = 'active',
@@ -32,17 +28,6 @@ enum SessionScope {
   DELEGATED = 'delegated',
   ALL = 'all',
 }
-
-const VIEW_OPTIONS: readonly ToggleOption<SessionView>[] = [
-  { value: SessionView.ACTIVE, label: 'Active' },
-  { value: SessionView.ARCHIVED, label: 'Archived' },
-];
-
-const SCOPE_OPTIONS: readonly ToggleOption<SessionScope>[] = [
-  { value: SessionScope.MINE, label: 'Mine' },
-  { value: SessionScope.DELEGATED, label: 'Delegated' },
-  { value: SessionScope.ALL, label: 'All' },
-];
 
 export const SessionsListPage: FC = () => {
   const [scope, setScope] = useState<SessionScope>(SessionScope.MINE);
@@ -136,13 +121,15 @@ export const SessionsListPage: FC = () => {
             <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
               <ResponsiveToggle
                 value={view}
-                options={VIEW_OPTIONS}
+                enumType={SessionView}
+                enumName="SessionView"
                 onChange={setView}
                 ariaLabel="Session view"
               />
               <ResponsiveToggle
                 value={scope}
-                options={SCOPE_OPTIONS}
+                enumType={SessionScope}
+                enumName="SessionScope"
                 onChange={setScope}
                 ariaLabel="Session scope"
               />
@@ -151,7 +138,6 @@ export const SessionsListPage: FC = () => {
           actions={
             <NewSessionButton
               onCreated={(task) => navigate(`/tasks/${task.id}`)}
-              startIcon={<TerminalIcon />}
             />
           }
         />
