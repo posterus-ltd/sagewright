@@ -9,8 +9,9 @@ import {
   type ButtonProps,
 } from '@mui/material';
 import { Fragment, useState, type FC, type ReactNode } from 'react';
+import { useResponsive } from '../common';
 
-export interface SplitButtonOption {
+export interface MenuButtonConfig {
   id: string;
   label: string;
   description?: string;
@@ -22,7 +23,7 @@ export interface SplitButtonOption {
 export const SplitButton: FC<{
   label: string;
   onPrimary: () => void;
-  options: SplitButtonOption[];
+  options: MenuButtonConfig[];
   onSelect: (id: string) => void;
   startIcon?: ReactNode;
   disabled?: boolean;
@@ -40,11 +41,13 @@ export const SplitButton: FC<{
 }) => {
   const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null);
 
+  const { dense } = useResponsive();
+
   return (
     <>
       <ButtonGroup variant={variant} size={size} disabled={disabled}>
-        <Button startIcon={startIcon} onClick={onPrimary}>
-          {label}
+        <Button startIcon={startIcon} onClick={onPrimary} aria-label={label}>
+          {dense && !!startIcon ? '' : label}
         </Button>
         <Button
           aria-label="more options"

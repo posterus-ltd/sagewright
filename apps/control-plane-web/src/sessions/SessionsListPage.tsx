@@ -1,4 +1,4 @@
-import { Stack, ToggleButton, ToggleButtonGroup } from '@mui/material';
+import { Stack } from '@mui/material';
 import { DataGrid, type GridRowParams } from '@mui/x-data-grid';
 import { SessionOrigin, type Session } from '@sagewright/shared';
 import { useMemo, useState, type FC, type KeyboardEvent } from 'react';
@@ -15,7 +15,12 @@ import { useAuth } from '../auth/useAuth';
 import { Header } from '../components/Header';
 import { MainContainer } from '../components/MainContainer';
 import { NewSessionButton } from '../components/NewSessionButton';
+import {
+  ResponsiveToggle,
+  type ToggleOption,
+} from '../components/ResponsiveToggle';
 import { buildSessionColumns } from './session-list-columns';
+import TerminalIcon from '@mui/icons-material/Terminal';
 
 enum SessionView {
   ACTIVE = 'active',
@@ -27,6 +32,17 @@ enum SessionScope {
   DELEGATED = 'delegated',
   ALL = 'all',
 }
+
+const VIEW_OPTIONS: readonly ToggleOption<SessionView>[] = [
+  { value: SessionView.ACTIVE, label: 'Active' },
+  { value: SessionView.ARCHIVED, label: 'Archived' },
+];
+
+const SCOPE_OPTIONS: readonly ToggleOption<SessionScope>[] = [
+  { value: SessionScope.MINE, label: 'Mine' },
+  { value: SessionScope.DELEGATED, label: 'Delegated' },
+  { value: SessionScope.ALL, label: 'All' },
+];
 
 export const SessionsListPage: FC = () => {
   const [scope, setScope] = useState<SessionScope>(SessionScope.MINE);
@@ -51,7 +67,11 @@ export const SessionsListPage: FC = () => {
             ? t.archivedAt !== null
             : t.archivedAt === null,
         )
-        .filter((t) => scope !== SessionScope.DELEGATED || t.origin === SessionOrigin.AGENT),
+        .filter(
+          (t) =>
+            scope !== SessionScope.DELEGATED ||
+            t.origin === SessionOrigin.AGENT,
+        ),
     [tasks, view, scope],
   );
 
@@ -99,16 +119,7 @@ export const SessionsListPage: FC = () => {
         onDelete: deleteTask.mutate,
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [
-      view,
-      scope,
-      userId,
-      renamingId,
-      draft,
-      archiveTask,
-      stopTask,
-      deleteTask,
-    ],
+    [view, scope, userId, renamingId, draft, archiveTask, stopTask, deleteTask],
   );
 
   // Clicking a row opens the session, except while renaming it inline.
@@ -123,36 +134,24 @@ export const SessionsListPage: FC = () => {
         <Header
           title={
             <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
-              <ToggleButtonGroup
-                exclusive
-                size="small"
+              <ResponsiveToggle
                 value={view}
-                onChange={(_, v: SessionView | null) => v && setView(v)}
-                aria-label="Session scope"
-              >
-                <ToggleButton value={SessionView.ACTIVE}>Active</ToggleButton>
-                <ToggleButton value={SessionView.ARCHIVED}>
-                  Archived
-                </ToggleButton>
-              </ToggleButtonGroup>
-              <ToggleButtonGroup
-                exclusive
-                size="small"
+                options={VIEW_OPTIONS}
+                onChange={setView}
+                ariaLabel="Session view"
+              />
+              <ResponsiveToggle
                 value={scope}
-                onChange={(_, v: SessionScope | null) => v && setScope(v)}
-                aria-label="Session scope"
-              >
-                <ToggleButton value={SessionScope.MINE}>Mine</ToggleButton>
-                <ToggleButton value={SessionScope.DELEGATED}>
-                  Delegated
-                </ToggleButton>
-                <ToggleButton value={SessionScope.ALL}>All</ToggleButton>
-              </ToggleButtonGroup>
+                options={SCOPE_OPTIONS}
+                onChange={setScope}
+                ariaLabel="Session scope"
+              />
             </Stack>
           }
           actions={
             <NewSessionButton
               onCreated={(task) => navigate(`/tasks/${task.id}`)}
+              startIcon={<TerminalIcon />}
             />
           }
         />
