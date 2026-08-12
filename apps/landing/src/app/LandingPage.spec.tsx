@@ -62,7 +62,7 @@ describe('LandingPage', () => {
     expect(
       getByText(/within reach of small teams and solo builders/i),
     ).toBeTruthy();
-    expect(getAllByText(/AI-native SDLC/i)).toHaveLength(2);
+    expect(getAllByText(/AI-native SDLC/i)).toHaveLength(1);
   });
 
   it('ranks audiences, placing the three sweet spots and flanking weaker fits', () => {

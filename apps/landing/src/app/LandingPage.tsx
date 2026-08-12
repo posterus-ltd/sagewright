@@ -38,7 +38,7 @@ const FEATURES: readonly Feature[] = [
     icon: '⏻',
     tag: 'remote',
     title: 'runs remotely — laptop closed, still shipping',
-    body: 'Agents run in remote containers, not on your machine. Close the lid and walk away — work keeps running, and you reconnect from any device.',
+    body: 'Agents run in remote containers on a backend you host yourself — not on your laptop, and not in someone else’s cloud. Close the lid and walk away — work keeps running, and you reconnect from any device.',
   },
   {
     icon: '▶',
@@ -512,21 +512,23 @@ const CopyCommand: FC<{ command: string; className?: string }> = ({
     );
   };
   return (
-    <div className={className ? `install ${className}` : 'install'}>
-      <code className="install__cmd">
-        <span className="install__sigil" aria-hidden="true">
-          ❯
-        </span>{' '}
-        {command}
-      </code>
-      <button
-        type="button"
-        className="install__copy"
-        onClick={copy}
-        aria-label="Copy install command to clipboard"
-      >
-        {copied ? 'copied ✓' : 'copy'}
-      </button>
+    <div className={className ? `install-block ${className}` : 'install-block'}>
+      <div className="install">
+        <code className="install__cmd">
+          <span className="install__sigil" aria-hidden="true">
+            ❯
+          </span>{' '}
+          {command}
+        </code>
+        <button
+          type="button"
+          className="install__copy"
+          onClick={copy}
+          aria-label="Copy install command to clipboard"
+        >
+          {copied ? 'copied ✓' : 'copy'}
+        </button>
+      </div>
     </div>
   );
 };
@@ -590,323 +592,313 @@ export const LandingPage: FC = () => {
         <TryBanner onDismiss={() => setDismissed(true)} />
       )}
       <main className="page">
-      <Window title={WINDOW_TITLE}>
-        <pre className="banner" aria-label="Sagewright">
-          <span className="banner__sage">{SAGE_BANNER}</span>
-          <span className="banner__wright">{WRIGHT_BANNER}</span>
-        </pre>
+        <Window title={WINDOW_TITLE}>
+          <pre className="banner" aria-label="Sagewright">
+            <span className="banner__sage">{SAGE_BANNER}</span>
+            <span className="banner__wright">{WRIGHT_BANNER}</span>
+          </pre>
 
-        <p className="prompt">
-          <span className="prompt__sigil">❯</span> craftsman of wisdom · builder
-          of knowledge
-          <span className="cursor" aria-hidden="true">
-            █
-          </span>
-        </p>
+          <p className="prompt">
+            <span className="prompt__sigil">❯</span> craftsman of wisdom ·
+            builder of knowledge
+            <span className="cursor" aria-hidden="true">
+              █
+            </span>
+          </p>
 
-        <p className="tagline">
-          Agentic coding today is ad hoc: everyone runs their own agent on a
-          laptop propped open so it won't sleep — hit-or-miss, nothing shared
-          across the team, a different vendor lock-in behind every tool.
-        </p>
+          <p className="tagline">
+            Agentic coding today is ad hoc: everyone runs their own agent on a
+            laptop propped open so it won't sleep — hit-or-miss, nothing shared
+            across the team, a different vendor lock-in behind every tool.
+          </p>
 
-        <p className="tagline">
-          Sagewright runs a fleet of agents in parallel on remote infra — no
-          local terminals to juggle. The control plane is a{' '}
-          <span className="hl">higher-order harness</span> — a harness that
-          orchestrates harnesses — you drive from any browser: launch, watch,
-          and steer every run from any device. Self-hosted and sovereign, model-
-          and provider-agnostic, every run compounding into capability you own.
-        </p>
+          <p className="tagline">
+            Sagewright runs a fleet of agents in parallel on remote infra — no
+            local terminals to juggle. The control plane is a{' '}
+            <span className="hl">higher-order harness</span> — a harness that
+            orchestrates harnesses — you drive from any browser: launch, watch,
+            and steer every run from any device. Self-hosted and sovereign,
+            model- and provider-agnostic, every run compounding into capability
+            you own.
+          </p>
 
-        <p className="tagline tagline--opinion">
-          Purposely <span className="hl">opinionated</span>. You'll love it or
-          bounce within ten seconds —{' '}
-          <a className="anchor-link" href="#is-it-for-you">
-            check here
+          <p className="tagline tagline--opinion">
+            Purposely <span className="hl">opinionated</span>. You'll love it or
+            bounce within ten seconds —{' '}
+            <a className="anchor-link" href="#is-it-for-you">
+              check here
+            </a>
+            .
+          </p>
+
+          <a className="cta" href={GITHUB_URL} target="_blank" rel="noreferrer">
+            ❯ open source — try it now
           </a>
-          .
-        </p>
 
-        <a className="cta" href={GITHUB_URL} target="_blank" rel="noreferrer">
-          ❯ open source — try it now
-        </a>
+          <CopyCommand command={INSTALL_CMD} />
 
-        <CopyCommand command={INSTALL_CMD} />
+          <p className="license-line">
+            <span className="license-line__glyph" aria-hidden="true">
+              ◆
+            </span>{' '}
+            source-available under the{' '}
+            <a
+              className="anchor-link"
+              href={LICENSE_URL}
+              target="_blank"
+              rel="noreferrer"
+            >
+              Elastic License 2.0
+            </a>{' '}
+            — self-host, modify, and use it internally.
+          </p>
 
-        <p className="license-line">
-          <span className="license-line__glyph" aria-hidden="true">
-            ◆
-          </span>{' '}
-          source-available under the{' '}
-          <a
-            className="anchor-link"
-            href={LICENSE_URL}
-            target="_blank"
-            rel="noreferrer"
-          >
-            Elastic License 2.0
-          </a>{' '}
-          — self-host, modify, and use it internally.
-        </p>
+          <HeroGallery />
+        </Window>
 
-        <HeroGallery />
-      </Window>
-
-      <Window title="README.md">
-        <ul className="features">
-          {FEATURES.map((f) => (
-            <li className="feature" key={f.title}>
-              <span className="feature__glyph">
-                <span className="feature__icon">{f.icon}</span> [{f.tag}]
-              </span>
-              <div>
-                <h2 className="feature__title">{f.title}</h2>
-                <p className="feature__body">{f.body}</p>
-              </div>
-            </li>
-          ))}
-        </ul>
-      </Window>
-
-      <Window title="who_is_it_for.sh">
-        <p className="section-lead">
-          <span className="hl">Who is it for?</span> The same{' '}
-          <span className="hl">AI-native SDLC</span> enterprises run on — now
-          within reach of small teams and solo builders too. The sweet spot is a
-          contiguous band: technical ninjas, small teams, and tech-driven
-          enterprises — people technical enough to set it up fast, who want a
-          flexible, powerful workflow they fully own and are never locked into.
-          Vibe coders fit only if they're technical enough; the broader
-          enterprise gets a strong multiplier rather than a native fit.
-        </p>
-
-        <p className="prompt prompt--sm">
-          <span className="prompt__sigil">❯</span> ./who_is_it_for.sh --rank
-        </p>
-        <pre
-          className="spectrum"
-          aria-label="audience fit, from vibe coders to enterprises"
-        >
-          {SPECTRUM_LABELS + '\n['}
-          <span className="spectrum__low">{SPECTRUM_LOW}</span>
-          <span className="spectrum__peak">{SPECTRUM_PEAK}</span>
-          <span className="spectrum__mult">{SPECTRUM_MULT}</span>
-          {']\n'}
-          <span className="spectrum__sweet">
-            {SPECTRUM_TICKS + '\n' + SPECTRUM_SWEET}
-          </span>
-          {'\n\n'}
-          <span className="spectrum__legend">{SPECTRUM_LEGEND}</span>
-        </pre>
-
-        <ul className="features">
-          {AUDIENCES.map((a) => (
-            <li className="feature" key={a.title}>
-              <span className="feature__glyph">
-                <span className="feature__icon">{a.icon}</span> [{a.tag}]
-              </span>
-              <div>
-                <h2 className="feature__title">{a.title}</h2>
-                <p className="feature__body">{a.body}</p>
-              </div>
-            </li>
-          ))}
-        </ul>
-      </Window>
-
-      <Window title="scheduled.cron">
-        <p className="section-lead">
-          <span className="hl">Scheduled, recurring agents.</span> Put routine
-          work on a cron and forget it — triage, dependency bumps, weekly
-          reports, cleanups. Each run spins up a fresh runner and lands as a PR
-          or an update while you&rsquo;re away.
-        </p>
-
-        <p className="prompt prompt--sm">
-          <span className="prompt__sigil">❯</span> crontab -l
-        </p>
-        <pre className="audit">{CRON_TABLE}</pre>
-        <p className="diagram__caption">
-          Fully observable — every scheduled run lands in the same audit trail
-          as everything else.
-        </p>
-      </Window>
-
-      <Window title="custom_loops.sh">
-        <LoopBuilder />
-      </Window>
-
-      <Window title="delegate.sh">
-        <p className="section-lead">
-          <span className="hl">Agents that dispatch agents.</span> A lead agent
-          breaks a big task into slices and delegates each to its own sub-agent
-          — spawned in parallel, every one in its own sandbox. They report back
-          and the lead synthesizes a single reviewed result. Fan-out is just
-          another tool call an agent can make.
-        </p>
-
-        <p className="prompt prompt--sm">
-          <span className="prompt__sigil">❯</span> sage delegate &ldquo;ship the
-          checkout flow&rdquo;
-        </p>
-        <pre className="audit">{DELEGATION_TREE}</pre>
-        <p className="diagram__caption">
-          Delegation nests to any depth — a sub-agent can dispatch its own
-          sub-agents. Every hop is a sandboxed runner in the same audit trail,
-          so the whole tree stays observable and replayable.
-        </p>
-      </Window>
-
-      <Window title="for_teams.sh">
-        <p className="section-lead">
-          An <span className="hl">AI-native SDLC</span> for teams and
-          enterprises. Drive work from a chat prompt or a board ticket; finished
-          work lands as GitHub PRs and ticket updates — in the tools your team
-          already uses.
-        </p>
-
-        <p className="prompt prompt--sm">
-          <span className="prompt__sigil">❯</span> tail -f
-          ~/.sagewright/audit.log
-        </p>
-        <pre className="audit">{AUDIT_LOG}</pre>
-        <p className="diagram__caption">
-          Every action an agent takes is a persisted, replayable event — a
-          complete audit trail for review, compliance, and debugging. Nothing
-          happens off-the-record.
-        </p>
-      </Window>
-
-      <Window title="security.model">
-        <p className="section-lead">
-          <span className="hl">Security by isolation.</span> Every agent runs in
-          its own sandboxed runner container, separated from other agents and
-          from the control plane runtime.
-        </p>
-        <p className="section-lead">
-          A runner only sees whatever you mount as its work tree. If a repo,
-          file path, or secret is not mounted into that sandbox, the agent
-          cannot access it.
-        </p>
-        <p className="section-lead">
-          This keeps the blast radius small: each task gets a bounded workspace
-          with explicit inputs, clear audit logs, and no implicit access to the
-          rest of your infrastructure.
-        </p>
-      </Window>
-
-      <Window title="runners/">
-        <p className="section-lead">
-          <span className="hl">Extensible by design.</span> The control plane is
-          harness-agnostic — a runner is just a Docker image it discovers and
-          orchestrates. Extend the fleet&rsquo;s capabilities by creating a
-          custom runner: one folder, a Dockerfile that installs any CLI harness,
-          and two small scripts. No plugin API to learn, no fork to maintain —
-          if it runs in a terminal, it can join the fleet.
-        </p>
-
-        <p className="prompt prompt--sm">
-          <span className="prompt__sigil">❯</span> tree runners/
-        </p>
-        <pre className="audit">{RUNNERS_TREE}</pre>
-        <p className="diagram__caption">
-          Four harnesses ship built in — Claude Code, Codex, opencode, and Pi.
-          Yours is a folder away.
-        </p>
-
-        <p className="section-lead">
-          <span className="hl">Runner marketplace — coming soon.</span> Publish
-          your runners and pull ready-made ones from the community — new
-          harnesses, toolchains, and specialized agents, ready to drop into your
-          fleet.
-        </p>
-      </Window>
-
-      <Window title="quickstart.sh">
-        <p className="section-lead">
-          <span className="hl">One command to bootstrap.</span> The installer
-          clones the repo, scaffolds your <span className="hl">.env</span> with
-          freshly generated secrets, and hands you the two commands that bring
-          the fleet up.
-        </p>
-
-        <CopyCommand command={INSTALL_CMD} className="install--block" />
-
-        <p className="diagram__caption">
-          Prefer to wire it by hand? Clone the repo,{' '}
-          <span className="hl">cp .env.example .env</span>, then{' '}
-          <span className="hl">docker compose up -d</span>. Everything ships as
-          containers — control plane, runners, and Postgres — so there&rsquo;s
-          nothing else to install on your machine. Self-hosted on your own
-          infrastructure.
-        </p>
-      </Window>
-
-      <Window id="is-it-for-you" title="is_it_for_you.sh">
-        <p className="section-lead">
-          <span className="hl">Is it for you?</span> Run through the checklist.
-        </p>
-
-        <ul className="checklist">
-          {CHECKLIST.map((item) => {
-            const isChecked = checked.has(item.id);
-            return (
-              <li className="checklist__item" key={item.id}>
-                <button
-                  type="button"
-                  role="checkbox"
-                  aria-checked={isChecked}
-                  className="checklist__toggle"
-                  onClick={() => toggleItem(item.id)}
-                >
-                  <span className="checklist__box" aria-hidden="true">
-                    {isChecked ? '☑' : '☐'}
-                  </span>
-                  <span className="checklist__text">{item.text}</span>
-                </button>
+        <Window title="README.md">
+          <ul className="features">
+            {FEATURES.map((f) => (
+              <li className="feature" key={f.title}>
+                <span className="feature__glyph">
+                  <span className="feature__icon">{f.icon}</span> [{f.tag}]
+                </span>
+                <div>
+                  <h2 className="feature__title">{f.title}</h2>
+                  <p className="feature__body">{f.body}</p>
+                </div>
               </li>
-            );
-          })}
-        </ul>
+            ))}
+          </ul>
+        </Window>
 
-        <p className="section-lead">
-          Answering yes to 50+% of these?{' '}
-          <span className="hl">You definitely need to try Sagewright.</span>
-        </p>
-      </Window>
+        <Window title="scheduled.cron">
+          <p className="section-lead">
+            <span className="hl">Scheduled, recurring agents.</span> Put routine
+            work on a cron and forget it — triage, dependency bumps, weekly
+            reports, cleanups. Each run spins up a fresh runner and lands as a
+            PR or an update while you&rsquo;re away.
+          </p>
 
-      <footer className="footer">
-        <pre className="footer__rule" aria-hidden="true">
-          ────────────────────────────────────────────────────
-        </pre>
-        <p className="footer__line">
-          <span className="footer__brand">sagewright.dev</span> · a fleet of
-          agents that reason &amp; build
-        </p>
-        <p className="footer__links">
-          <a
-            className="footer__link"
-            href={GITHUB_URL}
-            target="_blank"
-            rel="noreferrer"
+          <p className="prompt prompt--sm">
+            <span className="prompt__sigil">❯</span> crontab -l
+          </p>
+          <pre className="audit">{CRON_TABLE}</pre>
+          <p className="diagram__caption">
+            Fully observable — every scheduled run lands in the same audit trail
+            as everything else.
+          </p>
+        </Window>
+
+        <Window title="custom_loops.sh">
+          <LoopBuilder />
+        </Window>
+
+        <Window title="delegate.sh">
+          <p className="section-lead">
+            <span className="hl">Agents that dispatch agents.</span> A lead
+            agent breaks a big task into slices and delegates each to its own
+            sub-agent — spawned in parallel, every one in its own sandbox. They
+            report back and the lead synthesizes a single reviewed result.
+            Fan-out is just another tool call an agent can make.
+          </p>
+
+          <p className="prompt prompt--sm">
+            <span className="prompt__sigil">❯</span> sage delegate &ldquo;ship
+            the checkout flow&rdquo;
+          </p>
+          <pre className="audit">{DELEGATION_TREE}</pre>
+          <p className="diagram__caption">
+            Delegation nests to any depth — a sub-agent can dispatch its own
+            sub-agents. Every hop is a sandboxed runner in the same audit trail,
+            so the whole tree stays observable and replayable.
+          </p>
+        </Window>
+
+        <Window title="security.model">
+          <p className="section-lead">
+            <span className="hl">Security by isolation.</span> Every agent runs
+            in its own sandboxed runner container, separated from other agents
+            and from the control plane runtime.
+          </p>
+          <p className="section-lead">
+            A runner only sees whatever you mount as its work tree. If a repo,
+            file path, or secret is not mounted into that sandbox, the agent
+            cannot access it.
+          </p>
+          <p className="section-lead">
+            This keeps the blast radius small: each task gets a bounded
+            workspace with explicit inputs, clear audit logs, and no implicit
+            access to the rest of your infrastructure.
+          </p>
+        </Window>
+
+        <Window title="runners/">
+          <p className="section-lead">
+            <span className="hl">Extensible by design.</span> The control plane
+            is harness-agnostic — a runner is just a Docker image it discovers
+            and orchestrates. Extend the fleet&rsquo;s capabilities by creating
+            a custom runner: one folder, a Dockerfile that installs any CLI
+            harness, and two small scripts. No plugin API to learn, no fork to
+            maintain — if it runs in a terminal, it can join the fleet.
+          </p>
+
+          <p className="prompt prompt--sm">
+            <span className="prompt__sigil">❯</span> tree runners/
+          </p>
+          <pre className="audit">{RUNNERS_TREE}</pre>
+          <p className="diagram__caption">
+            Four harnesses ship built in — Claude Code, Codex, opencode, and Pi.
+            Yours is a folder away.
+          </p>
+
+          <p className="section-lead">
+            <span className="hl">Runner marketplace — coming soon.</span>{' '}
+            Publish your runners and pull ready-made ones from the community —
+            new harnesses, toolchains, and specialized agents, ready to drop
+            into your fleet.
+          </p>
+        </Window>
+
+        <Window title="quickstart.sh">
+          <p className="section-lead">
+            <span className="hl">One command to bootstrap.</span> The installer
+            clones the repo, scaffolds your <span className="hl">.env</span>{' '}
+            with freshly generated secrets, and hands you the two commands that
+            bring the fleet up.
+          </p>
+
+          <CopyCommand command={INSTALL_CMD} />
+
+          <p className="diagram__caption">
+            Prefer to wire it by hand? Clone the repo,{' '}
+            <span className="hl">cp .env.example .env</span>, then{' '}
+            <span className="hl">docker compose up -d</span>. Everything ships
+            as containers — control plane, runners, and Postgres — so
+            there&rsquo;s nothing else to install on your machine. Self-hosted
+            on your own infrastructure.
+          </p>
+        </Window>
+
+        <Window id="is-it-for-you" title="is_it_for_you.sh">
+          <p className="section-lead">
+            <span className="hl">Is it for you?</span> Run through the
+            checklist.
+          </p>
+
+          <ul className="checklist">
+            {CHECKLIST.map((item) => {
+              const isChecked = checked.has(item.id);
+              return (
+                <li className="checklist__item" key={item.id}>
+                  <button
+                    type="button"
+                    role="checkbox"
+                    aria-checked={isChecked}
+                    className="checklist__toggle"
+                    onClick={() => toggleItem(item.id)}
+                  >
+                    <span className="checklist__box" aria-hidden="true">
+                      {isChecked ? '☑' : '☐'}
+                    </span>
+                    <span className="checklist__text">{item.text}</span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+
+          <p className="section-lead">
+            Answering yes to 50+% of these?{' '}
+            <span className="hl">You definitely need to try Sagewright.</span>
+          </p>
+        </Window>
+
+        <Window title="who_is_it_for.sh">
+          <p className="section-lead">
+            <span className="hl">Who is it for?</span> The same{' '}
+            <span className="hl">AI-native SDLC</span> enterprises run on — now
+            within reach of small teams and solo builders. Drive a whole fleet
+            of agents that all follow your process — your workflow, your
+            standards, your review gates.
+          </p>
+
+          <p className="prompt prompt--sm">
+            <span className="prompt__sigil">❯</span> tail -f
+            ~/.sagewright/audit.log
+          </p>
+          <pre className="audit">{AUDIT_LOG}</pre>
+          <p className="diagram__caption">
+            Every action an agent takes is a persisted, replayable event — a
+            complete audit trail for review, compliance, and debugging. Nothing
+            happens off-the-record.
+          </p>
+
+          <p className="prompt prompt--sm">
+            <span className="prompt__sigil">❯</span> ./who_is_it_for.sh --rank
+          </p>
+          <pre
+            className="spectrum"
+            aria-label="audience fit, from vibe coders to enterprises"
           >
-            ❯ github.com/posterus-ltd/sagewright
-          </a>
-          <span className="footer__sep" aria-hidden="true">
-            {' · '}
-          </span>
-          <a
-            className="footer__link"
-            href={IMPRINT_URL}
-            target="_blank"
-            rel="noreferrer"
-          >
-            ❯ Impressum
-          </a>
-        </p>
-      </footer>
-    </main>
+            {SPECTRUM_LABELS + '\n['}
+            <span className="spectrum__low">{SPECTRUM_LOW}</span>
+            <span className="spectrum__peak">{SPECTRUM_PEAK}</span>
+            <span className="spectrum__mult">{SPECTRUM_MULT}</span>
+            {']\n'}
+            <span className="spectrum__sweet">
+              {SPECTRUM_TICKS + '\n' + SPECTRUM_SWEET}
+            </span>
+            {'\n\n'}
+            <span className="spectrum__legend">{SPECTRUM_LEGEND}</span>
+          </pre>
+
+          <ul className="features">
+            {AUDIENCES.map((a) => (
+              <li className="feature" key={a.title}>
+                <span className="feature__glyph">
+                  <span className="feature__icon">{a.icon}</span> [{a.tag}]
+                </span>
+                <div>
+                  <h2 className="feature__title">{a.title}</h2>
+                  <p className="feature__body">{a.body}</p>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </Window>
+
+        <footer className="footer">
+          <pre className="footer__rule" aria-hidden="true">
+            ────────────────────────────────────────────────────
+          </pre>
+          <p className="footer__line">
+            <span className="footer__brand">sagewright.dev</span> · a fleet of
+            agents that reason &amp; build
+          </p>
+          <p className="footer__links">
+            <a
+              className="footer__link"
+              href={GITHUB_URL}
+              target="_blank"
+              rel="noreferrer"
+            >
+              ❯ github.com/posterus-ltd/sagewright
+            </a>
+            <span className="footer__sep" aria-hidden="true">
+              {' · '}
+            </span>
+            <a
+              className="footer__link"
+              href={IMPRINT_URL}
+              target="_blank"
+              rel="noreferrer"
+            >
+              ❯ Impressum
+            </a>
+          </p>
+        </footer>
+      </main>
     </>
   );
 };

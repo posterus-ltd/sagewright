@@ -415,11 +415,15 @@ body {
 
 /* ---- install one-liner (copyable command) ---- */
 
+/* Spacing container: gives the command breathing room above and below,
+   independent of whatever sits around it. */
+.install-block {
+  margin: 18px 0;
+}
+
 .install {
   display: flex;
   align-items: stretch;
-  margin-top: 18px;
-  max-width: 60ch;
   background-color: var(--bg);
   border: 1px solid var(--border);
   border-left: 2px solid var(--accent);
@@ -427,12 +431,6 @@ body {
   font-family: var(--font-mono);
   font-size: 13px;
   overflow: hidden;
-}
-
-/* In-section variant: fills the window instead of the hero's reading width. */
-.install--block {
-  max-width: none;
-  margin-top: 0;
 }
 
 .install__cmd {
@@ -1513,4 +1511,53 @@ body {
 .footer__link:hover {
   text-decoration: underline;
   text-shadow: 0 0 12px var(--accent-glow);
+}
+
+/* --- Live demo (embedded control-plane web component) --------------------- */
+.demo-frame {
+  position: relative;
+  width: 100%;
+  height: min(720px, 80vh);
+  margin-top: 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  /* Matches the app's own dark placeholder so there's no flash before it paints. */
+  background: #0d1117;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* The custom element fills the frame; it renders its own (shadow-DOM) UI. */
+.demo-frame sagewright-demo {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.demo-frame__launch {
+  font-family: var(--font-mono);
+  font-size: 0.95rem;
+  color: var(--bg);
+  background: var(--accent);
+  border: none;
+  border-radius: var(--radius);
+  padding: 0.7rem 1.3rem;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.demo-frame__launch:hover {
+  background: var(--accent-hover);
+  box-shadow: 0 0 18px var(--accent-glow);
+}
+
+.demo-frame__fallback {
+  color: var(--muted);
+  font-size: 0.9rem;
+  text-align: center;
+  padding: 1.5rem;
 }
