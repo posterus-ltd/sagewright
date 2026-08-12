@@ -46,6 +46,7 @@ import {
   DEFAULT_WIDTH,
   placementToNode,
 } from './canvas-mapping';
+import { SessionListPanel } from './SessionListPanel';
 import { SessionNode } from './SessionNode';
 
 const SAVE_DEBOUNCE_MS = 500;
@@ -88,7 +89,8 @@ interface BoardProps {
 
 const CanvasBoard: FC<BoardProps> = ({ serverLayout, tasks }) => {
   const theme = useTheme();
-  const { getViewport, setViewport, screenToFlowPosition } = useReactFlow();
+  const { getViewport, setViewport, screenToFlowPosition, fitView } =
+    useReactFlow();
   const updateLayout = useUpdateCanvasLayout();
   const wrapperRef = useRef<HTMLDivElement>(null);
 
@@ -238,6 +240,18 @@ const CanvasBoard: FC<BoardProps> = ({ serverLayout, tasks }) => {
     [scheduleSave, setNodes],
   );
 
+  // Fly the viewport to a single widget and select it, so it glows on arrival
+  // (reuses SessionNode's existing `selected` styling).
+  const zoomToSession = useCallback(
+    (sessionId: string) => {
+      fitView({ nodes: [{ id: sessionId }], duration: 600, padding: 0.4, maxZoom: 1 });
+      setNodes((nds) =>
+        nds.map((n) => ({ ...n, selected: n.id === sessionId })),
+      );
+    },
+    [fitView, setNodes],
+  );
+
   // Add-existing menu lists active sessions not already on the canvas.
   const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null);
   const placedIds = useMemo(() => new Set(nodes.map((n) => n.id)), [nodes]);
@@ -313,6 +327,14 @@ const CanvasBoard: FC<BoardProps> = ({ serverLayout, tasks }) => {
                 </>
               )}
             </Box>
+          </Panel>
+
+          <Panel position="top-right">
+            <SessionListPanel
+              nodes={nodes}
+              tasks={tasks}
+              onSelect={zoomToSession}
+            />
           </Panel>
 
           {nodes.length === 0 && (
