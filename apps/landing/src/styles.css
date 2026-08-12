@@ -325,6 +325,88 @@ body {
   border-color: var(--accent);
 }
 
+/* ---- install one-liner (copyable command) ---- */
+
+.install {
+  display: flex;
+  align-items: stretch;
+  margin-top: 18px;
+  max-width: 60ch;
+  background-color: var(--bg);
+  border: 1px solid var(--border);
+  border-left: 2px solid var(--accent);
+  border-radius: var(--radius);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  overflow: hidden;
+}
+
+/* In-section variant: fills the window instead of the hero's reading width. */
+.install--block {
+  max-width: none;
+  margin-top: 0;
+}
+
+.install__cmd {
+  flex: 1;
+  min-width: 0;
+  padding: 11px 14px;
+  color: var(--text);
+  white-space: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.install__cmd::-webkit-scrollbar {
+  display: none;
+}
+
+.install__sigil {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.install__copy {
+  flex: none;
+  padding: 0 16px;
+  border: 0;
+  border-left: 1px solid var(--border);
+  background-color: var(--surface);
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.03em;
+  cursor: pointer;
+  transition:
+    color 0.15s ease,
+    background-color 0.15s ease;
+}
+
+.install__copy:hover {
+  color: var(--accent);
+  background-color: var(--elevated);
+}
+
+.install__copy:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+/* ---- license line (hero) ---- */
+
+.license-line {
+  margin: 14px 0 0;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.02em;
+  color: var(--muted);
+}
+
+.license-line__glyph {
+  color: var(--accent);
+  margin-right: 6px;
+}
+
 /* ---- global error boundary ---- */
 
 /* Centre the single fault window in the viewport. */

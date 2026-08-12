@@ -21,6 +21,9 @@ import {
 
 const GITHUB_URL = 'https://github.com/posterus-ltd/sagewright';
 const IMPRINT_URL = 'https://posterus.ventures/imprint';
+const LICENSE_URL =
+  'https://github.com/posterus-ltd/sagewright/blob/main/LICENSE';
+const INSTALL_CMD = 'curl -fsSL https://sagewright.dev/install.sh | sh';
 
 interface Feature {
   readonly icon: string;
@@ -34,7 +37,7 @@ const FEATURES: readonly Feature[] = [
     icon: '⏻',
     tag: 'remote',
     title: 'runs remotely — laptop closed, still shipping',
-    body: 'Agents run in remote containers, not on your machine. Shut the lid and walk away — no terminals left open all day, no battery drain. Work keeps running and you reconnect from any device.',
+    body: 'Agents run in remote containers, not on your machine. Close the lid and walk away — work keeps running, and you reconnect from any device.',
   },
   {
     icon: '▶',
@@ -46,25 +49,25 @@ const FEATURES: readonly Feature[] = [
     icon: '⚙',
     tag: 'byoh',
     title: 'bring your own harness',
-    body: 'Plug in your own harness, MCP servers, plugins, and model of choice. Your workflow and tooling — orchestrated and managed by the control plane.',
+    body: 'Plug in your own harness, MCP servers, plugins, and model. Your workflow and tooling — orchestrated and managed by the control plane.',
   },
   {
     icon: '◷',
     tag: 'sync',
     title: 'mobile-first & resumable',
-    body: 'Every byte an agent emits is a persisted event log — scroll back through the full history of any session, mid-run or long after it ended.',
+    body: 'Every byte an agent emits is a persisted event log. Scroll back through any session — mid-run or long after it ended.',
   },
   {
     icon: '↺',
     tag: 'loop',
     title: 'self-correcting agents',
-    body: 'Each runner loops work → validate → reflect up to three times before eskalating to a human.',
+    body: 'Each runner loops work → validate → reflect up to three times before escalating to a human.',
   },
   {
     icon: '⎋',
     tag: 'open',
     title: 'no vendor lock-in',
-    body: 'Open formats, your own models and harness, your own repos and infra. You deploy and run it yourself — just a multiplier.',
+    body: 'Open formats, your own models and harness, your own repos and infra. You deploy and run it yourself — Sagewright is just a multiplier.',
   },
 ];
 
@@ -485,6 +488,48 @@ const HeroGallery: FC = () => {
   );
 };
 
+/**
+ * A copyable one-line shell command, dressed as a terminal prompt with a `copy`
+ * button. The button writes the command to the clipboard and briefly flips to
+ * "copied"; where the Clipboard API is unavailable it silently no-ops.
+ */
+const CopyCommand: FC<{ command: string; className?: string }> = ({
+  command,
+  className,
+}) => {
+  const [copied, setCopied] = useState(false);
+  const copy = () => {
+    if (!navigator.clipboard) return;
+    navigator.clipboard.writeText(command).then(
+      () => {
+        setCopied(true);
+        window.setTimeout(() => setCopied(false), 1600);
+      },
+      () => {
+        /* clipboard write denied — leave the label unchanged */
+      },
+    );
+  };
+  return (
+    <div className={className ? `install ${className}` : 'install'}>
+      <code className="install__cmd">
+        <span className="install__sigil" aria-hidden="true">
+          ❯
+        </span>{' '}
+        {command}
+      </code>
+      <button
+        type="button"
+        className="install__copy"
+        onClick={copy}
+        aria-label="Copy install command to clipboard"
+      >
+        {copied ? 'copied ✓' : 'copy'}
+      </button>
+    </div>
+  );
+};
+
 export const LandingPage: FC = () => (
   <>
     <AsciiField />
@@ -505,26 +550,18 @@ export const LandingPage: FC = () => (
         </p>
 
         <p className="tagline">
-          Right now, agentic coding is ad hoc: everyone on the team running
-          their own agent, on their own laptop propped open so it doesn't sleep
-          — hit-or-miss results, no org-wide setup, a different vendor lock-in
-          behind every tool, and no durable place to put repetitive work.
+          Agentic coding today is ad hoc: everyone runs their own agent on a
+          laptop propped open so it won't sleep — hit-or-miss, nothing shared
+          across the team, a different vendor lock-in behind every tool.
         </p>
 
         <p className="tagline">
-          Sagewright fixes that with a fleet of agents running in parallel — no
+          Sagewright runs a fleet of agents in parallel on remote infra — no
           local terminals to juggle. The control plane is a{' '}
           <span className="hl">higher-order harness</span> — a harness that
-          orchestrates harnesses — that lives on a remote infra and is
-          accessible from any browser, so you launch, watch and steer every
-          agent from any device, anywhere.
-        </p>
-
-        <p className="tagline">
-          Every run compounds your org's capability and context into a strategic
-          asset you own — self-hosted and sovereign, yet model- and
-          provider-agnostic, turning synthetic intelligence into a swappable
-          commodity.
+          orchestrates harnesses — you drive from any browser: launch, watch,
+          and steer every run from any device. Self-hosted and sovereign, model-
+          and provider-agnostic, every run compounding into capability you own.
         </p>
 
         <p className="tagline tagline--opinion">
@@ -539,6 +576,24 @@ export const LandingPage: FC = () => (
         <a className="cta" href={GITHUB_URL} target="_blank" rel="noreferrer">
           ❯ open source — try it now
         </a>
+
+        <CopyCommand command={INSTALL_CMD} />
+
+        <p className="license-line">
+          <span className="license-line__glyph" aria-hidden="true">
+            ◆
+          </span>{' '}
+          source-available under the{' '}
+          <a
+            className="anchor-link"
+            href={LICENSE_URL}
+            target="_blank"
+            rel="noreferrer"
+          >
+            Elastic License 2.0
+          </a>{' '}
+          — self-host, modify, and use it internally.
+        </p>
 
         <HeroGallery />
       </Window>
@@ -653,8 +708,8 @@ export const LandingPage: FC = () => (
 
       <Window title="security.model">
         <p className="section-lead">
-          <span className="hl">Security by isolation.</span> Every agent runs
-          in its own sandboxed runner container, separated from other agents and
+          <span className="hl">Security by isolation.</span> Every agent runs in
+          its own sandboxed runner container, separated from other agents and
           from the control plane runtime.
         </p>
         <p className="section-lead">
@@ -671,12 +726,12 @@ export const LandingPage: FC = () => (
 
       <Window title="runners/">
         <p className="section-lead">
-          <span className="hl">Extensible by design.</span> The control plane
-          is harness-agnostic — a runner is just a Docker image it discovers
-          and orchestrates. Extend the fleet&rsquo;s capabilities by creating a
-          custom runner: one folder, a Dockerfile that installs any CLI
-          harness, and two small scripts. No plugin API to learn, no fork to
-          maintain — if it runs in a terminal, it can join the fleet.
+          <span className="hl">Extensible by design.</span> The control plane is
+          harness-agnostic — a runner is just a Docker image it discovers and
+          orchestrates. Extend the fleet&rsquo;s capabilities by creating a
+          custom runner: one folder, a Dockerfile that installs any CLI harness,
+          and two small scripts. No plugin API to learn, no fork to maintain —
+          if it runs in a terminal, it can join the fleet.
         </p>
 
         <p className="prompt prompt--sm">
@@ -691,23 +746,28 @@ export const LandingPage: FC = () => (
         <p className="section-lead">
           <span className="hl">Runner marketplace — coming soon.</span> Publish
           your runners and pull ready-made ones from the community — new
-          harnesses, toolchains, and specialized agents, ready to drop into
-          your fleet.
+          harnesses, toolchains, and specialized agents, ready to drop into your
+          fleet.
         </p>
       </Window>
 
       <Window title="quickstart.sh">
         <p className="section-lead">
-          <span className="hl">Powered by Docker.</span> Control plane, runners,
-          and Postgres all ship as containers — nothing to install on your
-          machine.
+          <span className="hl">One command to bootstrap.</span> The installer
+          clones the repo, scaffolds your <span className="hl">.env</span> with
+          freshly generated secrets, and hands you the two commands that bring
+          the fleet up.
         </p>
 
-        <pre className="audit">❯ docker-compose up -d</pre>
+        <CopyCommand command={INSTALL_CMD} className="install--block" />
+
         <p className="diagram__caption">
-          That&rsquo;s it — you&rsquo;re one{' '}
-          <span className="hl">docker-compose up -d</span> away from a running
-          control plane. Self-hosted on your own remote infrastructure.
+          Prefer to wire it by hand? Clone the repo,{' '}
+          <span className="hl">cp .env.example .env</span>, then{' '}
+          <span className="hl">docker compose up -d</span>. Everything ships as
+          containers — control plane, runners, and Postgres — so there&rsquo;s
+          nothing else to install on your machine. Self-hosted on your own
+          infrastructure.
         </p>
       </Window>
 
