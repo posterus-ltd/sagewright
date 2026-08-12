@@ -5,7 +5,7 @@ import { eq } from 'drizzle-orm';
 import { describe, expect, it, vi } from 'vitest';
 
 import { createMcpToken } from '../auth/mcp-token';
-import { canvasLayouts, scheduledPrompts, sessions, workflows } from '../db/schema';
+import { canvasLayouts, scheduledPrompts, sessions, workflows, workspaces } from '../db/schema';
 import { fakeScheduler, makeTestApp } from '../test/make-test-app';
 import { buildMcpServer, type McpCallerContext } from './mcp-server';
 import type { AppDeps } from '../app';
@@ -91,11 +91,13 @@ describe('mcp tools', () => {
         'create_workflow',
         'get_canvas',
         'get_session',
+        'get_workspaces',
         'list_runners',
         'list_sessions',
         'run_workflow',
         'schedule_job',
         'set_canvas',
+        'set_workspaces',
         'spawn_interactive_session',
         'spawn_session',
         'spawn_shell',
@@ -336,6 +338,81 @@ describe('mcp tools', () => {
     // Nothing was persisted for the caller.
     const rows = await db.select().from(canvasLayouts).where(eq(canvasLayouts.userId, userId('al')));
     expect(rows).toHaveLength(0);
+  });
+
+  it('set_workspaces persists a tiling blob and get_workspaces returns it', async () => {
+    const { db, deps, userId } = await makeTestApp();
+    const s1 = await insertSession(db, userId('al'));
+    const s2 = await insertSession(db, userId('al'));
+    const client = await connect(deps, { userId: userId('al'), callerSessionId: 'sess-1' });
+
+    const blob = {
+      workspaces: [
+        {
+          id: 'w1',
+          name: '2-col',
+          tree: { direction: 'row', first: s1, second: s2, splitPercentage: 50 },
+        },
+        { id: 'w2', name: 'empty', tree: null },
+      ],
+      activeWorkspaceId: 'w1',
+    };
+    const setRes = await client.callTool({ name: 'set_workspaces', arguments: blob });
+    expect(isError(setRes)).toBe(false);
+    expect(resultJson(setRes)).toEqual({ workspaces: 2 });
+
+    const getRes = await client.callTool({ name: 'get_workspaces', arguments: {} });
+    const out = resultJson(getRes) as { workspaces: { id: string }[]; activeWorkspaceId: string };
+    expect(out.workspaces).toHaveLength(2);
+    expect(out.activeWorkspaceId).toBe('w1');
+  });
+
+  it('get_workspaces returns the empty fallback when nothing is stored', async () => {
+    const { deps, userId } = await makeTestApp();
+    const client = await connect(deps, { userId: userId('al'), callerSessionId: 'sess-1' });
+    const out = resultJson(await client.callTool({ name: 'get_workspaces', arguments: {} })) as {
+      workspaces: unknown[];
+      activeWorkspaceId: null;
+      updatedAt: null;
+    };
+    expect(out).toEqual({ workspaces: [], activeWorkspaceId: null, updatedAt: null });
+  });
+
+  it('set_workspaces rejects a malformed blob', async () => {
+    const { deps, userId } = await makeTestApp();
+    const client = await connect(deps, { userId: userId('al'), callerSessionId: 'sess-1' });
+    const res = await client.callTool({ name: 'set_workspaces', arguments: { workspaces: 'nope', activeWorkspaceId: null } });
+    expect(isError(res)).toBe(true);
+  });
+
+  it('set_workspaces rejects a tree leaf referencing a session you don\'t own', async () => {
+    const { db, deps, userId } = await makeTestApp();
+    const theirs = await insertSession(db, userId('bob'));
+    const client = await connect(deps, { userId: userId('al'), callerSessionId: 'sess-1' });
+
+    const blob = {
+      workspaces: [{ id: 'w1', name: 'x', tree: { direction: 'row', first: theirs, second: 'empty:slot', splitPercentage: 50 } }],
+      activeWorkspaceId: 'w1',
+    };
+    const res = await client.callTool({ name: 'set_workspaces', arguments: blob });
+    expect(isError(res)).toBe(true);
+    // Nothing was persisted for the caller.
+    const rows = await db.select().from(workspaces).where(eq(workspaces.userId, userId('al')));
+    expect(rows).toHaveLength(0);
+  });
+
+  it('keeps each user\'s workspaces separate', async () => {
+    const { db, deps, userId } = await makeTestApp();
+    const s = await insertSession(db, userId('al'));
+    const al = await connect(deps, { userId: userId('al'), callerSessionId: 'sess-1' });
+    const bob = await connect(deps, { userId: userId('bob'), callerSessionId: 'sess-2' });
+
+    await al.callTool({
+      name: 'set_workspaces',
+      arguments: { workspaces: [{ id: 'w1', name: 'mine', tree: s }], activeWorkspaceId: 'w1' },
+    });
+    const bobOut = resultJson(await bob.callTool({ name: 'get_workspaces', arguments: {} })) as { workspaces: unknown[] };
+    expect(bobOut.workspaces).toHaveLength(0);
   });
 
   it('list_sessions returns the caller\'s standalone sessions with origin', async () => {

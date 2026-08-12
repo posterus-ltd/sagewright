@@ -17,6 +17,7 @@ import { createUserService } from './users/user-service';
 import { seedRootUser } from './users/seed-root';
 import { createGithubCredentialService } from './github/github-credential-service';
 import { createCanvasLayoutService } from './canvas-layout/canvas-layout-service';
+import { createWorkspacesService } from './workspaces/workspaces-service';
 import { createWorkflowService } from './workflows/workflow-service';
 import { createWorkflowDriver } from './workflows/workflow-driver';
 import { SESSION_LABEL, createRunnerSpawner } from './tasks/runner-spawner';
@@ -69,6 +70,7 @@ const githubCredentialService = createGithubCredentialService({
 });
 const repoService = createRepoService({ db, volume, githubCredentialService });
 const canvasLayoutService = createCanvasLayoutService({ db });
+const workspacesService = createWorkspacesService({ db });
 const userSettingsService = createUserSettingsService({ db });
 const runnerRegistry = createRunnerRegistry({ docker });
 // Mints the session-scoped MCP bearer the spawner injects into every runner (same
@@ -205,6 +207,7 @@ const app = buildApp({
   githubCredentialService,
   userSettingsService,
   canvasLayoutService,
+  workspacesService,
   workflowService,
   workflowDriver,
   containerTerminal,

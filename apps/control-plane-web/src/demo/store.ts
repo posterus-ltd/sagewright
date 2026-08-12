@@ -8,6 +8,7 @@ import {
   type UserSettings,
   type Workflow,
   type WorkflowRun,
+  type WorkspacesResponse,
 } from '@sagewright/shared';
 
 import {
@@ -21,6 +22,7 @@ import {
   demoSettings,
   demoWorkflow,
   demoWorkflowRun,
+  demoWorkspaces,
 } from './mock-data';
 
 /**
@@ -40,6 +42,7 @@ export interface DemoStore {
   runners: RunnerImage[];
   defaultRunnerImage: string | null;
   canvasLayout: CanvasLayoutResponse;
+  workspaces: WorkspacesResponse;
   settings: UserSettings;
   me: MeResponse;
 }
@@ -57,6 +60,11 @@ export const createDemoStore = (): DemoStore => ({
   canvasLayout: {
     placements: demoCanvasLayout.placements.map((p) => ({ ...p })),
     viewport: { ...demoCanvasLayout.viewport },
+    updatedAt: new Date().toISOString(),
+  },
+  workspaces: {
+    workspaces: demoWorkspaces.workspaces.map((w) => structuredClone(w)),
+    activeWorkspaceId: demoWorkspaces.activeWorkspaceId,
     updatedAt: new Date().toISOString(),
   },
   settings: { ...demoSettings },

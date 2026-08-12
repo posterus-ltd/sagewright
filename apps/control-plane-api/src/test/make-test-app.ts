@@ -24,6 +24,7 @@ import { createUserEnvService } from '../user-env/user-env-service';
 import { createGithubCredentialService } from '../github/github-credential-service';
 import { createUserSettingsService } from '../user-settings/user-settings-service';
 import { createCanvasLayoutService } from '../canvas-layout/canvas-layout-service';
+import { createWorkspacesService } from '../workspaces/workspaces-service';
 import { createWorkflowService } from '../workflows/workflow-service';
 import type { RunnerRegistry } from '../runners/runner-registry';
 
@@ -114,6 +115,12 @@ const TABLE_STMTS = [
     "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
     "user_id" uuid NOT NULL UNIQUE,
     "layout" jsonb NOT NULL,
+    "updated_at" timestamp with time zone DEFAULT now() NOT NULL
+  )`,
+  `CREATE TABLE "workspaces" (
+    "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+    "user_id" uuid NOT NULL UNIQUE,
+    "blob" jsonb NOT NULL,
     "updated_at" timestamp with time zone DEFAULT now() NOT NULL
   )`,
   `CREATE TABLE "user_settings" (
@@ -347,6 +354,8 @@ export const makeTestApp = async (
 
   const canvasLayoutService = createCanvasLayoutService({ db: db as never });
 
+  const workspacesService = createWorkspacesService({ db: db as never });
+
   // Repo service shares whichever volume the app uses, so suites that override the
   // volume (e.g. to spy on removeRepo) see the service drive that same instance.
   const repoService = overrides.repoService ?? createRepoService({
@@ -423,6 +432,7 @@ export const makeTestApp = async (
     githubCredentialService,
     userSettingsService,
     canvasLayoutService,
+    workspacesService,
     workflowService,
     workflowDriver: defaultWorkflowDriver as never,
     containerTerminal: defaultContainerTerminal as never,

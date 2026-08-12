@@ -18,6 +18,7 @@ import {
   type Workflow,
   type WorkflowDefinition,
   type WorkflowRun,
+  type WorkspacesResponse,
 } from '@sagewright/shared';
 
 /**
@@ -354,6 +355,31 @@ export const demoCanvasLayout: CanvasLayoutResponse = {
     { sessionId: 's-flaky', x: 390, y: 520, width: 720, height: 460 },
   ],
   viewport: { x: 40, y: 40, zoom: 0.6 },
+  updatedAt: iso(2 * MIN),
+};
+
+// --- Workspaces: two hand-built tiling layouts over the live interactive sessions ---------
+export const demoWorkspaces: WorkspacesResponse = {
+  workspaces: [
+    {
+      // A 2-pane column: hero on top, pagination below.
+      id: 'ws-review',
+      name: 'Review',
+      tree: { direction: 'column', first: HERO_SESSION_ID, second: 's-pagination', splitPercentage: 55 },
+    },
+    {
+      // A 2×2 grid: three live sessions plus one empty pane to fill.
+      id: 'ws-triage',
+      name: 'Triage grid',
+      tree: {
+        direction: 'row',
+        first: { direction: 'column', first: HERO_SESSION_ID, second: 's-flaky', splitPercentage: 50 },
+        second: { direction: 'column', first: 's-pagination', second: 'empty:demo-slot', splitPercentage: 50 },
+        splitPercentage: 50,
+      },
+    },
+  ],
+  activeWorkspaceId: 'ws-review',
   updatedAt: iso(2 * MIN),
 };
 

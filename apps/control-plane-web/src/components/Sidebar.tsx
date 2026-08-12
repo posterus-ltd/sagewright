@@ -15,6 +15,7 @@ import {
   SettingsBrightnessRounded,
   SettingsRounded,
   TerminalRounded,
+  ViewQuiltRounded,
   WidthFullRounded,
   WidthNormalRounded,
 } from '@mui/icons-material';
@@ -61,6 +62,12 @@ const NAV = [
     label: 'Canvas',
     icon: <GridViewRounded fontSize="small" />,
     match: (p: string) => p.startsWith('/canvas'),
+  },
+  {
+    to: '/workspaces',
+    label: 'Workspaces',
+    icon: <ViewQuiltRounded fontSize="small" />,
+    match: (p: string) => p.startsWith('/workspaces'),
   },
   {
     to: '/galaxy',

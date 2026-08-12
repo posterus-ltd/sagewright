@@ -10,6 +10,9 @@ export interface UserPreferences {
   fullWidthContent: boolean;
   // When true the navigation sidebar is collapsed to an icon-only rail.
   sidebarCollapsed: boolean;
+  // When true the /workspaces right-hand workspaces list is collapsed to a thin strip.
+  // UI-only; the active workspace itself lives in the server blob (see workspace.schema).
+  workspacesListCollapsed: boolean;
   // Preferred colour theme. 'system' follows the OS preference, resolved live
   // for rendering by ThemeModeProvider.
   themeMode: ThemeMode;

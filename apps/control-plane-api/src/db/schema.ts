@@ -134,6 +134,16 @@ export const canvasLayouts = pgTable('canvas_layouts', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
+export const workspaces = pgTable('workspaces', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  // The owning user's id. One workspaces blob per user. The `blob` column holds the whole
+  // Workspaces object ({ workspaces: [...], activeWorkspaceId }) — the tiling analogue of
+  // canvas_layouts.layout.
+  userId: uuid('user_id').notNull().unique(),
+  blob: jsonb('blob').notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const userSettings = pgTable('user_settings', {
   id: uuid('id').primaryKey().defaultRandom(),
   userId: uuid('user_id').notNull().unique(),

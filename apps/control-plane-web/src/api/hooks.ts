@@ -21,6 +21,8 @@ import {
   type WorkflowInput,
   type WorkflowRun,
   type WorkflowRunDetail,
+  type Workspaces,
+  type WorkspacesResponse,
 } from '@sagewright/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback } from 'react';
@@ -289,6 +291,29 @@ export const useUpdateCanvasLayout = () => {
   return useMutation({
     mutationFn: (layout: CanvasLayout) => api.put('/api/canvas-layout', layout),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['canvas-layout'] }),
+  });
+};
+
+// The user's saved workspaces (named tiling layouts + which is active). Served as an empty
+// blob when nothing is stored, so the query never 404s. Polled so an agent arranging
+// workspaces over MCP (set_workspaces) — or another tab — shows up live; `updatedAt` lets the
+// board tell an agent/other-tab rewrite apart from its own echoed save.
+export const useWorkspaces = () => {
+  const api = useApiClient();
+  return useQuery({
+    queryKey: ['workspaces'],
+    queryFn: () => api.get<WorkspacesResponse>('/api/workspaces'),
+    refetchInterval: 2500,
+    refetchOnWindowFocus: true,
+  });
+};
+
+export const useUpdateWorkspaces = () => {
+  const api = useApiClient();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (blob: Workspaces) => api.put('/api/workspaces', blob),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['workspaces'] }),
   });
 };
 

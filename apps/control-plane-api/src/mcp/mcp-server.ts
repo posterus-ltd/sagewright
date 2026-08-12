@@ -9,7 +9,9 @@ import {
   createSessionSchema,
   createShellSessionSchema,
   sessionLabel,
+  sessionLeafIds,
   workflowInputSchema,
+  workspacesSchema,
   type ScheduledPrompt,
 } from '@sagewright/shared';
 import { and, eq, inArray, notInArray } from 'drizzle-orm';
@@ -100,6 +102,7 @@ const archiveSessionArgs = z.object({ id: z.string().min(1).describe('The sessio
 const listRunnersArgs = z.object({});
 const listSessionsArgs = z.object({});
 const getCanvasArgs = z.object({});
+const getWorkspacesArgs = z.object({});
 
 /** The tools this server exposes; the values are the wire names an MCP client calls by. */
 enum McpToolName {
@@ -115,6 +118,8 @@ enum McpToolName {
   GET_SESSION = 'get_session',
   GET_CANVAS = 'get_canvas',
   SET_CANVAS = 'set_canvas',
+  GET_WORKSPACES = 'get_workspaces',
+  SET_WORKSPACES = 'set_workspaces',
 }
 
 interface McpToolDef {
@@ -191,6 +196,19 @@ const TOOL_DEFS = {
       'Every placement.sessionId must be one of your own sessions. Combine with spawn_interactive_session / ' +
       'spawn_shell to build and arrange a working dev canvas. Changes are visible to the user live.',
     schema: canvasLayoutSchema,
+  },
+  [McpToolName.GET_WORKSPACES]: {
+    description: 'Read the user\'s saved workspaces (named tiling layouts of sessions).',
+    schema: getWorkspacesArgs,
+  },
+  [McpToolName.SET_WORKSPACES]: {
+    description:
+      'Replace the user\'s workspaces: named tiling layouts, each a binary tree of panes holding session ' +
+      'ids (or `empty:*` slots). A tree leaf is either a session id you own or an `empty:*` placeholder; a ' +
+      'split is { direction: "row"|"column", first, second, splitPercentage }. Every real session leaf must ' +
+      'be one of your own sessions. Combine with spawn_interactive_session / spawn_shell to build and tile a ' +
+      'working dev layout. Changes are visible to the user live.',
+    schema: workspacesSchema,
   },
 } satisfies Record<McpToolName, McpToolDef>;
 
@@ -364,6 +382,31 @@ export const buildMcpServer = (deps: AppDeps, ctx: McpCallerContext): Server => 
         }
         await deps.canvasLayoutService.set(ctx.userId, parsed.data);
         return ok({ placements: parsed.data.placements.length });
+      }
+
+      case McpToolName.GET_WORKSPACES: {
+        return ok(await deps.workspacesService.get(ctx.userId));
+      }
+
+      case McpToolName.SET_WORKSPACES: {
+        const parsed = TOOL_DEFS[McpToolName.SET_WORKSPACES].schema.safeParse(args);
+        if (!parsed.success) return fail(`invalid workspaces: ${parsed.error.issues[0]?.message ?? 'bad request'}`);
+        // Only the caller's own sessions may be placed — reject a layout that references a
+        // foreign or non-existent session id (exactly like set_canvas), so the agent can't
+        // surface another user's work. `sessionLeafIds` skips `empty:*` slots; gather across
+        // every workspace's tree and dedupe before the single ownership check.
+        const ids = [...new Set(parsed.data.workspaces.flatMap((w) => sessionLeafIds(w.tree)))];
+        if (ids.length) {
+          const owned = await deps.db
+            .select({ id: sessions.id })
+            .from(sessions)
+            .where(and(inArray(sessions.id, ids), eq(sessions.createdBy, ctx.userId)));
+          const ownedIds = new Set(owned.map((r) => r.id));
+          const foreign = ids.find((id) => !ownedIds.has(id));
+          if (foreign) return fail(`workspace references a session you don't own or that doesn't exist: ${foreign}`);
+        }
+        await deps.workspacesService.set(ctx.userId, parsed.data);
+        return ok({ workspaces: parsed.data.workspaces.length });
       }
 
       case McpToolName.GET_SESSION: {

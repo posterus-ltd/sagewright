@@ -65,6 +65,7 @@ const routes: RouteObject[] = [
           { index: true, element: <SessionsListPage /> },
           { path: 'overview', element: <OverviewPage /> },
           { path: 'canvas', lazy: () => import('./canvas/CanvasPage').then((m) => ({ Component: m.CanvasPage })) },
+          { path: 'workspaces', lazy: () => import('./workspaces/WorkspacesPage').then((m) => ({ Component: m.WorkspacesPage })) },
           { path: 'galaxy', lazy: () => import('./galaxy/GalaxyPage').then((m) => ({ Component: m.GalaxyPage })) },
           { path: 'scheduled', element: <ScheduledPromptsPage /> },
           { path: 'workflows', lazy: () => import('./workflows/WorkflowsListPage').then((m) => ({ Component: m.WorkflowsListPage })) },

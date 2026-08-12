@@ -11,6 +11,7 @@ import {
   type Workflow,
   type WorkflowInput,
   type WorkflowRunDetail,
+  type Workspaces,
 } from '@sagewright/shared';
 
 import { DEMO_LATENCY_MS, DEMO_USER_ID, DEMO_USER_NAME } from './mock-data';
@@ -165,6 +166,16 @@ const route = (store: DemoStore, method: string, rawPath: string, body?: unknown
     if (method === 'PUT') {
       const layout = body as CanvasLayout;
       store.canvasLayout = { ...layout, updatedAt: new Date().toISOString() };
+      return undefined;
+    }
+  }
+
+  // --- workspaces (tiling layouts) ---
+  if (seg(0) === 'workspaces') {
+    if (method === 'GET') return store.workspaces;
+    if (method === 'PUT') {
+      const blob = body as Workspaces;
+      store.workspaces = { ...blob, updatedAt: new Date().toISOString() };
       return undefined;
     }
   }

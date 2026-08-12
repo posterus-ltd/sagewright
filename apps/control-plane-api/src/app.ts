@@ -23,6 +23,7 @@ import { registerUserRoutes } from './users/user-routes';
 import { registerUserSettingsRoutes } from './user-settings/user-settings-routes';
 import { registerRunnerRoutes } from './runners/runner-routes';
 import { registerCanvasLayoutRoutes } from './canvas-layout/canvas-layout-routes';
+import { registerWorkspacesRoutes } from './workspaces/workspaces-routes';
 import { registerWorkflowRoutes } from './workflows/workflow-routes';
 import { registerMcpRoutes } from './mcp/mcp-routes';
 import { registerGithubRoutes } from './github/github-routes';
@@ -36,6 +37,7 @@ import type { UserEnvService } from './user-env/user-env-service';
 import type { UserService } from './users/user-service';
 import type { UserSettingsService } from './user-settings/user-settings-service';
 import type { CanvasLayoutService } from './canvas-layout/canvas-layout-service';
+import type { WorkspacesService } from './workspaces/workspaces-service';
 import type { ContainerExec, ContainerTerminal } from './tasks/docker-client';
 import type { RunnerRegistry } from './runners/runner-registry';
 import type { GithubCredentialService } from './github/github-credential-service';
@@ -54,6 +56,7 @@ export interface AppDeps {
   githubCredentialService: GithubCredentialService;
   userSettingsService: UserSettingsService;
   canvasLayoutService: CanvasLayoutService;
+  workspacesService: WorkspacesService;
   workflowService: WorkflowService;
   workflowDriver: WorkflowDriver;
   containerTerminal: ContainerTerminal;
@@ -99,6 +102,7 @@ export const buildApp = (deps: AppDeps): FastifyInstance => {
   registerUserSettingsRoutes(app, deps);
   registerRunnerRoutes(app, deps);
   registerCanvasLayoutRoutes(app, deps);
+  registerWorkspacesRoutes(app, deps);
   registerWorkflowRoutes(app, deps);
   // MCP endpoint for agents (bearer-token auth, not the browser cookie). Mounted on the
   // same app so its tools call the services above directly.

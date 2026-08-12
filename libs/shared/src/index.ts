@@ -6,6 +6,8 @@ export * from './session.schema';
 export * from './workflow.schema';
 export * from './runner.schema';
 export * from './canvas-layout.schema';
+export * from './mosaic-node.schema';
+export * from './workspace.schema';
 export * from './event.schema';
 export * from './message.schema';
 export * from './terminal';
