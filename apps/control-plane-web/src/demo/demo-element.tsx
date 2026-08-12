@@ -90,9 +90,12 @@ class SagewrightDemo extends HTMLElement {
               portalContainer={portal}
               snackbarDomRoot={portal}
               // Seed an in-memory, already-signed-in identity; never touch host localStorage.
+              // The demo opens with the nav sidebar collapsed to keep the showcase focused
+              // on the canvas rather than the chrome.
               initialPreferences={{
                 displayName: DEMO_USER.username,
                 userId: DEMO_USER.id,
+                sidebarCollapsed: true,
               }}
               persistPreferences={false}
             />

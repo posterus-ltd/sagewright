@@ -244,7 +244,7 @@ const CanvasBoard: FC<BoardProps> = ({ serverLayout, tasks }) => {
   // (reuses SessionNode's existing `selected` styling).
   const zoomToSession = useCallback(
     (sessionId: string) => {
-      fitView({ nodes: [{ id: sessionId }], duration: 600, padding: 0.4, maxZoom: 1 });
+      fitView({ nodes: [{ id: sessionId }], duration: 600, padding: 0.2, maxZoom: 1.5 });
       setNodes((nds) =>
         nds.map((n) => ({ ...n, selected: n.id === sessionId })),
       );
@@ -287,6 +287,12 @@ const CanvasBoard: FC<BoardProps> = ({ serverLayout, tasks }) => {
           onMoveEnd={scheduleSave}
           defaultViewport={serverLayout.viewport}
           colorMode={theme.palette.mode}
+          // Mount only the widgets actually in view. Each SessionNode opens a live SSE
+          // stream + terminal socket on mount, so rendering every widget at once made
+          // opening a busy canvas reconnect to all sessions simultaneously — enough
+          // concurrent transcript replays to exhaust the control-plane heap. Off-screen
+          // widgets now connect lazily as they scroll into view.
+          onlyRenderVisibleElements
           minZoom={0.2}
           maxZoom={2}
           snapToGrid
