@@ -1,11 +1,12 @@
 import { type FC, useEffect, useRef, useState } from 'react';
 
 import { AsciiField } from './AsciiField';
+import { LoopBuilder } from './LoopBuilder';
 import { ThemeToggle } from './ThemeToggle';
 import {
   AUDIT_LOG,
   CRON_TABLE,
-  LOOP_DIAGRAM,
+  DELEGATION_TREE,
   SAGE_BANNER,
   SPECTRUM_LABELS,
   SPECTRUM_LEGEND,
@@ -530,11 +531,65 @@ const CopyCommand: FC<{ command: string; className?: string }> = ({
   );
 };
 
-export const LandingPage: FC = () => (
-  <>
-    <AsciiField />
-    <ThemeToggle />
-    <main className="page">
+/**
+ * A fixed announcement bar that drops in from the top once the visitor has
+ * ticked more than half of the "is it for you?" checklist — a self-qualified
+ * "yes". It carries a single CTA and a dismiss; once dismissed it stays gone
+ * for the session. The top-right gutter is left clear for the floating theme
+ * toggle, which sits above it.
+ */
+const TryBanner: FC<{ onDismiss: () => void }> = ({ onDismiss }) => (
+  <div className="try-banner" role="status">
+    <button
+      type="button"
+      className="try-banner__dismiss"
+      onClick={onDismiss}
+      aria-label="Dismiss"
+    >
+      ✕
+    </button>
+    <p className="try-banner__msg">
+      <span className="try-banner__check" aria-hidden="true">
+        ☑
+      </span>
+      Sounds like Sagewright is for you — you should try it out.
+    </p>
+    <a
+      className="cta try-banner__cta"
+      href={GITHUB_URL}
+      target="_blank"
+      rel="noreferrer"
+    >
+      ❯ try it out
+    </a>
+  </div>
+);
+
+export const LandingPage: FC = () => {
+  // Which checklist items the visitor has ticked. Ticking more than half is a
+  // self-qualified "yes" that trips the top "try it out" banner — until it is
+  // dismissed for the rest of the session.
+  const [checked, setChecked] = useState<ReadonlySet<string>>(
+    () => new Set<string>(),
+  );
+  const [dismissed, setDismissed] = useState(false);
+  const toggleItem = (id: string) =>
+    setChecked((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  const qualifies = checked.size > CHECKLIST.length / 2;
+
+  return (
+    <>
+      <AsciiField />
+      <ThemeToggle />
+      {qualifies && !dismissed && (
+        <TryBanner onDismiss={() => setDismissed(true)} />
+      )}
+      <main className="page">
       <Window title={WINDOW_TITLE}>
         <pre className="banner" aria-label="Sagewright">
           <span className="banner__sage">{SAGE_BANNER}</span>
@@ -678,11 +733,28 @@ export const LandingPage: FC = () => (
         </p>
       </Window>
 
-      <Window title="the_core_loop.sh">
-        <pre className="diagram">{LOOP_DIAGRAM}</pre>
+      <Window title="custom_loops.sh">
+        <LoopBuilder />
+      </Window>
+
+      <Window title="delegate.sh">
+        <p className="section-lead">
+          <span className="hl">Agents that dispatch agents.</span> A lead agent
+          breaks a big task into slices and delegates each to its own sub-agent
+          — spawned in parallel, every one in its own sandbox. They report back
+          and the lead synthesizes a single reviewed result. Fan-out is just
+          another tool call an agent can make.
+        </p>
+
+        <p className="prompt prompt--sm">
+          <span className="prompt__sigil">❯</span> sage delegate &ldquo;ship the
+          checkout flow&rdquo;
+        </p>
+        <pre className="audit">{DELEGATION_TREE}</pre>
         <p className="diagram__caption">
-          The system enables anyone to define and run custom self-correcting
-          loops.
+          Delegation nests to any depth — a sub-agent can dispatch its own
+          sub-agents. Every hop is a sandboxed runner in the same audit trail,
+          so the whole tree stays observable and replayable.
         </p>
       </Window>
 
@@ -777,14 +849,25 @@ export const LandingPage: FC = () => (
         </p>
 
         <ul className="checklist">
-          {CHECKLIST.map((item) => (
-            <li className="checklist__item" key={item.id}>
-              <span className="checklist__box" aria-hidden="true">
-                ☐
-              </span>
-              {item.text}
-            </li>
-          ))}
+          {CHECKLIST.map((item) => {
+            const isChecked = checked.has(item.id);
+            return (
+              <li className="checklist__item" key={item.id}>
+                <button
+                  type="button"
+                  role="checkbox"
+                  aria-checked={isChecked}
+                  className="checklist__toggle"
+                  onClick={() => toggleItem(item.id)}
+                >
+                  <span className="checklist__box" aria-hidden="true">
+                    {isChecked ? '☑' : '☐'}
+                  </span>
+                  <span className="checklist__text">{item.text}</span>
+                </button>
+              </li>
+            );
+          })}
         </ul>
 
         <p className="section-lead">
@@ -824,5 +907,6 @@ export const LandingPage: FC = () => (
         </p>
       </footer>
     </main>
-  </>
-);
+    </>
+  );
+};

@@ -25,13 +25,34 @@ export const WRIGHT_BANNER = String.raw`
 /** Box-drawing frame used to wrap a "terminal window" section. */
 export const WINDOW_TITLE = '~/sagewright — fleet';
 
-/** The work → validate → reflect core loop, drawn as an ASCII cycle. */
-export const LOOP_DIAGRAM = String.raw`
-   ┌───────────┐      ┌───────────────┐      ┌─────────────┐
-   │   work    │ ───▶ │   validate    │ ───▶ │   reflect   │
-   └───────────┘      └───────────────┘      └─────────────┘
-         ▲                                          │
-         └──────────────  ≤ 3 loops  ───────────────┘`;
+/**
+ * The delegation tree — a lead agent that fans a task out to a sub-agent per
+ * slice, each in its own sandbox, then synthesizes their reports. Mirrors the
+ * control plane's agents-dispatching-agents story. Rows are padded here so the
+ * task / runner / result columns line up in a monospace face.
+ */
+const DELEGATES: readonly (readonly [
+  task: string,
+  runner: string,
+  result: string,
+])[] = [
+  ['build the cart API', 'claude-code', '✓ opened PR #418'],
+  ['add the payment form', 'opencode', '✓ opened PR #419'],
+  ['write the e2e tests', 'codex', '✓ opened PR #420'],
+  ['audit PCI compliance', 'pi', '✓ posted 2 notes'],
+];
+
+export const DELEGATION_TREE = [
+  'lead agent ▸ "ship the checkout flow"',
+  '│  plans the work, then dispatches a sub-agent per slice — in parallel',
+  '│',
+  ...DELEGATES.map(([task, runner, result], i) => {
+    const branch = i === DELEGATES.length - 1 ? '└──' : '├──';
+    return `${branch} ${task.padEnd(22)} · ${runner.padEnd(11)} · ${result}`;
+  }),
+  '',
+  '   ▸ gathers every report → synthesizes one reviewed changeset',
+].join('\n');
 
 /** A crontab motif — routine work scheduled to run on its own cadence. */
 export const CRON_TABLE = String.raw`# schedule      cadence        recurring task

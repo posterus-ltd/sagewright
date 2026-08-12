@@ -127,6 +127,59 @@ describe('LandingPage', () => {
     expect(getByText(/no vendor lock-in/i)).toBeTruthy();
   });
 
+  it('lets visitors compose a custom self-correcting loop', () => {
+    const { getByText, getByRole } = renderPage();
+    expect(getByText(/compose your own loop/i)).toBeTruthy();
+    // The palette can add stages to the loop.
+    expect(getByRole('button', { name: /add ship stage/i })).toBeTruthy();
+    expect(getByRole('button', { name: /add review stage/i })).toBeTruthy();
+  });
+
+  it('shows a lead agent delegating slices to sub-agents', () => {
+    const { getByText } = renderPage();
+    expect(getByText(/agents that dispatch agents/i)).toBeTruthy();
+    // The delegation tree fans a task out and synthesizes the reports.
+    expect(getByText(/synthesizes one reviewed changeset/i)).toBeTruthy();
+    expect(getByText(/delegation nests to any depth/i)).toBeTruthy();
+  });
+
+  describe('is-it-for-you checklist', () => {
+    it('ticks and unticks a checklist item on click', () => {
+      const { getByRole } = renderPage();
+      const first = getByRole('checkbox', {
+        name: /run agents in the background/i,
+      });
+      expect(first.getAttribute('aria-checked')).toBe('false');
+      fireEvent.click(first);
+      expect(first.getAttribute('aria-checked')).toBe('true');
+      fireEvent.click(first);
+      expect(first.getAttribute('aria-checked')).toBe('false');
+    });
+
+    it('drops a "try it out" banner once more than half are ticked', () => {
+      const { getAllByRole, getByRole, getByText, queryByText } = renderPage();
+      const boxes = getAllByRole('checkbox');
+      // 12 items → half is 6, so ticking exactly 6 is not yet "more than half".
+      boxes.slice(0, 6).forEach((box) => fireEvent.click(box));
+      expect(queryByText(/you should try it out/i)).toBeNull();
+      // The 7th tick crosses the threshold and reveals the banner + its CTA.
+      fireEvent.click(boxes[6]);
+      expect(getByText(/you should try it out/i)).toBeTruthy();
+      const cta = getByRole('link', { name: /try it out/i }) as HTMLAnchorElement;
+      expect(cta.getAttribute('href')).toBe(
+        'https://github.com/posterus-ltd/sagewright',
+      );
+    });
+
+    it('dismisses the banner and keeps it gone', () => {
+      const { getAllByRole, getByRole, getByText, queryByText } = renderPage();
+      getAllByRole('checkbox').forEach((box) => fireEvent.click(box));
+      expect(getByText(/you should try it out/i)).toBeTruthy();
+      fireEvent.click(getByRole('button', { name: /dismiss/i }));
+      expect(queryByText(/you should try it out/i)).toBeNull();
+    });
+  });
+
   describe('hero screenshot lightbox', () => {
     const enlarge = (result: ReturnType<typeof render>, addr: RegExp) => {
       fireEvent.click(

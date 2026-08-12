@@ -325,6 +325,94 @@ body {
   border-color: var(--accent);
 }
 
+/* ---- self-qualified "try it out" banner ---- */
+
+/* A fixed top bar that drops in once the visitor ticks more than half of the
+   checklist. Sits above page content but below the theme toggle (z-index 10),
+   which floats in the reserved right-hand gutter. */
+.try-banner {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 9;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px clamp(52px, 10vw, 72px) 10px clamp(12px, 4vw, 20px);
+  background-color: var(--elevated);
+  border-bottom: 1px solid var(--accent);
+  box-shadow: 0 6px 24px -12px var(--accent-glow);
+  font-family: var(--font-mono);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .try-banner {
+    animation: try-banner-in 0.28s ease-out;
+  }
+}
+
+@keyframes try-banner-in {
+  from {
+    transform: translateY(-100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+.try-banner__dismiss {
+  flex: none;
+  padding: 2px 8px;
+  font-size: 13px;
+  line-height: 1;
+  color: var(--muted);
+  background: none;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+
+.try-banner__dismiss:hover {
+  color: var(--text);
+  border-color: var(--border);
+}
+
+.try-banner__dismiss:focus-visible,
+.try-banner__cta:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.try-banner__msg {
+  flex: 1 1 auto;
+  margin: 0;
+  font-size: 13px;
+  color: var(--text);
+}
+
+.try-banner__check {
+  margin-right: 8px;
+  color: var(--accent);
+}
+
+.try-banner__cta {
+  flex: none;
+  margin-top: 0;
+  padding: 6px 12px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+@media (max-width: 560px) {
+  .try-banner {
+    flex-wrap: wrap;
+  }
+  .try-banner__cta {
+    margin-left: auto;
+  }
+}
+
 /* ---- install one-liner (copyable command) ---- */
 
 .install {
@@ -569,9 +657,43 @@ body {
 }
 
 .checklist__item {
+  color: var(--text);
+}
+
+/* Each row is a real toggle: click (or Space/Enter) flips ☐ ↔ ☑. Unticked
+   rows read muted; ticking brightens the text to full foreground. */
+.checklist__toggle {
   display: flex;
   gap: 10px;
   align-items: baseline;
+  width: 100%;
+  margin: 0;
+  padding: 4px 6px;
+  font: inherit;
+  text-align: left;
+  color: var(--muted);
+  background: none;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition:
+    color 0.12s ease,
+    border-color 0.12s ease,
+    background-color 0.12s ease;
+}
+
+.checklist__toggle:hover {
+  color: var(--text);
+  border-color: var(--border);
+  background-color: var(--accent-wash);
+}
+
+.checklist__toggle:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.checklist__toggle[aria-checked='true'] {
   color: var(--text);
 }
 
@@ -1083,6 +1205,271 @@ body {
   color: var(--muted);
   font-style: italic;
   max-width: 60ch;
+}
+
+/* ---- interactive loop builder ---- */
+
+.lb {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* the "add stage" palette + reset */
+.lb-palette {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.lb-palette__label {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.lb-add {
+  --box-color: var(--accent);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 11px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text);
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 2px solid var(--box-color);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition:
+    color 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.lb-add__glyph {
+  color: var(--box-color);
+}
+
+.lb-add:hover {
+  color: var(--box-color);
+  border-color: var(--box-color);
+}
+
+.lb-reset {
+  margin-left: auto;
+  padding: 5px 10px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--muted);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+
+.lb-reset:hover {
+  color: var(--accent);
+}
+
+/* the composed loop, as connected stage boxes */
+.lb-flow {
+  list-style: none;
+  margin: 0;
+  padding: 14px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  background-color: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.lb-flow__item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.lb-stage {
+  --box-color: var(--accent);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 132px;
+  padding: 9px 11px;
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+  border-top: 2px solid var(--box-color);
+  border-radius: var(--radius);
+}
+
+.lb-stage__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.lb-stage__glyph {
+  color: var(--box-color);
+  font-size: 14px;
+}
+
+.lb-stage__label {
+  flex: 1;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--text);
+}
+
+.lb-stage__ctrl {
+  display: flex;
+  gap: 2px;
+}
+
+.lb-ctrl-btn {
+  width: 20px;
+  height: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1;
+  color: var(--muted);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  cursor: pointer;
+  transition:
+    color 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.lb-ctrl-btn:hover:not(:disabled) {
+  color: var(--box-color, var(--accent));
+  border-color: var(--border);
+}
+
+.lb-ctrl-btn--danger:hover:not(:disabled) {
+  color: var(--accent);
+}
+
+.lb-ctrl-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.lb-stage__hint {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--muted);
+}
+
+.lb-arrow {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+/* the loop-back edge under the flow */
+.lb-loopback {
+  display: flex;
+  justify-content: center;
+  border-top: 1px dashed var(--border);
+}
+
+.lb-loopback__label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 12px;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--accent);
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  transform: translateY(-50%);
+}
+
+/* the iteration-cap stepper */
+.lb-config {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.lb-config__label {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.lb-stepper {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.lb-stepper__btn {
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-mono);
+  font-size: 15px;
+  line-height: 1;
+  color: var(--text);
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+
+.lb-stepper__btn:hover:not(:disabled) {
+  color: var(--accent);
+}
+
+.lb-stepper__btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.lb-stepper__value {
+  min-width: 22px;
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--text);
+}
+
+.lb-config__hint {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+/* an empty loop — every stage removed */
+.lb-empty {
+  margin: 0;
+  padding: 28px 16px;
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--muted);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
 }
 
 /* ---- footer ---- */
