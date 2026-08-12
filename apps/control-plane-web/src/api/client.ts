@@ -4,6 +4,8 @@ export class ApiError extends Error {
   constructor(public status: number, message: string) { super(message); }
 }
 
+export type ApiClient = ReturnType<typeof createApiClient>;
+
 // A 401 on /api/login means "bad credentials" — surfaced to the login form, not
 // a session expiry — so it must not trigger the global sign-out.
 const LOGIN_PATH = '/api/login';
@@ -59,4 +61,11 @@ const handlePasswordChangeRequired = (): void => {
   else window.location.assign('/');
 };
 
-export const apiClient = createApiClient('', handleUnauthorized, handlePasswordChangeRequired);
+/**
+ * The real, same-origin fetch client used by the browser SPA. It's provided to the app
+ * through `ApiClientProvider` (see api/ApiClientProvider.tsx) and read via `useApiClient`;
+ * the demo build provides an in-memory mock client instead, so no demo code is pulled into
+ * the SPA bundle at all.
+ */
+export const createRealApiClient = (): ApiClient =>
+  createApiClient('', handleUnauthorized, handlePasswordChangeRequired);

@@ -2,6 +2,7 @@ import { Box, Button, Typography } from '@mui/material';
 import { type FC } from 'react';
 
 import { ChangePasswordForm } from '../components/ChangePasswordForm';
+import { useAppHeight } from '../theme/layout';
 import { fonts } from '../theme/tokens';
 import { useAuth } from './useAuth';
 
@@ -11,11 +12,12 @@ import { useAuth } from './useAuth';
 // change invalidates `me`, so the gate re-renders and lets the app through.
 export const ForcedChangePassword: FC = () => {
   const { logout } = useAuth();
+  const appH = useAppHeight();
 
   return (
     <Box
       sx={{
-        minHeight: '100dvh',
+        minHeight: appH,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',

@@ -4,6 +4,7 @@ import { type FC } from 'react';
 import { useLocation, useNavigate } from 'react-router';
 
 import { usePrefersReducedMotion } from '../galaxy/usePrefersReducedMotion';
+import { useAppHeight } from '../theme/layout';
 import { fonts } from '../theme/tokens';
 
 /**
@@ -126,11 +127,12 @@ export const NotFoundPage: FC = () => {
   const navigate = useNavigate();
   const { pathname } = useLocation();
   const reducedMotion = usePrefersReducedMotion();
+  const appH = useAppHeight();
 
   return (
     <Box
       sx={{
-        minHeight: '100dvh',
+        minHeight: appH,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',

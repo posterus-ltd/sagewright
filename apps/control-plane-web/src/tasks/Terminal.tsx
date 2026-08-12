@@ -7,13 +7,7 @@ import '@xterm/xterm/css/xterm.css';
 import { EventType, type StreamEvent, type TerminalKind } from '@sagewright/shared';
 
 import { nextReconnectDelay } from './reconnect';
-
-const wsUrl = (taskId: string, kind: TerminalKind, cols: number, rows: number): string => {
-  const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-  // cols/rows let the server create the PTY already sized, so the opencode TUI's
-  // first paint is correct instead of relying on a post-connect resize.
-  return `${proto}//${window.location.host}/api/tasks/${taskId}/terminal?kind=${kind}&cols=${cols}&rows=${rows}`;
-};
+import { useTransport } from './TransportProvider';
 
 /**
  * Renders an interactive terminal attached to a remote container PTY over a
@@ -37,6 +31,7 @@ export const Terminal: FC<{
   // actions, dictation) into the PTY exactly like keystrokes.
   inputRef?: RefObject<((data: string) => void) | null>;
 }> = ({ taskId, kind, events = [], inputRef }) => {
+  const transport = useTransport();
   const hostRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<Xterm | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
@@ -72,7 +67,7 @@ export const Terminal: FC<{
     // The socket may drop (proxy idle timeout, mobile radio) while the agent keeps
     // running server-side — re-attach with backoff instead of leaving a dead pane.
     const connect = (): void => {
-      const socket = new WebSocket(wsUrl(taskId, kind, term.cols, term.rows));
+      const socket = transport.openTerminalSocket(taskId, kind, term.cols, term.rows);
       socket.binaryType = 'arraybuffer';
       wsRef.current = socket;
 
@@ -129,7 +124,7 @@ export const Terminal: FC<{
       termRef.current = null;
       term.dispose();
     };
-  }, [taskId, kind, inputRef]);
+  }, [taskId, kind, inputRef, transport]);
 
   useEffect(() => {
     const term = termRef.current;

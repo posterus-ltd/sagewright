@@ -12,6 +12,7 @@ import {
 } from '@mui/material';
 import { type FC, useState } from 'react';
 
+import { useAppHeight } from '../theme/layout';
 import { fonts } from '../theme/tokens';
 
 interface ErrorFallbackProps {
@@ -39,6 +40,7 @@ export const ErrorFallback: FC<ErrorFallbackProps> = ({
   componentStack,
 }) => {
   const [expanded, setExpanded] = useState(false);
+  const appH = useAppHeight();
 
   const handleReload = (): void => {
     window.location.reload();
@@ -60,7 +62,7 @@ export const ErrorFallback: FC<ErrorFallbackProps> = ({
     <Box
       role="alert"
       sx={{
-        minHeight: '100dvh',
+        minHeight: appH,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',

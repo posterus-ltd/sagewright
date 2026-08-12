@@ -32,7 +32,9 @@ import { useState, type FC, type MouseEvent, type ReactNode } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router';
 
 import { useAuth } from '../auth/useAuth';
+import { useIsDemo } from '../DemoModeProvider';
 import { useUserPreferences } from '../preferences/UserPreferencesProvider';
+import { useAppHeight } from '../theme/layout';
 import { useThemeMode, ThemeMode } from '../theme/ThemeModeProvider';
 import { fonts } from '../theme/tokens';
 import { useCommandPalette } from './command-palette/CommandPaletteProvider';
@@ -177,6 +179,8 @@ const LABEL: Record<ThemeMode, string> = {
 };
 
 export const Sidebar: FC = () => {
+  const isDemo = useIsDemo();
+  const appH = useAppHeight();
   const location = useLocation();
   const navigate = useNavigate();
   const { open: openCommandPalette } = useCommandPalette();
@@ -205,7 +209,7 @@ export const Sidebar: FC = () => {
       sx={{
         width: collapsed ? COLLAPSED : EXPANDED,
         flexShrink: 0,
-        height: '100dvh',
+        height: appH,
         display: 'flex',
         flexDirection: 'column',
         bgcolor: 'background.paper',
@@ -319,15 +323,18 @@ export const Sidebar: FC = () => {
 
       <Box sx={{ flexGrow: 1 }} />
 
-      {/* Settings · about · user */}
+      {/* Settings · about · user. The demo hides Settings + Sign-out (out of the
+          showcase scope) and shows the identity chip as a plain, non-actionable row. */}
       <Box sx={{ display: 'flex', flexDirection: 'column', py: 1, gap: 0.5 }}>
-        <Row
-          to="/settings"
-          icon={<SettingsRounded fontSize="small" />}
-          label="Settings"
-          collapsed={collapsed}
-          active={settingsActive}
-        />
+        {!isDemo && (
+          <Row
+            to="/settings"
+            icon={<SettingsRounded fontSize="small" />}
+            label="Settings"
+            collapsed={collapsed}
+            active={settingsActive}
+          />
+        )}
         <Row
           to="/about"
           icon={<InfoOutlined fontSize="small" />}
@@ -340,7 +347,7 @@ export const Sidebar: FC = () => {
           label={displayName ?? 'Account'}
           title={displayName ?? 'Account'}
           collapsed={collapsed}
-          onClick={(e) => setUserAnchor(e.currentTarget)}
+          onClick={isDemo ? undefined : (e) => setUserAnchor(e.currentTarget)}
         />
         <Divider sx={{ my: 0.5 }} />
         {/* Compact icon controls divided by rules: theme · width · collapse.

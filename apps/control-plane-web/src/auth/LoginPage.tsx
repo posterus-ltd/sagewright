@@ -9,6 +9,7 @@ import { useSnackbar } from 'notistack';
 import { useState, type FC, type ReactNode } from 'react';
 import { useNavigate } from 'react-router';
 
+import { useAppHeight } from '../theme/layout';
 import { fonts } from '../theme/tokens';
 import { useAuth } from './useAuth';
 
@@ -187,8 +188,10 @@ export const LoginPage: FC = () => {
     }
   };
 
+  const appH = useAppHeight();
+
   return (
-    <Box sx={{ minHeight: '100dvh', display: 'flex', bgcolor: 'background.default' }}>
+    <Box sx={{ minHeight: appH, display: 'flex', bgcolor: 'background.default' }}>
       <MarketingPanel />
 
       <Box

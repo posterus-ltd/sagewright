@@ -17,7 +17,13 @@ export enum ThemeMode {
 // Builds a MUI theme from our tokens. The overrides push MUI away from its
 // stock Material look (drop shadows, big radii, uppercase buttons) toward a
 // flat, hairline-bordered, terminal-adjacent surface.
-export const buildTheme = (mode: ResolvedMode): Theme => {
+//
+// `portalContainer` is only passed by the demo web component: MUI overlays
+// (Menu/Select/Tooltip/Dialog/Drawer) portal to `document.body` by default, which
+// escapes the demo's shadow root and loses all Emotion styling. Routing them to a
+// node *inside* the shadow root fixes that. In the SPA it is `undefined`, which is
+// exactly MUI's default (`document.body`) — so the SPA is unchanged.
+export const buildTheme = (mode: ResolvedMode, portalContainer?: HTMLElement): Theme => {
   const p = palettes[mode];
 
   return createTheme({
@@ -114,6 +120,12 @@ export const buildTheme = (mode: ResolvedMode): Theme => {
           },
         },
       },
+      // Keep every portaled overlay inside the demo's shadow root (no-op in the SPA,
+      // where `portalContainer` is undefined). Per-instance `container=` props — e.g.
+      // the canvas quick-actions popover — still override these defaults.
+      MuiPopover: { defaultProps: { container: portalContainer } }, // Menu, Select, Autocomplete popup
+      MuiPopper: { defaultProps: { container: portalContainer } }, // Tooltip, Autocomplete
+      MuiModal: { defaultProps: { container: portalContainer } }, // Dialog, Drawer, Modal
     },
   });
 };

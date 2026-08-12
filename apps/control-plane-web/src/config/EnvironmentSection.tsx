@@ -3,7 +3,7 @@ import VisibilityIcon from '@mui/icons-material/Visibility';
 import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
 import { useState, type FC } from 'react';
 
-import { revealUserEnv, useUpdateUserEnv, useUserEnv } from '../api/hooks';
+import { useRevealUserEnv, useUpdateUserEnv, useUserEnv } from '../api/hooks';
 
 const ENV_PLACEHOLDER = `OPENAI_API_KEY=sk-...
 NPM_TOKEN=...
@@ -12,6 +12,7 @@ NODE_AUTH_TOKEN=...`;
 export const EnvironmentSection: FC = () => {
   const { data } = useUserEnv();
   const updateEnv = useUpdateUserEnv();
+  const revealUserEnv = useRevealUserEnv();
   const masked = data?.env ?? '';
   // Masked + read-only by default; revealing fetches plaintext and unlocks editing.
   const [revealed, setRevealed] = useState(false);

@@ -17,3 +17,9 @@ export const initI18N = () =>
         escapeValue: false, // not needed for react as it escapes by default
       },
     });
+
+// i18next is a module singleton, so it must be initialised exactly once per page.
+// The demo web component can mount several instances (and remount on re-attach);
+// this memoises the single init promise so they all await the same one.
+let initPromise: ReturnType<typeof initI18N> | null = null;
+export const ensureI18N = (): ReturnType<typeof initI18N> => (initPromise ??= initI18N());

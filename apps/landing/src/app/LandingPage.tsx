@@ -2,6 +2,7 @@ import { type FC, useEffect, useRef, useState } from 'react';
 
 import { AsciiField } from './AsciiField';
 import { LoopBuilder } from './LoopBuilder';
+import { SagewrightDemo } from './SagewrightDemo';
 import { ThemeToggle } from './ThemeToggle';
 import {
   AUDIT_LOG,
@@ -655,6 +656,8 @@ export const LandingPage: FC = () => {
 
           <HeroGallery />
         </Window>
+
+        <SagewrightDemo />
 
         <Window title="README.md">
           <ul className="features">

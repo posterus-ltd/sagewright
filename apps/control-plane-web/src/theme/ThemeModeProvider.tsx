@@ -24,7 +24,10 @@ export const resolveMode = (mode: ThemeMode, prefersDark: boolean): ResolvedMode
   return mode === ThemeMode.DARK ? ResolvedMode.DARK : ResolvedMode.LIGHT;
 };
 
-export const ThemeModeProvider: FC<{ children: ReactNode }> = ({ children }) => {
+export const ThemeModeProvider: FC<{ children: ReactNode; portalContainer?: HTMLElement }> = ({
+  children,
+  portalContainer,
+}) => {
   // The user's choice is persisted as a user preference; only the live
   // OS-preference resolution stays local to this provider.
   const { preference: mode, updatePreference: setMode } = useUserPreferences('themeMode', ThemeMode.SYSTEM);
@@ -40,7 +43,7 @@ export const ThemeModeProvider: FC<{ children: ReactNode }> = ({ children }) => 
   }, []);
 
   const resolvedMode = resolveMode(mode, prefersDark);
-  const theme = useMemo(() => buildTheme(resolvedMode), [resolvedMode]);
+  const theme = useMemo(() => buildTheme(resolvedMode, portalContainer), [resolvedMode, portalContainer]);
   const value = useMemo<ThemeModeContextValue>(
     () => ({ mode, resolvedMode, setMode }),
     [mode, resolvedMode, setMode],

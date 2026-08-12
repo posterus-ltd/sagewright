@@ -1,6 +1,8 @@
 import { EventType, type StreamEvent } from '@sagewright/shared';
 import { useEffect, useRef, useState } from 'react';
 
+import { useTransport } from './TransportProvider';
+
 const TYPES = Object.values(EventType);
 
 const parseStreamPayload = (data: unknown): Record<string, unknown> | null => {
@@ -14,6 +16,7 @@ const parseStreamPayload = (data: unknown): Record<string, unknown> | null => {
 };
 
 export const useTaskStream = (taskId: string): { events: StreamEvent[]; connected: boolean } => {
+  const transport = useTransport();
   const [events, setEvents] = useState<StreamEvent[]>([]);
   const [connected, setConnected] = useState(false);
   const seen = useRef<Set<number>>(new Set());
@@ -22,7 +25,7 @@ export const useTaskStream = (taskId: string): { events: StreamEvent[]; connecte
     seen.current = new Set();
     setEvents([]);
     setConnected(false);
-    const es = new EventSource(`/api/tasks/${taskId}/stream`, { withCredentials: true });
+    const es = transport.openEventStream(`/api/tasks/${taskId}/stream`);
     es.onopen = () => setConnected(true);
     es.onerror = () => setConnected(false);
     const onEvent = (type: string) => (e: MessageEvent) => {
@@ -38,7 +41,7 @@ export const useTaskStream = (taskId: string): { events: StreamEvent[]; connecte
     };
     for (const t of TYPES) es.addEventListener(t, onEvent(t));
     return () => es.close();
-  }, [taskId]);
+  }, [taskId, transport]);
 
   return { events, connected };
 };

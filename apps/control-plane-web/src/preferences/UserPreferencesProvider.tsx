@@ -45,20 +45,34 @@ const migrateLegacyDisplayName = (preferences: Partial<UserPreferences>): Partia
   return next;
 };
 
-export const UserPreferencesProvider: FC<PropsWithChildren> = ({ children }) => {
+interface UserPreferencesProviderProps extends PropsWithChildren {
+  // The demo web component seeds an in-memory, already-signed-in identity and turns
+  // persistence off (`persist={false}`) so it never reads or writes the host page's
+  // localStorage. Both are undefined in the SPA, preserving current behavior exactly.
+  initialPreferences?: Partial<UserPreferences>;
+  persist?: boolean;
+}
+
+export const UserPreferencesProvider: FC<UserPreferencesProviderProps> = ({
+  children,
+  initialPreferences,
+  persist = true,
+}) => {
   // The whole preferences object lives in provider state so every consumer
   // re-renders when any preference changes; localStorage is the durable mirror.
-  const [preferences, setPreferences] = useState<Partial<UserPreferences>>(readStoredPreferences);
+  const [preferences, setPreferences] = useState<Partial<UserPreferences>>(() =>
+    initialPreferences ?? readStoredPreferences(),
+  );
 
   const setPreference = useCallback(
     <P extends keyof UserPreferences>(name: P, value: UserPreferences[P]): void => {
       setPreferences((prev) => {
         const next = { ...prev, [name]: value };
-        localStorage.setItem(PREFERENCES_STORAGE_KEY, JSON.stringify(next));
+        if (persist) localStorage.setItem(PREFERENCES_STORAGE_KEY, JSON.stringify(next));
         return next;
       });
     },
-    [],
+    [persist],
   );
 
   const value = useMemo<UserPreferencesContextValue>(

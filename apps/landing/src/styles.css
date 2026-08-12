@@ -198,6 +198,31 @@ body {
   color: var(--muted);
 }
 
+/* Pushed to the right of the window bar; toggles native fullscreen on the demo frame. */
+.window__fullscreen {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 7px;
+  color: var(--muted);
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    color 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.window__fullscreen:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
 .window__body {
   padding: clamp(16px, 4vw, 32px);
   /* Acts as a query container so the fixed-width ASCII banner can scale to fit
@@ -1534,6 +1559,17 @@ body {
   display: block;
   width: 100%;
   height: 100%;
+}
+
+/* In native fullscreen the frame fills the screen; the app inside uses 100% height so it
+   follows automatically. Drop the rounded corner/border that only make sense when framed. */
+.demo-frame:fullscreen,
+.demo-frame:-webkit-full-screen {
+  width: 100vw;
+  height: 100vh;
+  border: none;
+  border-radius: 0;
+  margin-top: 0;
 }
 
 .demo-frame__launch {
