@@ -58,16 +58,16 @@ const NAV = [
     match: (p: string) => p === '/' || p.startsWith('/tasks'),
   },
   {
-    to: '/canvas',
-    label: 'Canvas',
-    icon: <GridViewRounded fontSize="small" />,
-    match: (p: string) => p.startsWith('/canvas'),
-  },
-  {
     to: '/workspaces',
     label: 'Workspaces',
     icon: <ViewQuiltRounded fontSize="small" />,
     match: (p: string) => p.startsWith('/workspaces'),
+  },
+  {
+    to: '/canvas',
+    label: 'Canvas',
+    icon: <GridViewRounded fontSize="small" />,
+    match: (p: string) => p.startsWith('/canvas'),
   },
   {
     to: '/galaxy',
