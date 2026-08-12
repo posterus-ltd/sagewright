@@ -142,7 +142,12 @@ export const SagewrightDemo: FC = () => {
 
         <div className="demo-frame" ref={frameRef}>
           {ready ? (
-            <SagewrightDemoElement route="/" style={{ display: 'block', width: '100%', height: '100%' }} />
+            // Open straight onto the hero interactive session (a live agent terminal)
+            // rather than the sessions list, so a visitor lands on the app working. The
+            // in-memory router treats this as its initial entry; the detail page's
+            // "Sessions" breadcrumb navigates back to the list. `s-hero` is the demo
+            // fixture's HERO_SESSION_ID (apps/control-plane-web/src/demo/mock-data.ts).
+            <SagewrightDemoElement route="/tasks/s-hero" style={{ display: 'block', width: '100%', height: '100%' }} />
           ) : failed ? (
             <div className="demo-frame__fallback">
               <p>The live demo couldn&rsquo;t load. Try the screenshots above, or the repo.</p>
