@@ -77,18 +77,20 @@
     "drizzle-orm": "^0.45.2",
     "execa": "^9.6.1",
     "fastify": "^5.8.5",
+    "i18next": "^23.4.6",
+    "i18next-browser-languagedetector": "^8.2.1",
     "jose": "^6.2.8",
     "luxon": "^3.7.2",
     "notistack": "^3.0.2",
     "pg": "^8.22.0",
+    "pg-query-stream": "^4.17.0",
     "r3f-forcegraph": "^1.1.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "react-i18next": "^13.0.2",
+    "react-resizable-panels": "^3.0.6",
     "react-router": "^8.0.1",
     "three": "^0.185.1",
-    "zod": "^4.4.3",
-    "i18next": "^23.4.6",
-    "react-i18next": "^13.0.2",
-    "i18next-browser-languagedetector": "^8.2.1"
+    "zod": "^4.4.3"
   }
 }

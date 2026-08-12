@@ -1,7 +1,20 @@
-import { EventType } from '@sagewright/shared';
+import { EventType, type StreamEvent } from '@sagewright/shared';
 import { describe, expect, it, vi } from 'vitest';
 
 import { formatSseFrame, streamTaskEvents } from './stream-route';
+
+// The replay is now consumed as an async iterator (a server-side cursor in prod). Feed the
+// tests a synchronous array behind the same interface.
+const arrayIterator = <T extends StreamEvent>(items: T[]): AsyncIterator<T> => {
+  let i = 0;
+  return {
+    next: (): Promise<IteratorResult<T>> => {
+      const item = items[i++];
+      return Promise.resolve(item ? { value: item, done: false } : { value: undefined as never, done: true });
+    },
+    return: (): Promise<IteratorResult<T>> => Promise.resolve({ value: undefined as never, done: true }),
+  };
+};
 
 describe('formatSseFrame', () => {
   it('formats an SSE frame with id, event, and data', () => {
@@ -31,11 +44,10 @@ describe('streamTaskEvents', () => {
 
     await streamTaskEvents({
       iterator: fakeIterator,
-      readSince: (_afterSeq) =>
-        Promise.resolve([
-          { seq: 1, type: EventType.LOG, payload: { line: 'a' }, createdAt: 't1' },
-          { seq: 2, type: EventType.LOG, payload: { line: 'b' }, createdAt: 't2' },
-        ]),
+      replay: arrayIterator([
+        { seq: 1, type: EventType.LOG, payload: { line: 'a' }, createdAt: 't1' },
+        { seq: 2, type: EventType.LOG, payload: { line: 'b' }, createdAt: 't2' },
+      ]),
       lastEventId: 0,
       write,
     });
@@ -68,7 +80,7 @@ describe('streamTaskEvents', () => {
 
     await streamTaskEvents({
       iterator: emptyIterator,
-      readSince: () => Promise.resolve(stored),
+      replay: arrayIterator(stored),
       lastEventId: 0,
       write: (f) => {
         writes.push(f);

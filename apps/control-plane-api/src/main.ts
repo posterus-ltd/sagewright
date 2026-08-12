@@ -1,3 +1,5 @@
+import { Pool } from 'pg';
+
 import { loadConfig } from './config';
 import { createSecretCipher } from './crypto/secret-cipher';
 import { createDb } from './db/client';
@@ -18,7 +20,11 @@ import { createCanvasLayoutService } from './canvas-layout/canvas-layout-service
 import { createWorkflowService } from './workflows/workflow-service';
 import { createWorkflowDriver } from './workflows/workflow-driver';
 import { SESSION_LABEL, createRunnerSpawner } from './tasks/runner-spawner';
-import { createDockerClient, createContainerTerminal, createContainerExec } from './tasks/docker-client';
+import {
+  createDockerClient,
+  createContainerTerminal,
+  createContainerExec,
+} from './tasks/docker-client';
 import { createAgentDriver } from './tasks/agent-driver';
 import { createUserSettingsService } from './user-settings/user-settings-service';
 import { createRunnerRegistry } from './runners/runner-registry';
@@ -27,7 +33,13 @@ import { buildApp } from './app';
 
 const config = loadConfig(process.env);
 const { db, pool } = createDb(config.databaseUrl);
-const eventStore = createEventStore(db);
+// A dedicated, bounded pool for SSE replay cursors. streamSince holds one client for the
+// duration of a stored-transcript replay (bounded heap, but the client is pinned while a
+// slow viewer drains — realistic once remote-relay access lands). Isolating it here means
+// a screenful of slow replays can never starve the main query pool. The live-tail phase
+// uses the in-memory event bus, so no DB client is held once replay finishes.
+const replayPool = new Pool({ connectionString: config.databaseUrl, max: 6 });
+const eventStore = createEventStore(db, replayPool);
 const eventBus = createEventBus();
 // One shared dockerode client for both spawning and exec'ing into containers.
 const docker = createDockerClient();
@@ -35,12 +47,26 @@ const spawner = createRunnerSpawner(config, () => docker);
 const containerTerminal = createContainerTerminal(docker);
 // Drives the predefined start script over `docker exec` and runs git/PR for headless sessions.
 const containerExec = createContainerExec(docker);
-const agentDriver = createAgentDriver({ db, eventStore, eventBus, exec: containerExec, retire: spawner.retire });
+const agentDriver = createAgentDriver({
+  db,
+  eventStore,
+  eventBus,
+  exec: containerExec,
+  retire: spawner.retire,
+});
 // Owns the shared repo volume: all clone/pull/worktree writes funnel through here.
 const volume = createVolume({ token: config.githubToken });
 const userService = createUserService({ db });
-const userEnvService = createUserEnvService({ db, cipher: createSecretCipher(config.secretsKey) });
-const githubCredentialService = createGithubCredentialService({ db, cipher: createSecretCipher(config.secretsKey), config, userEnvService });
+const userEnvService = createUserEnvService({
+  db,
+  cipher: createSecretCipher(config.secretsKey),
+});
+const githubCredentialService = createGithubCredentialService({
+  db,
+  cipher: createSecretCipher(config.secretsKey),
+  config,
+  userEnvService,
+});
 const repoService = createRepoService({ db, volume, githubCredentialService });
 const canvasLayoutService = createCanvasLayoutService({ db });
 const userSettingsService = createUserSettingsService({ db });
@@ -50,12 +76,43 @@ const runnerRegistry = createRunnerRegistry({ docker });
 const mcpToken = createMcpToken(config.sessionSecret);
 // The single seam every run path provisions through. Owns insert→spawn→container_id
 // and the FAILED-on-throw contract; task/workflow services attach the drive policy.
-const sessionService = createSessionService({ db, eventStore, eventBus, spawner, volume, config, userEnvService, githubCredentialService, userSettingsService, runnerRegistry, mcpToken });
+const sessionService = createSessionService({
+  db,
+  eventStore,
+  eventBus,
+  spawner,
+  volume,
+  config,
+  userEnvService,
+  githubCredentialService,
+  userSettingsService,
+  runnerRegistry,
+  mcpToken,
+});
 // In-process registry of live interactive agent execs, decoupled from the browser socket.
 const sessionRuntime = createSessionRuntime({ agentDriver });
-const taskService = createTaskService({ db, eventStore, eventBus, spawner, agentDriver, containerExec, volume, sessionService, sessionRuntime });
+const taskService = createTaskService({
+  db,
+  eventStore,
+  eventBus,
+  spawner,
+  agentDriver,
+  containerExec,
+  volume,
+  sessionService,
+  sessionRuntime,
+});
 const workflowService = createWorkflowService({ db });
-const workflowDriver = createWorkflowDriver({ db, spawner, sessionService, agentDriver, exec: containerExec, volume, config, githubCredentialService });
+const workflowDriver = createWorkflowDriver({
+  db,
+  spawner,
+  sessionService,
+  agentDriver,
+  exec: containerExec,
+  volume,
+  config,
+  githubCredentialService,
+});
 // Single-leader scheduling across replicas: only the instance that wins this advisory
 // lock runs the crons. `pg_try_advisory_lock` is CONNECTION-scoped, so the lock must be
 // taken — and held — on one stable connection. Using `pool.query` would check out a
@@ -94,7 +151,10 @@ const scheduler = createScheduler({
           onLeaderLoss();
         });
       }
-      const res = await leaderClient.query<{ ok: boolean }>('SELECT pg_try_advisory_lock($1) AS ok', [SCHEDULER_LOCK_KEY]);
+      const res = await leaderClient.query<{ ok: boolean }>(
+        'SELECT pg_try_advisory_lock($1) AS ok',
+        [SCHEDULER_LOCK_KEY],
+      );
       isLeader = res.rows[0]?.ok ?? false;
       return isLeader;
     },
@@ -117,27 +177,62 @@ const reconciler = createReconciler({
   // Every runner/ops box is labeled with its session id at spawn — the sweep's
   // only handle for containers whose id never reached a session row.
   listLabeledContainers: async () => {
-    const list = await docker.listContainers({ all: true, filters: { label: [SESSION_LABEL] } });
-    return list.map((c) => ({ containerId: c.Id, sessionId: c.Labels?.[SESSION_LABEL] ?? '' }));
+    const list = await docker.listContainers({
+      all: true,
+      filters: { label: [SESSION_LABEL] },
+    });
+    return list.map((c) => ({
+      containerId: c.Id,
+      sessionId: c.Labels?.[SESSION_LABEL] ?? '',
+    }));
   },
   retire: spawner.retire,
   removeSessionWorktrees: volume.removeSessionWorktrees,
   resumeWorkflow: workflowDriver.resume,
 });
 
-const app = buildApp({ config, db, eventStore, eventBus, sessionService, sessionRuntime, taskService, repoService, userService, userEnvService, githubCredentialService, userSettingsService, canvasLayoutService, workflowService, workflowDriver, containerTerminal, containerExec, volume, scheduler, runnerRegistry });
+const app = buildApp({
+  config,
+  db,
+  eventStore,
+  eventBus,
+  sessionService,
+  sessionRuntime,
+  taskService,
+  repoService,
+  userService,
+  userEnvService,
+  githubCredentialService,
+  userSettingsService,
+  canvasLayoutService,
+  workflowService,
+  workflowDriver,
+  containerTerminal,
+  containerExec,
+  volume,
+  scheduler,
+  runnerRegistry,
+});
 
 // The scheduler is built before the app (the app depends on it), so hand it the
 // Fastify logger now that the app exists — failed scheduled runs go to the app log.
-scheduler.setLogger({ error: (err, msg) => app.log.error({ err: String(err) }, msg) });
+scheduler.setLogger({
+  error: (err, msg) => app.log.error({ err: String(err) }, msg),
+});
 
 const start = async (): Promise<void> => {
   try {
     // Seed the `root` account from ROOT_PASSWORD before accepting traffic. Idempotent,
     // so it is a no-op on every boot after the first. Root starts with
     // mustChangePassword=true, forcing the operator to change it on first login.
-    const created = await seedRootUser({ userService, rootPassword: config.rootPassword });
-    if (created) app.log.info('seeded initial root user (change its password on first login)');
+    const created = await seedRootUser({
+      userService,
+      rootPassword: config.rootPassword,
+    });
+    if (created)
+      app.log.info(
+        'seeded initial root user (change its password on first login)',
+      );
     // Surface a stale operator default loudly at boot. The fallback image is trusted
     // (it's used whenever a user has no stored default), so if it isn't actually built
     // every such task — including scheduled runs — would 404 at container creation.
@@ -151,7 +246,11 @@ const start = async (): Promise<void> => {
     }
     // Reconcile DB↔container reality BEFORE accepting traffic so the API never serves
     // stale 'running' rows or leaks orphaned containers across a restart.
-    await reconciler.reconcile().catch((err) => app.log.error({ err: String(err) }, 'boot reconcile failed'));
+    await reconciler
+      .reconcile()
+      .catch((err) =>
+        app.log.error({ err: String(err) }, 'boot reconcile failed'),
+      );
     await scheduler.start();
     await app.listen({ port: config.port, host: '0.0.0.0' });
     app.log.info(`control-plane-api listening on port ${config.port}`);
