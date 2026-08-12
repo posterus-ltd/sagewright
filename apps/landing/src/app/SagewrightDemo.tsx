@@ -125,19 +125,23 @@ export const SagewrightDemo: FC = () => {
             type="button"
             className="window__fullscreen"
             onClick={toggleFullscreen}
-            aria-label={fullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
-            title={fullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
+            aria-label={fullscreen ? 'Exit fullscreen' : 'Try the demo in fullscreen'}
+            title={fullscreen ? 'Exit fullscreen' : 'Try the demo in fullscreen'}
           >
-            {fullscreen ? '⤪' : '⛶'}
+            <span aria-hidden="true">{fullscreen ? '⤪' : '⛶'}</span>
+            <span className="window__fullscreen-label">
+              {fullscreen ? 'Exit fullscreen' : 'Try the demo in fullscreen'}
+            </span>
           </button>
         )}
       </div>
       <div className="window__body">
         <p className="section-lead">
           <span className="hl">The real control plane — live in your browser.</span> This
-          is the actual app running on mock data: click through sessions, watch an agent
-          work in a terminal, and explore the canvas &amp; galaxy. Nothing here touches a
-          server.
+          is the actual app UI: click through sessions, watch an agent work in a terminal,
+          and explore the canvas &amp; galaxy. Heads up — it&rsquo;s a guided demo: the
+          flows are largely hard-coded and much of the functionality is mocked, so it runs
+          on canned data and nothing here touches a server.
         </p>
 
         <div className="demo-frame" ref={frameRef}>
